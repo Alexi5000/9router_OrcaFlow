@@ -49,6 +49,17 @@ export async function getModelInfo(modelStr) {
     return { provider: null, model: parsed.model };
   }
 
+  // Resolve alias first — if alias points to a combo name (bare string, no "/"),
+  // we need to check if the resolved value is a combo before falling through
+  const aliases = await getModelAliases();
+  const aliasValue = aliases?.[parsed.model];
+  if (typeof aliasValue === "string" && !aliasValue.includes("/")) {
+    const aliasCombo = await getComboByName(aliasValue);
+    if (aliasCombo) {
+      return { provider: null, model: aliasValue };
+    }
+  }
+
   return getModelInfoCore(modelStr, getModelAliases);
 }
 

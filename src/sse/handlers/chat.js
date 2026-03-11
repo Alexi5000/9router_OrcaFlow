@@ -104,10 +104,12 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   const modelInfo = await getModelInfo(modelStr);
 
   // If provider is null, this might be a combo name - check and handle
+  // Use modelInfo.model (alias-resolved) not modelStr (original), since aliases can point to combo names
   if (!modelInfo.provider) {
-    const comboModels = await getComboModels(modelStr);
+    const comboName = modelInfo.model || modelStr;
+    const comboModels = await getComboModels(comboName);
     if (comboModels) {
-      log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models`);
+      log.info("CHAT", `Combo "${comboName}" with ${comboModels.length} models (from ${modelStr})`);
       return handleComboChat({
         body,
         models: comboModels,

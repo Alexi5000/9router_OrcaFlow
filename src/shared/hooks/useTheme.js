@@ -49,12 +49,14 @@ export function useTheme() {
 
   // Compute isDark from current state (no effect needed)
   const isDark = theme === "dark" || (theme === "system" && systemPrefersDark);
+  const isCyberpunk = theme === "cyberpunk";
 
   return {
     theme,
     setTheme,
     toggleTheme,
     isDark,
+    isCyberpunk,
   };
 }
 

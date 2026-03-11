@@ -58,8 +58,8 @@ export async function POST(request) {
     }
 
     const keyData = getResult.data;
-    if (!keyData.name) {
-      return NextResponse.json({ error: "Missing name in API key info" }, { status: 400 });
+    if (!keyData || !keyData.name) {
+      return NextResponse.json({ error: "Missing API key data — cookie may be expired. Please log in to platform.iflow.cn and get a fresh BXAuth cookie." }, { status: 401 });
     }
 
     // Step 2: POST to refresh API key

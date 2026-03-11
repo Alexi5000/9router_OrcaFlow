@@ -1,8 +1,8 @@
 export default function manifest() {
   return {
-    name: '9Router - AI Infrastructure Management',
-    short_name: '9Router',
-    description: 'One endpoint for all your AI providers. Manage keys, monitor usage, and scale effortlessly.',
+    name: 'OrcaFlow - AI Infrastructure Management',
+    short_name: 'OrcaFlow',
+    description: 'OrcaFlow by TechTide AI — One endpoint for all your AI providers. Based on 9Router.',
     start_url: '/',
     display: 'standalone',
     background_color: '#0a0a0a',

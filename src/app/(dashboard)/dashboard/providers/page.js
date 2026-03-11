@@ -95,7 +95,7 @@ export default function ProvidersPage() {
 
   const getProviderStats = (providerId, authType) => {
     const providerConnections = connections.filter(
-      (c) => c.provider === providerId && c.authType === authType
+      (c) => c.provider === providerId && (authType === null || c.authType === authType)
     );
 
     const getEffectiveStatus = (conn) => {
@@ -270,7 +270,7 @@ export default function ProvidersPage() {
               key={key}
               providerId={key}
               provider={info}
-              stats={getProviderStats(key, "oauth")}
+              stats={getProviderStats(key, null)}
               authType="free"
               onToggle={(active) => handleToggleProvider(key, "oauth", active)}
             />
