@@ -2,7 +2,7 @@ import pkg from "../../../package.json" with { type: "json" };
 
 // App configuration
 export const APP_CONFIG = {
-  name: "Endpoint Proxy",
+  name: "OrcaFlow",
   description: "AI Infrastructure Management",
   version: pkg.version,
 };

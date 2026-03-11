@@ -14,6 +14,7 @@ const executors = {
   iflow: new IFlowExecutor(),
   kiro: new KiroExecutor(),
   codex: new CodexExecutor(),
+  openai: new CodexExecutor(), // Same ChatGPT subscription endpoint
   cursor: new CursorExecutor(),
   cu: new CursorExecutor() // Alias for cursor
 };

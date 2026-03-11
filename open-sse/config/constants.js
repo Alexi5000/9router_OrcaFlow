@@ -217,8 +217,14 @@ export const PROVIDERS = {
     }
   },
   openai: {
-    baseUrl: "https://api.openai.com/v1/chat/completions",
-    format: "openai"
+    baseUrl: "https://chatgpt.com/backend-api/codex/responses",
+    format: "openai-responses",
+    headers: {
+      "originator": "codex-cli",
+      "User-Agent": "codex-cli/1.0.18 (macOS; arm64)"
+    },
+    clientId: "app_EMoamEEZ73f0CkXaXp7hrann",
+    tokenUrl: "https://auth.openai.com/oauth/token"
   },
   glm: {
     baseUrl: "https://api.z.ai/api/anthropic/v1/messages",

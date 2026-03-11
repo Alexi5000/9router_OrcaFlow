@@ -133,6 +133,8 @@ export const PROVIDER_MODELS = {
     { id: "openai/o3", name: "o3" },
     { id: "deepseek/deepseek-chat", name: "DeepSeek Chat" },
     { id: "deepseek/deepseek-reasoner", name: "DeepSeek Reasoner" },
+    { id: "giga-potato-thinking", name: "Giga Potato Thinking" },
+    { id: "arcee-ai/trinity-large-preview:free", name: "Arcee Trinity Large (Free)" },
   ],
   cl: [  // Cline
     { id: "anthropic/claude-sonnet-4.6", name: "Claude Sonnet 4.6" },

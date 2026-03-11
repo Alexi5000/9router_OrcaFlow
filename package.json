@@ -1,7 +1,7 @@
 {
-  "name": "9router-app",
+  "name": "orcaflow",
   "version": "0.3.35",
-  "description": "9Router web dashboard",
+  "description": "OrcaFlow — AI Router by TechTide AI (based on 9Router)",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack --port 20128",
@@ -13,8 +13,10 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "@playwright/test": "^1.58.2",
     "@xyflow/react": "^12.10.1",
     "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.6.2",
     "express": "^5.2.1",
     "fs": "^0.0.1-security",
     "http-proxy-middleware": "^3.0.5",

@@ -159,13 +159,24 @@ export async function GET() {
     try {
       const mod = await import("better-sqlite3");
       Database = mod.default;
-    } catch {
+    } catch (e1) {
+      console.log("Cursor auto-import: bundled import failed:", e1?.message);
       // Try loading from global node_modules (user ran: npm i better-sqlite3 -g)
       try {
         const globalRoot = execSync("npm root -g", { timeout: 5000 }).toString().trim();
+        console.log("Cursor auto-import: trying global root:", globalRoot);
         const requireGlobal = createRequire(join(globalRoot, "better-sqlite3", "package.json"));
         Database = requireGlobal("better-sqlite3");
-      } catch { /* fall through to sqlite3 CLI strategy */ }
+      } catch (e2) {
+        console.log("Cursor auto-import: global import failed:", e2?.message);
+        // Try direct require from local node_modules
+        try {
+          const localRequire = createRequire(join(process.cwd(), "node_modules", "better-sqlite3", "package.json"));
+          Database = localRequire("better-sqlite3");
+        } catch (e3) {
+          console.log("Cursor auto-import: local import failed:", e3?.message);
+        }
+      }
     }
 
     if (Database) {

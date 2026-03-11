@@ -4,6 +4,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { THEME_CONFIG } from "@/shared/constants/config";
 
+const THEME_CYCLE = ["light", "dark", "cyberpunk"];
+
 const useThemeStore = create(
   persist(
     (set, get) => ({
@@ -16,7 +18,8 @@ const useThemeStore = create(
 
       toggleTheme: () => {
         const currentTheme = get().theme;
-        const newTheme = currentTheme === "dark" ? "light" : "dark";
+        const idx = THEME_CYCLE.indexOf(currentTheme);
+        const newTheme = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
         set({ theme: newTheme });
         applyTheme(newTheme);
       },
@@ -43,10 +46,11 @@ function applyTheme(theme) {
 
   const effectiveTheme = theme === "system" ? systemTheme : theme;
 
+  root.classList.remove("dark", "cyberpunk");
   if (effectiveTheme === "dark") {
     root.classList.add("dark");
-  } else {
-    root.classList.remove("dark");
+  } else if (effectiveTheme === "cyberpunk") {
+    root.classList.add("cyberpunk");
   }
 }
 

@@ -96,10 +96,10 @@ export default function Sidebar({ onClose }) {
           {updateInfo && (
             <div className="flex flex-col gap-0.5">
               <span className="text-xs font-semibold text-green-600 dark:text-amber-500">
-                ↑ New version available: v{updateInfo.latestVersion}
+                ↑ OrcaFlow v{updateInfo.latestVersion} available
               </span>
               <code className="text-[10px] text-green-600/80 dark:text-amber-400/70 font-mono select-all">
-                npm install -g 9router@latest
+                git pull origin orcaflow
               </code>
             </div>
           )}

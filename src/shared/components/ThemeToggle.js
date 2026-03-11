@@ -3,8 +3,21 @@
 import { useTheme } from "@/shared/hooks/useTheme";
 import { cn } from "@/shared/utils/cn";
 
+const THEME_ICONS = {
+  light: "dark_mode",
+  dark: "electric_bolt",
+  cyberpunk: "light_mode",
+};
+
+const THEME_LABELS = {
+  light: "Switch to dark mode",
+  dark: "Switch to cyberpunk mode",
+  cyberpunk: "Switch to light mode",
+};
+
 export default function ThemeToggle({ className, variant = "default" }) {
-  const { theme, toggleTheme, isDark } = useTheme();
+  const { theme, toggleTheme } = useTheme();
+  const isCyberpunk = theme === "cyberpunk";
 
   const variants = {
     default: cn(
@@ -12,7 +25,8 @@ export default function ThemeToggle({ className, variant = "default" }) {
       "text-text-muted",
       "hover:bg-black/5",
       "hover:text-text-main",
-      "transition-colors"
+      "transition-colors",
+      isCyberpunk && "hover:bg-[#FF2D95]/10"
     ),
     card: cn(
       "flex items-center justify-center size-11 rounded-full",
@@ -22,24 +36,29 @@ export default function ThemeToggle({ className, variant = "default" }) {
       "backdrop-blur-md shadow-sm hover:shadow-md",
       "text-text-muted-light hover:text-primary",
       "hover:text-primary",
-      "transition-all group"
+      "transition-all group",
+      isCyberpunk && "hover:shadow-[0_0_12px_rgba(255,45,149,0.3)]"
     ),
   };
+
+  const icon = THEME_ICONS[theme] || "dark_mode";
+  const label = THEME_LABELS[theme] || "Toggle theme";
 
   return (
     <button
       onClick={toggleTheme}
       className={cn(variants[variant], className)}
-      aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
-      title={`Switch to ${isDark ? "light" : "dark"} mode`}
+      aria-label={label}
+      title={label}
     >
       <span
         className={cn(
           "material-symbols-outlined text-[22px]",
-          variant === "card" && "transition-transform duration-300 group-hover:rotate-12"
+          variant === "card" && "transition-transform duration-300 group-hover:rotate-12",
+          isCyberpunk && "text-[#FF2D95]"
         )}
       >
-        {isDark ? "light_mode" : "dark_mode"}
+        {icon}
       </span>
     </button>
   );
