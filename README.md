@@ -8,6 +8,13 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Based on 9Router](https://img.shields.io/badge/Based%20on-9Router-orange)](https://github.com/decolua/9router)
+[![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+<br/>
+
+[Features](#key-features) &bull; [Quick Start](#quick-start) &bull; [Providers](#supported-providers) &bull; [Configuration](#configuration) &bull; [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -17,12 +24,14 @@
 
 **OrcaFlow is a customized fork of [9Router](https://github.com/decolua/9router)** by [decolua](https://github.com/decolua) and contributors.
 
-We give full credit to the 9Router project for the core routing engine, provider integrations, and architecture that makes this possible. The original project is an incredible piece of open-source engineering.
+We give full credit to the 9Router project for the core routing engine, provider integrations, and architecture that makes this possible.
 
-- **Original Project**: [github.com/decolua/9router](https://github.com/decolua/9router)
-- **9Router Website**: [9router.com](https://9router.com)
-- **Original License**: MIT (preserved in this fork)
-- **Original Contributors**: [View all contributors](https://github.com/decolua/9router/graphs/contributors)
+| | |
+|---|---|
+| **Original Project** | [github.com/decolua/9router](https://github.com/decolua/9router) |
+| **9Router Website** | [9router.com](https://9router.com) |
+| **Original License** | MIT (preserved in this fork) |
+| **Contributors** | [View all contributors](https://github.com/decolua/9router/graphs/contributors) |
 
 ---
 
@@ -57,16 +66,18 @@ Your CLI Tool (Claude Code, Codex, Cursor, Cline...)
 
 OrcaFlow builds on 9Router with the following customizations by TechTide AI:
 
-- **Custom branding** &mdash; OrcaFlow identity throughout the UI
-- **Security hardening** &mdash; Re-enabled header masking in request logger to prevent token leaks
-- **Cloud sync disabled by default** &mdash; No phone-home capability active
-- **TechTide AI team customizations** &mdash; Provider configs, UI themes, and workflow optimizations
+| Change | Description |
+|--------|-------------|
+| **Custom branding** | OrcaFlow identity throughout the UI |
+| **Security hardening** | Re-enabled header masking in request logger to prevent token leaks |
+| **Cloud sync disabled** | No phone-home capability active |
+| **Team customizations** | Provider configs, UI themes, and workflow optimizations |
 
 ---
 
 ## Quick Start
 
-**From source (this repository):**
+### From source (recommended)
 
 ```bash
 git clone https://github.com/Alexi5000/9router_OrcaFlow.git
@@ -78,7 +89,7 @@ npm run dev
 
 Dashboard opens at `http://localhost:20128`
 
-**Production mode:**
+### Production mode
 
 ```bash
 npm run build
@@ -114,6 +125,7 @@ Model:    cc/claude-opus-4-6  (or any supported model)
 ## Supported Providers
 
 ### OAuth Providers (Free login)
+
 | Provider | Models | Quota |
 |----------|--------|-------|
 | Claude Code | Opus, Sonnet, Haiku | 5h + weekly reset |
@@ -123,6 +135,7 @@ Model:    cc/claude-opus-4-6  (or any supported model)
 | Cursor | Various | Per subscription |
 
 ### Free Providers (Unlimited)
+
 | Provider | Models | Cost |
 |----------|--------|------|
 | iFlow AI | 8+ models (Kimi K2, Qwen, GLM, DeepSeek) | $0 |
@@ -130,6 +143,7 @@ Model:    cc/claude-opus-4-6  (or any supported model)
 | Kiro AI | Claude Sonnet/Haiku | $0 |
 
 ### API Key Providers (40+)
+
 OpenRouter, GLM, Kimi, MiniMax, OpenAI, Anthropic, Gemini, DeepSeek, Groq, xAI, Mistral, Perplexity, Together AI, Fireworks, Cerebras, Cohere, NVIDIA, SiliconFlow, and 20+ more.
 
 ---
@@ -138,14 +152,14 @@ OpenRouter, GLM, Kimi, MiniMax, OpenAI, Anthropic, Gemini, DeepSeek, Groq, xAI, 
 
 | Feature | Description |
 |---------|-------------|
-| Smart 3-Tier Fallback | Auto-route: Subscription &rarr; Cheap &rarr; Free |
-| Real-Time Quota Tracking | Live token count + reset countdown |
-| Format Translation | OpenAI &harr; Claude &harr; Gemini seamless |
-| Multi-Account Support | Multiple accounts per provider with round-robin |
-| Auto Token Refresh | OAuth tokens refresh automatically |
-| Custom Combos | Create unlimited model combinations |
-| Usage Analytics | Track tokens, cost, trends locally |
-| MITM Proxy | Intercept CLI tool traffic for transparent routing |
+| **Smart 3-Tier Fallback** | Auto-route: Subscription &rarr; Cheap &rarr; Free |
+| **Real-Time Quota Tracking** | Live token count + reset countdown |
+| **Format Translation** | OpenAI &harr; Claude &harr; Gemini seamless |
+| **Multi-Account Support** | Multiple accounts per provider with round-robin |
+| **Auto Token Refresh** | OAuth tokens refresh automatically |
+| **Custom Combos** | Create unlimited model combinations |
+| **Usage Analytics** | Track tokens, cost, trends locally |
+| **MITM Proxy** | Intercept CLI tool traffic for transparent routing |
 
 ---
 
@@ -169,6 +183,7 @@ See `.env.example` for all available variables.
 ## API Reference
 
 ### Chat Completions
+
 ```bash
 POST http://localhost:20128/v1/chat/completions
 Authorization: Bearer your-api-key
@@ -182,21 +197,26 @@ Content-Type: application/json
 ```
 
 ### Compatibility Endpoints
-- `POST /v1/chat/completions` (OpenAI format)
-- `POST /v1/messages` (Anthropic format)
-- `POST /v1/responses` (OpenAI Responses format)
-- `GET /v1/models` (List all models)
+
+| Endpoint | Format |
+|----------|--------|
+| `POST /v1/chat/completions` | OpenAI format |
+| `POST /v1/messages` | Anthropic format |
+| `POST /v1/responses` | OpenAI Responses format |
+| `GET /v1/models` | List all models |
 
 ---
 
 ## Tech Stack
 
-- **Runtime**: Node.js 20+
-- **Framework**: Next.js 16
-- **UI**: React 19 + Tailwind CSS 4
-- **Database**: LowDB (JSON file-based, local only)
-- **Streaming**: Server-Sent Events (SSE)
-- **Auth**: OAuth 2.0 (PKCE) + JWT + API Keys
+| Component | Technology |
+|-----------|------------|
+| **Runtime** | Node.js 20+ |
+| **Framework** | Next.js 16 |
+| **UI** | React 19 + Tailwind CSS 4 |
+| **Database** | LowDB (JSON file-based, local only) |
+| **Streaming** | Server-Sent Events (SSE) |
+| **Auth** | OAuth 2.0 (PKCE) + JWT + API Keys |
 
 ---
 
@@ -211,6 +231,14 @@ OrcaFlow includes security hardening over the base 9Router:
 - **Local-only data**: All usage data, credentials, and logs stay on your machine
 - **Proper `.gitignore`**: `.env`, `data/`, `ecosystem.config.*`, `logs/` are all excluded
 
+See [SECURITY.md](SECURITY.md) for our security policy and vulnerability reporting.
+
+---
+
+## Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
 ---
 
 ## License
@@ -224,8 +252,6 @@ This project is a fork of [9Router](https://github.com/decolua/9router) which is
 ## Upstream
 
 This project is built on top of **[9Router](https://github.com/decolua/9router)** by decolua. All credit for the core routing engine, provider integrations, format translation layer, and architecture goes to the original 9Router team and contributors.
-
-Special thanks to **CLIProxyAPI** &mdash; the original Go implementation that inspired 9Router.
 
 ---
 
