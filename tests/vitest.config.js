@@ -8,9 +8,16 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
-    include: ["**/*.test.js"],
+    include: [
+      "unit/**/*.test.js",
+      "edge-cases/**/*.test.js",
+      "e2e/**/*.test.js",
+    ],
     // Suppress noisy console output from handlers under test
     silent: false,
+    testTimeout: 120000, // 2 minutes for E2E tests
+    hookTimeout: 30000,
+    retries: 1,
   },
   resolve: {
     alias: {

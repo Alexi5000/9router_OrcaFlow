@@ -72,6 +72,9 @@ export function parseModel(modelStr) {
     const firstSlash = modelStr.indexOf("/");
     const providerOrAlias = modelStr.slice(0, firstSlash);
     const model = modelStr.slice(firstSlash + 1);
+    if (providerOrAlias === "combo") {
+      return { provider: null, model, isAlias: false, providerAlias: providerOrAlias };
+    }
     const provider = resolveProviderAlias(providerOrAlias);
     return { provider, model, isAlias: false, providerAlias: providerOrAlias };
   }
@@ -100,6 +103,12 @@ export function resolveModelAliasFromMap(alias, aliases) {
   if (typeof resolved === "string" && resolved.includes("/")) {
     const firstSlash = resolved.indexOf("/");
     const providerOrAlias = resolved.slice(0, firstSlash);
+    if (providerOrAlias === "combo") {
+      return {
+        provider: null,
+        model: resolved.slice(firstSlash + 1),
+      };
+    }
     return {
       provider: resolveProviderAlias(providerOrAlias),
       model: resolved.slice(firstSlash + 1),
@@ -108,6 +117,12 @@ export function resolveModelAliasFromMap(alias, aliases) {
 
   // Or object { provider, model }
   if (typeof resolved === "object" && resolved.provider && resolved.model) {
+    if (resolved.provider === "combo") {
+      return {
+        provider: null,
+        model: resolved.model,
+      };
+    }
     return {
       provider: resolveProviderAlias(resolved.provider),
       model: resolved.model,
@@ -125,18 +140,32 @@ export function resolveModelAliasFromMap(alias, aliases) {
 export async function getModelInfoCore(modelStr, aliasesOrGetter) {
   const parsed = parseModel(modelStr);
 
+  const aliases =
+    typeof aliasesOrGetter === "function"
+      ? await aliasesOrGetter()
+      : aliasesOrGetter;
+
   if (!parsed.isAlias) {
+    const resolvedPrefixedAlias = resolveModelAliasFromMap(parsed.model, aliases);
+
+    // Tool/provider shorthand such as "cc/model-id" should still honor model aliases.
+    // In addition, explicit provider/model requests can be redirected when the alias
+    // target is a combo, which keeps provider-specific Claude IDs on the combo chain.
+    if (
+      resolvedPrefixedAlias &&
+      (
+        (parsed.providerAlias && parsed.providerAlias !== parsed.provider) ||
+        resolvedPrefixedAlias.provider === null
+      )
+    ) {
+      return resolvedPrefixedAlias;
+    }
+
     return {
       provider: parsed.provider,
       model: parsed.model,
     };
   }
-
-  // Get aliases (from object or function)
-  const aliases =
-    typeof aliasesOrGetter === "function"
-      ? await aliasesOrGetter()
-      : aliasesOrGetter;
 
   // Resolve alias
   const resolved = resolveModelAliasFromMap(parsed.model, aliases);
