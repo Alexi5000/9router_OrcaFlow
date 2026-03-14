@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { validateApiKey, getModelAliases } from "@/models";
+import { validateApiKey, getCombos, getModelAliases } from "@/models";
+import { resolveModelAliasFromMap } from "open-sse/services/model.js";
 
 // Resolve model alias to provider/model
 export async function POST(request) {
@@ -24,18 +25,29 @@ export async function POST(request) {
       return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
     }
 
-    // Get model aliases
-    const modelAliases = await getModelAliases();
-    const resolved = modelAliases[alias];
+    const [modelAliases, combos] = await Promise.all([
+      getModelAliases(),
+      getCombos(),
+    ]);
+    const resolved = resolveModelAliasFromMap(alias, modelAliases);
 
-    if (resolved) {
-      // Parse provider/model
-      const firstSlash = resolved.indexOf("/");
-      if (firstSlash > 0) {
+    if (resolved?.provider) {
+      return NextResponse.json({
+        alias,
+        provider: resolved.provider,
+        model: resolved.model,
+      });
+    }
+
+    if (resolved?.model) {
+      const combo = (combos || []).find((entry) => entry.name === resolved.model);
+      if (combo) {
         return NextResponse.json({
           alias,
-          provider: resolved.slice(0, firstSlash),
-          model: resolved.slice(firstSlash + 1)
+          provider: null,
+          model: resolved.model,
+          isCombo: true,
+          models: combo.models || [],
         });
       }
     }

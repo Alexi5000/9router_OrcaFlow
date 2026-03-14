@@ -6,9 +6,58 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 
 const MAX_RETRY_AFTER_MS = 10000;
 
+// Self-imposed rate limits to avoid triggering Google's abuse detection.
+// The antigravity endpoint is an internal Google API — high-volume or concurrent
+// access from the same token is the most likely cause of account suspension.
+const SELF_RATE_LIMIT = {
+  MAX_PER_HOUR: 80,        // Max requests per account per hour
+  MIN_GAP_MS: 5000,        // Minimum ms between consecutive requests per account
+  WINDOW_MS: 60 * 60 * 1000
+};
+
 export class AntigravityExecutor extends BaseExecutor {
+  // Per-account sliding window: connectionId -> [timestamp, ...]
+  static requestTracker = new Map();
+  // Per-account in-flight lock: Set of connectionId strings
+  static inFlight = new Set();
+
   constructor() {
     super("antigravity", PROVIDERS.antigravity);
+  }
+
+  /**
+   * Enforce self-imposed rate limits per account.
+   * Returns the number of ms to wait before proceeding (0 = proceed now).
+   * Throws if the hourly cap is exceeded.
+   */
+  checkRateLimit(connectionId) {
+    const now = Date.now();
+    const key = connectionId || "default";
+
+    if (!AntigravityExecutor.requestTracker.has(key)) {
+      AntigravityExecutor.requestTracker.set(key, []);
+    }
+
+    // Prune timestamps outside the rolling window
+    const timestamps = AntigravityExecutor.requestTracker
+      .get(key)
+      .filter(ts => now - ts < SELF_RATE_LIMIT.WINDOW_MS);
+    AntigravityExecutor.requestTracker.set(key, timestamps);
+
+    if (timestamps.length >= SELF_RATE_LIMIT.MAX_PER_HOUR) {
+      const oldest = Math.min(...timestamps);
+      const retryAfterMs = SELF_RATE_LIMIT.WINDOW_MS - (now - oldest);
+      throw new Error(`ANTIGRAVITY_SELF_RATE_LIMIT:${retryAfterMs}`);
+    }
+
+    // Enforce minimum gap between consecutive requests
+    const lastReq = timestamps.at(-1);
+    if (lastReq && now - lastReq < SELF_RATE_LIMIT.MIN_GAP_MS) {
+      return SELF_RATE_LIMIT.MIN_GAP_MS - (now - lastReq);
+    }
+
+    timestamps.push(now);
+    return 0;
   }
 
   buildUrl(model, stream, urlIndex = 0) {
@@ -163,6 +212,25 @@ export class AntigravityExecutor extends BaseExecutor {
   }
 
   async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
+    const connKey = credentials?.connectionId || credentials?.email || "default";
+
+    // Concurrency lock — one in-flight request per account at a time.
+    // Multiple tools routing through the same Google token concurrently is a
+    // primary abuse signal. Throw so 9Router routes to the next provider.
+    if (AntigravityExecutor.inFlight.has(connKey)) {
+      throw new Error("ANTIGRAVITY_CONCURRENT_LIMIT: request already in flight for this account");
+    }
+
+    // Self rate limit — check hourly cap and minimum gap.
+    const waitMs = this.checkRateLimit(connKey);
+    if (waitMs > 0) {
+      log?.debug?.("RATE", `Antigravity self-limit: waiting ${waitMs}ms before request`);
+      await new Promise(resolve => setTimeout(resolve, waitMs));
+    }
+
+    AntigravityExecutor.inFlight.add(connKey);
+
+    try {
     const fallbackCount = this.getFallbackCount();
     let lastError = null;
     let lastStatus = 0;
@@ -248,6 +316,9 @@ export class AntigravityExecutor extends BaseExecutor {
     }
 
     throw lastError || new Error(`All ${fallbackCount} URLs failed with status ${lastStatus}`);
+    } finally {
+      AntigravityExecutor.inFlight.delete(connKey);
+    }
   }
 }
 

@@ -1,13 +1,21 @@
 import { HTTP_STATUS, RETRY_CONFIG } from "../config/constants.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
+import { 
+  createTimeoutController, 
+  parseRetryAfterHeader, 
+  classifyError,
+  TIMEOUT_CONFIG 
+} from "../utils/requestUtils.js";
 
 /**
  * BaseExecutor - Base class for provider executors
+ * Enhanced with request timeout and improved error handling
  */
 export class BaseExecutor {
   constructor(provider, config) {
     this.provider = provider;
     this.config = config;
+    this.timeoutMs = config?.timeoutMs || TIMEOUT_CONFIG.defaultMs;
   }
 
   getProvider() {
@@ -82,6 +90,12 @@ export class BaseExecutor {
     let lastStatus = 0;
     const retryAttemptsByUrl = {};
 
+    // Create timeout controller (can be aborted by client signal too)
+    const timeoutController = createTimeoutController(this.timeoutMs);
+    const combinedSignal = signal 
+      ? this._combineSignals([signal, timeoutController.controller.signal], log)
+      : timeoutController.controller.signal;
+
     for (let urlIndex = 0; urlIndex < fallbackCount; urlIndex++) {
       const url = this.buildUrl(model, stream, urlIndex, credentials);
       const headers = this.buildHeaders(credentials, stream);
@@ -94,36 +108,80 @@ export class BaseExecutor {
           method: "POST",
           headers,
           body: JSON.stringify(transformedBody),
-          signal
+          signal: combinedSignal
         }, proxyOptions);
 
-        // Retry 429 with fixed delay before falling back to next URL
+        // Parse Retry-After header if present
+        const retryAfterMs = parseRetryAfterHeader(response);
+        
+        // Enhanced 429 handling with Retry-After support
         if (response.status === HTTP_STATUS.RATE_LIMITED && retryAttemptsByUrl[urlIndex] < RETRY_CONFIG.maxAttempts) {
           retryAttemptsByUrl[urlIndex]++;
-          log?.debug?.("RETRY", `429 retry ${retryAttemptsByUrl[urlIndex]}/${RETRY_CONFIG.maxAttempts} after ${RETRY_CONFIG.delayMs / 1000}s`);
-          await new Promise(resolve => setTimeout(resolve, RETRY_CONFIG.delayMs));
+          const delay = retryAfterMs || RETRY_CONFIG.delayMs;
+          log?.debug?.("RETRY", `429 retry ${retryAttemptsByUrl[urlIndex]}/${RETRY_CONFIG.maxAttempts} after ${Math.ceil(delay / 1000)}s${retryAfterMs ? ' (Retry-After)' : ''}`);
+          await new Promise(resolve => setTimeout(resolve, delay));
           urlIndex--;
           continue;
         }
 
-        if (this.shouldRetry(response.status, urlIndex)) {
-          log?.debug?.("RETRY", `${response.status} on ${url}, trying fallback ${urlIndex + 1}`);
-          lastStatus = response.status;
-          continue;
+        // Use improved error classification for fallback decisions
+        if (!response.ok) {
+          const classification = classifyError(response.status);
+          
+          if (!classification.shouldFallback) {
+            // Client error - don't retry, return immediately
+            return { response, url, headers, transformedBody };
+          }
+          
+          if (this.shouldRetry(response.status, urlIndex)) {
+            log?.debug?.("RETRY", `${response.status} on ${url}, trying fallback ${urlIndex + 1}`);
+            lastStatus = response.status;
+            continue;
+          }
         }
 
+        timeoutController.clear();
         return { response, url, headers, transformedBody };
       } catch (error) {
         lastError = error;
+        
+        // Handle timeout errors specifically
+        if (error.name === "AbortError" && error.message?.includes("timeout")) {
+          log?.warn?.("TIMEOUT", `Request to ${url} timed out after ${this.timeoutMs}ms`);
+        }
+        
         if (urlIndex + 1 < fallbackCount) {
           log?.debug?.("RETRY", `Error on ${url}, trying fallback ${urlIndex + 1}`);
           continue;
         }
+        
+        timeoutController.clear();
         throw error;
       }
     }
 
+    timeoutController.clear();
     throw lastError || new Error(`All ${fallbackCount} URLs failed with status ${lastStatus}`);
+  }
+
+  /**
+   * Combine multiple abort signals
+   * @private
+   */
+  _combineSignals(signals, log) {
+    const controller = new AbortController();
+    
+    for (const signal of signals) {
+      if (signal.aborted) {
+        controller.abort(signal.reason);
+        break;
+      }
+      signal.addEventListener("abort", () => {
+        controller.abort(signal.reason);
+      });
+    }
+    
+    return controller.signal;
   }
 }
 

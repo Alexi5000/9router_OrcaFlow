@@ -99,7 +99,7 @@ export const ANTIGRAVITY_HEADERS = {
   "X-Client-Name": "antigravity",
   "X-Client-Version": "1.107.0",
   "x-goog-api-client": "gl-node/18.18.2 fire/0.8.6 grpc/1.10.x",
-  "User-Agent": "antigravity/1.107.0 darwin/arm64"
+  "User-Agent": getPlatformUserAgent()  // platform-accurate; was hardcoded darwin/arm64
 };
 
 // Cloud Code Assist API endpoints (for Project ID discovery)
@@ -395,7 +395,7 @@ export const PROVIDERS = {
     format: "openai"
   },
   siliconflow: {
-    baseUrl: "https://api.siliconflow.cn/v1/chat/completions",
+    baseUrl: "https://api.siliconflow.com/v1/chat/completions",
     format: "openai"
   },
   hyperbolic: {
@@ -424,7 +424,8 @@ export const PROVIDERS = {
 export const CLAUDE_SYSTEM_PROMPT = "You are a Claude agent, built on Anthropic's Claude Agent SDK.";
 
 // Antigravity default system prompt (required for API to work)
-export const ANTIGRAVITY_DEFAULT_SYSTEM = "You are Antigravity, a powerful agentic AI coding assistant designed by the Google Deepmind team working on Advanced Agentic Coding.You are pair programming with a USER to solve their coding task. The task may require creating a new codebase, modifying or debugging an existing codebase, or simply answering a question.**Absolute paths only****Proactiveness**";
+// Removed Google DeepMind identity claim — no functional purpose, unnecessary impersonation.
+export const ANTIGRAVITY_DEFAULT_SYSTEM = "You are a powerful agentic AI coding assistant. You are pair programming with a USER to solve their coding task. The task may require creating a new codebase, modifying or debugging an existing codebase, or simply answering a question. Use absolute paths only.";
 
 // OAuth endpoints
 export const OAUTH_ENDPOINTS = {

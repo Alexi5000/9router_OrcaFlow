@@ -11,8 +11,49 @@ import { getMachineData, saveMachineData } from "../services/storage.js";
 
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 
+function resolveComboRequest(modelStr, data) {
+  const combos = data?.combos || [];
+
+  if (typeof modelStr !== "string" || !modelStr) {
+    return null;
+  }
+
+  const comboNameFromValue = (value) => {
+    if (typeof value !== "string" || !value) return null;
+    if (value.startsWith("combo/")) return value.slice("combo/".length) || null;
+    if (!value.includes("/")) return value;
+    return null;
+  };
+
+  const directComboName = comboNameFromValue(modelStr);
+  if (directComboName) {
+    const models = getComboModelsFromData(directComboName, combos);
+    if (models) return { comboName: directComboName, models };
+  }
+
+  if (modelStr.includes("/")) {
+    return null;
+  }
+
+  const aliasComboName = comboNameFromValue(data?.modelAliases?.[modelStr]);
+  if (!aliasComboName) {
+    return null;
+  }
+
+  const models = getComboModelsFromData(aliasComboName, combos);
+  if (!models) {
+    return null;
+  }
+
+  return { comboName: aliasComboName, models };
+}
+
 async function getModelInfo(modelStr, machineId, env) {
   const data = await getMachineData(machineId, env);
+  const comboRequest = resolveComboRequest(modelStr, data);
+  if (comboRequest) {
+    return { provider: null, model: comboRequest.comboName };
+  }
   return getModelInfoCore(modelStr, data?.modelAliases || {});
 }
 
@@ -70,13 +111,13 @@ export async function handleChat(request, env, ctx, machineIdOverride = null) {
 
   // Check if model is a combo
   const data = await getMachineData(machineId, env);
-  const comboModels = getComboModelsFromData(modelStr, data?.combos || []);
-  
-  if (comboModels) {
-    log.info("COMBO", `"${modelStr}" with ${comboModels.length} models`);
+  const comboRequest = resolveComboRequest(modelStr, data);
+
+  if (comboRequest) {
+    log.info("COMBO", `"${comboRequest.comboName}" with ${comboRequest.models.length} models`, { source: modelStr });
     return handleComboChat({
       body,
-      models: comboModels,
+      models: comboRequest.models,
       handleSingleModel: (reqBody, model) => handleSingleModelChat(reqBody, model, machineId, env),
       log
     });
@@ -91,7 +132,22 @@ export async function handleChat(request, env, ctx, machineIdOverride = null) {
  */
 async function handleSingleModelChat(body, modelStr, machineId, env) {
   const modelInfo = await getModelInfo(modelStr, machineId, env);
-  if (!modelInfo.provider) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
+  if (!modelInfo.provider) {
+    const data = await getMachineData(machineId, env);
+    const comboRequest = resolveComboRequest(modelInfo.model || modelStr, data);
+
+    if (comboRequest) {
+      log.info("COMBO", `"${comboRequest.comboName}" with ${comboRequest.models.length} models`, { source: modelStr });
+      return handleComboChat({
+        body,
+        models: comboRequest.models,
+        handleSingleModel: (reqBody, model) => handleSingleModelChat(reqBody, model, machineId, env),
+        log
+      });
+    }
+
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
+  }
 
   const { provider, model } = modelInfo;
   log.info("MODEL", `${provider.toUpperCase()} | ${model}`);

@@ -39,6 +39,7 @@ function UsageContent() {
       <SegmentedControl
         options={[
           { value: "overview", label: "Overview" },
+          { value: "logs", label: "Logs" },
           { value: "details", label: "Details" },
         ]}
         value={activeTab}

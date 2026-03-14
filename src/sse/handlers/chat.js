@@ -32,6 +32,37 @@ export async function handleChat(request, clientRawRequest = null) {
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
   }
 
+  // Validate messages field
+  if (!body.messages && !body.input) {
+    log.warn("CHAT", "Missing required field: messages");
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: messages");
+  }
+
+  if (body.messages && !Array.isArray(body.messages)) {
+    log.warn("CHAT", "messages must be an array");
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, "messages must be an array");
+  }
+
+  if (body.messages && body.messages.length === 0) {
+    log.warn("CHAT", "messages array cannot be empty");
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, "messages array cannot be empty");
+  }
+
+  // Validate message format
+  if (body.messages) {
+    for (let i = 0; i < body.messages.length; i++) {
+      const msg = body.messages[i];
+      if (!msg.role || typeof msg.role !== 'string') {
+        log.warn("CHAT", `Invalid message format at index ${i}: missing or invalid 'role'`);
+        return errorResponse(HTTP_STATUS.BAD_REQUEST, `Invalid message format at index ${i}: each message must have a 'role' string`);
+      }
+      if (msg.content === undefined && !msg.tool_calls) {
+        log.warn("CHAT", `Invalid message format at index ${i}: missing 'content'`);
+        return errorResponse(HTTP_STATUS.BAD_REQUEST, `Invalid message format at index ${i}: each message must have 'content'`);
+      }
+    }
+  }
+
   // Build clientRawRequest for logging (if not provided)
   if (!clientRawRequest) {
     const url = new URL(request.url);

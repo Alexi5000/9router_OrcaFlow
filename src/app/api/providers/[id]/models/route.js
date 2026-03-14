@@ -160,7 +160,7 @@ const PROVIDER_MODELS_CONFIG = {
   cerebras: createOpenAIModelsConfig("https://api.cerebras.ai/v1/models"),
   cohere: createOpenAIModelsConfig("https://api.cohere.ai/v1/models"),
   nebius: createOpenAIModelsConfig("https://api.studio.nebius.ai/v1/models"),
-  siliconflow: createOpenAIModelsConfig("https://api.siliconflow.cn/v1/models"),
+  siliconflow: createOpenAIModelsConfig("https://api.siliconflow.com/v1/models"),
   hyperbolic: createOpenAIModelsConfig("https://api.hyperbolic.xyz/v1/models"),
   nanobanana: createOpenAIModelsConfig("https://api.nanobananaapi.ai/v1/models"),
   chutes: createOpenAIModelsConfig("https://llm.chutes.ai/v1/models"),

@@ -17,8 +17,20 @@ export async function resolveModelAlias(alias) {
  */
 export async function getModelInfo(modelStr) {
   const parsed = parseModel(modelStr);
+  const aliases = await getModelAliases();
 
   if (!parsed.isAlias) {
+    const resolvedPrefixedAlias = resolveModelAliasFromMap(parsed.model, aliases);
+    if (
+      resolvedPrefixedAlias &&
+      (
+        (parsed.providerAlias && parsed.providerAlias !== parsed.provider) ||
+        resolvedPrefixedAlias.provider === null
+      )
+    ) {
+      return resolvedPrefixedAlias;
+    }
+
     if (parsed.provider === parsed.providerAlias) {
       // Check OpenAI Compatible nodes
       const openaiNodes = await getProviderNodes({ type: "openai-compatible" });
@@ -51,7 +63,6 @@ export async function getModelInfo(modelStr) {
 
   // Resolve alias first — if alias points to a combo name (bare string, no "/"),
   // we need to check if the resolved value is a combo before falling through
-  const aliases = await getModelAliases();
   const aliasValue = aliases?.[parsed.model];
   if (typeof aliasValue === "string" && !aliasValue.includes("/")) {
     const aliasCombo = await getComboByName(aliasValue);
