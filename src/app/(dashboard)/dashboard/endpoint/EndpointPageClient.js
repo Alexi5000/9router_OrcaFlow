@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Card, Button, Input, Modal, CardSkeleton, Toggle } from "@/shared/components";
+import { Card, Button, Input, Modal, Toggle } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 /* ========== CLOUD CODE — COMMENTED OUT (replaced by Tunnel) ==========
@@ -18,6 +18,24 @@ const TUNNEL_BENEFITS = [
 ];
 
 const TUNNEL_ACTION_TIMEOUT_MS = 90000;
+const INITIAL_FETCH_TIMEOUT_MS = 8000;
+
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = INITIAL_FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    const data = await res.json().catch(() => null);
+    return { ok: res.ok, data };
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      return { ok: false, data: null, timeout: true };
+    }
+    return { ok: false, data: null, error };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
@@ -214,19 +232,17 @@ export default function APIPageClient({ machineId }) {
 
   const loadSettings = async () => {
     try {
-      const [settingsRes, tunnelRes] = await Promise.all([
-        fetch("/api/settings"),
-        fetch("/api/tunnel/status")
+      const [settingsResult, tunnelResult] = await Promise.all([
+        fetchJsonWithTimeout("/api/settings"),
+        fetchJsonWithTimeout("/api/tunnel/status"),
       ]);
-      if (settingsRes.ok) {
-        const data = await settingsRes.json();
-        setRequireApiKey(data.requireApiKey || false);
+      if (settingsResult.ok && settingsResult.data) {
+        setRequireApiKey(settingsResult.data.requireApiKey || false);
       }
-      if (tunnelRes.ok) {
-        const data = await tunnelRes.json();
-        setTunnelEnabled(data.enabled || false);
-        setTunnelUrl(data.tunnelUrl || "");
-        setTunnelShortId(data.shortId || "");
+      if (tunnelResult.ok && tunnelResult.data) {
+        setTunnelEnabled(tunnelResult.data.enabled || false);
+        setTunnelUrl(tunnelResult.data.tunnelUrl || "");
+        setTunnelShortId(tunnelResult.data.shortId || "");
       }
     } catch (error) {
       console.log("Error loading settings:", error);
@@ -248,10 +264,9 @@ export default function APIPageClient({ machineId }) {
 
   const fetchData = async () => {
     try {
-      const keysRes = await fetch("/api/keys");
-      const keysData = await keysRes.json();
-      if (keysRes.ok) {
-        setKeys(keysData.keys || []);
+      const keysResult = await fetchJsonWithTimeout("/api/keys");
+      if (keysResult.ok && keysResult.data) {
+        setKeys(keysResult.data.keys || []);
       }
     } catch (error) {
       console.log("Error fetching data:", error);
@@ -404,15 +419,6 @@ export default function APIPageClient({ machineId }) {
     }
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-8">
-        <CardSkeleton />
-        <CardSkeleton />
-      </div>
-    );
-  }
-
   const currentEndpoint = tunnelEnabled && tunnelUrl ? `${tunnelUrl}/v1` : baseUrl;
 
   return (
@@ -456,6 +462,13 @@ export default function APIPageClient({ machineId }) {
             )}
           </div>
         </div>
+
+        {loading && (
+          <div className="mb-4 flex items-center gap-2 text-xs text-text-muted">
+            <span className="material-symbols-outlined animate-spin text-[14px]">progress_activity</span>
+            Loading latest dashboard state...
+          </div>
+        )}
 
         {/* Endpoint URL */}
         <div className="flex gap-2">

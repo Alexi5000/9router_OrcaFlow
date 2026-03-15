@@ -9,6 +9,65 @@ export { COLORS, formatSSE };
 const sharedDecoder = new TextDecoder();
 const sharedEncoder = new TextEncoder();
 
+function appendTextIfString(value, target) {
+  if (typeof value !== "string" || value.length === 0) {
+    return target;
+  }
+  target.totalContentLength += value.length;
+  target.bucket += value;
+  return target;
+}
+
+function collectChunkText(parsed, totals) {
+  if (!parsed || typeof parsed !== "object") return;
+
+  const appendContent = (value) => appendTextIfString(value, { totalContentLength: totals.totalContentLength, bucket: totals.accumulatedContent });
+  const appendThinking = (value) => appendTextIfString(value, { totalContentLength: totals.totalContentLength, bucket: totals.accumulatedThinking });
+
+  const applyResult = (result, key) => {
+    totals.totalContentLength = result.totalContentLength;
+    totals[key] = result.bucket;
+  };
+
+  // Claude format
+  applyResult(appendContent(parsed.delta?.text), "accumulatedContent");
+  applyResult(appendThinking(parsed.delta?.thinking), "accumulatedThinking");
+
+  // OpenAI streaming format
+  applyResult(appendContent(parsed.choices?.[0]?.delta?.content), "accumulatedContent");
+  applyResult(appendThinking(parsed.choices?.[0]?.delta?.reasoning_content), "accumulatedThinking");
+
+  // OpenAI non-delta / final-message style chunks
+  const messageContent = parsed.choices?.[0]?.message?.content;
+  if (typeof messageContent === "string") {
+    applyResult(appendContent(messageContent), "accumulatedContent");
+  } else if (Array.isArray(messageContent)) {
+    for (const item of messageContent) {
+      applyResult(appendContent(item?.text), "accumulatedContent");
+    }
+  }
+  applyResult(appendContent(parsed.choices?.[0]?.text), "accumulatedContent");
+
+  // Responses-style text deltas
+  applyResult(appendContent(parsed.delta), "accumulatedContent");
+
+  // Gemini / Antigravity top-level and wrapped response payloads
+  const partsSets = [
+    parsed.candidates?.[0]?.content?.parts,
+    parsed.response?.candidates?.[0]?.content?.parts
+  ];
+  for (const parts of partsSets) {
+    if (!Array.isArray(parts)) continue;
+    for (const part of parts) {
+      if (part?.thought === true) {
+        applyResult(appendThinking(part.text), "accumulatedThinking");
+      } else {
+        applyResult(appendContent(part?.text), "accumulatedContent");
+      }
+    }
+  }
+}
+
 /**
  * Stream modes
  */
@@ -107,17 +166,11 @@ export function createSSEStream(options = {}) {
                 continue;
               }
 
-              const delta = parsed.choices?.[0]?.delta;
-              const content = delta?.content;
-              const reasoning = delta?.reasoning_content;
-              if (content && typeof content === "string") {
-                totalContentLength += content.length;
-                accumulatedContent += content;
-              }
-              if (reasoning && typeof reasoning === "string") {
-                totalContentLength += reasoning.length;
-                accumulatedThinking += reasoning;
-              }
+	              const totals = { totalContentLength, accumulatedContent, accumulatedThinking };
+	              collectChunkText(parsed, totals);
+	              totalContentLength = totals.totalContentLength;
+	              accumulatedContent = totals.accumulatedContent;
+	              accumulatedThinking = totals.accumulatedThinking;
 
               const extracted = extractUsage(parsed);
               if (extracted) {
@@ -169,42 +222,11 @@ export function createSSEStream(options = {}) {
           continue;
         }
 
-        // Claude format - content
-        if (parsed.delta?.text) {
-          totalContentLength += parsed.delta.text.length;
-          accumulatedContent += parsed.delta.text;
-        }
-        // Claude format - thinking
-        if (parsed.delta?.thinking) {
-          totalContentLength += parsed.delta.thinking.length;
-          accumulatedThinking += parsed.delta.thinking;
-        }
-        
-        // OpenAI format - content
-        if (parsed.choices?.[0]?.delta?.content) {
-          totalContentLength += parsed.choices[0].delta.content.length;
-          accumulatedContent += parsed.choices[0].delta.content;
-        }
-        // OpenAI format - reasoning
-        if (parsed.choices?.[0]?.delta?.reasoning_content) {
-          totalContentLength += parsed.choices[0].delta.reasoning_content.length;
-          accumulatedThinking += parsed.choices[0].delta.reasoning_content;
-        }
-        
-        // Gemini format
-        if (parsed.candidates?.[0]?.content?.parts) {
-          for (const part of parsed.candidates[0].content.parts) {
-            if (part.text && typeof part.text === "string") {
-              totalContentLength += part.text.length;
-              // Check if this is thinking content
-              if (part.thought === true) {
-                accumulatedThinking += part.text;
-              } else {
-                accumulatedContent += part.text;
-              }
-            }
-          }
-        }
+	        const totals = { totalContentLength, accumulatedContent, accumulatedThinking };
+	        collectChunkText(parsed, totals);
+	        totalContentLength = totals.totalContentLength;
+	        accumulatedContent = totals.accumulatedContent;
+	        accumulatedThinking = totals.accumulatedThinking;
 
         // Extract usage
         const extracted = extractUsage(parsed);

@@ -1,4 +1,4 @@
-import { saveRequestUsage, appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
+import { saveRequestDetail } from "@/lib/usageDb.js";
 import { COLORS } from "../../utils/stream.js";
 
 const OPTIONAL_PARAMS = [
@@ -84,19 +84,6 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
   const accountSuffix = connectionId ? ` | account=${connectionId.slice(0, 8)}...` : "";
   console.log(`${COLORS.green}[${time}] 📊 [${label}] ${provider.toUpperCase()} | in=${inTokens} | out=${outTokens}${accountSuffix}${COLORS.reset}`);
 
-  // Normalize to OpenAI token shape for storage
-  const normalized = {
-    prompt_tokens: tokens.prompt_tokens ?? tokens.input_tokens ?? 0,
-    completion_tokens: tokens.completion_tokens ?? tokens.output_tokens ?? 0
-  };
-
-  saveRequestUsage({
-    provider: provider || "unknown",
-    model: model || "unknown",
-    tokens: normalized,
-    timestamp: new Date().toISOString(),
-    connectionId: connectionId || undefined,
-    apiKey: apiKey || undefined,
-    endpoint: endpoint || null
-  }).catch(() => {});
+  // Usage persistence removed — usageTracking.js already handles saveRequestUsage
+  // (with cache tokens, reasoning tokens, cost) and appendRequestLog.
 }

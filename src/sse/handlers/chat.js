@@ -8,7 +8,7 @@ import {
   isValidApiKey,
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
-import { getModelInfo, getComboModels } from "../services/model.js";
+import { getModelInfo, getComboConfig } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { handleComboChat } from "open-sse/services/combo.js";
@@ -113,12 +113,13 @@ export async function handleChat(request, clientRawRequest = null) {
   }
 
   // Check if model is a combo (has multiple models with fallback)
-  const comboModels = await getComboModels(modelStr);
-  if (comboModels) {
-    log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models`);
+  const combo = await getComboConfig(modelStr);
+  if (combo?.models?.length) {
+    log.info("CHAT", `Combo "${modelStr}" with ${combo.models.length} models`);
     return handleComboChat({
       body,
-      models: comboModels,
+      models: combo.models,
+      combo,
       handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
       log
     });
@@ -138,12 +139,13 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   // Use modelInfo.model (alias-resolved) not modelStr (original), since aliases can point to combo names
   if (!modelInfo.provider) {
     const comboName = modelInfo.model || modelStr;
-    const comboModels = await getComboModels(comboName);
-    if (comboModels) {
-      log.info("CHAT", `Combo "${comboName}" with ${comboModels.length} models (from ${modelStr})`);
+    const combo = await getComboConfig(comboName);
+    if (combo?.models?.length) {
+      log.info("CHAT", `Combo "${comboName}" with ${combo.models.length} models (from ${modelStr})`);
       return handleComboChat({
         body,
-        models: comboModels,
+        models: combo.models,
+        combo,
         handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
         log
       });
@@ -237,7 +239,14 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     }
 
     // Mark account unavailable (auto-calculates cooldown with exponential backoff)
-    const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model);
+    const { shouldFallback } = await markAccountUnavailable(
+      credentials.connectionId,
+      result.status,
+      result.error,
+      provider,
+      model,
+      result.retryAfterMs || null
+    );
 
     if (shouldFallback) {
       log.warn("AUTH", `Account ${accountId}... unavailable (${result.status}), trying fallback`);

@@ -28,7 +28,7 @@ export default function ProviderLimits() {
   // Fetch all provider connections
   const fetchConnections = useCallback(async () => {
     try {
-      const response = await fetch("/api/providers/client");
+      const response = await fetch("/api/providers", { cache: "no-store" });
       if (!response.ok) throw new Error("Failed to fetch connections");
       
       const data = await response.json();

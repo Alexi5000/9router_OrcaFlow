@@ -8,6 +8,7 @@ import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "@/shared/constants/config";
 import { FREE_PROVIDERS, OPENAI_COMPATIBLE_PREFIX, ANTHROPIC_COMPATIBLE_PREFIX } from "@/shared/constants/providers";
 import Link from "next/link";
 import { getErrorCode, getRelativeTime } from "@/shared/utils";
+import { formatBurstCountdown, formatBurstTime, getKiloBurstStatus } from "@/shared/utils/kiloBurst";
 import { useNotificationStore } from "@/store/notificationStore";
 import ModelAvailabilityBadge from "./components/ModelAvailabilityBadge";
 
@@ -67,6 +68,7 @@ export default function ProvidersPage() {
   const [connections, setConnections] = useState([]);
   const [providerNodes, setProviderNodes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(Date.now());
   const [showAddCompatibleModal, setShowAddCompatibleModal] = useState(false);
   const [showAddAnthropicCompatibleModal, setShowAddAnthropicCompatibleModal] = useState(false);
   const [testingMode, setTestingMode] = useState(null);
@@ -77,8 +79,8 @@ export default function ProvidersPage() {
     const fetchData = async () => {
       try {
         const [connectionsRes, nodesRes] = await Promise.all([
-          fetch("/api/providers"),
-          fetch("/api/provider-nodes"),
+          fetch("/api/providers", { cache: "no-store" }),
+          fetch("/api/provider-nodes", { cache: "no-store" }),
         ]);
         const connectionsData = await connectionsRes.json();
         const nodesData = await nodesRes.json();
@@ -91,7 +93,15 @@ export default function ProvidersPage() {
       }
     };
     fetchData();
+    const refreshId = setInterval(fetchData, 30000);
+    const tickId = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      clearInterval(refreshId);
+      clearInterval(tickId);
+    };
   }, []);
+
+  const kiloBurstStatus = getKiloBurstStatus(connections, now);
 
   const getProviderStats = (providerId, authType) => {
     const providerConnections = connections.filter(
@@ -236,6 +246,7 @@ export default function ProvidersPage() {
               providerId={key}
               provider={info}
               stats={getProviderStats(key, "oauth")}
+              kiloBurstStatus={key === "kilocode" ? kiloBurstStatus : null}
               authType="oauth"
               onToggle={(active) => handleToggleProvider(key, "oauth", active)}
             />
@@ -427,7 +438,7 @@ export default function ProvidersPage() {
   );
 }
 
-function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
+function ProviderCard({ providerId, provider, stats, authType, onToggle, kiloBurstStatus = null }) {
   const { connected, error, errorCode, errorTime, allDisabled } = stats;
   const [imgError, setImgError] = useState(false);
 
@@ -486,6 +497,23 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
                   </>
                 )}
               </div>
+              {providerId === "kilocode" && kiloBurstStatus?.configured && (
+                <div className="mt-1 text-[11px] text-text-muted">
+                  {kiloBurstStatus.parked ? (
+                    <span className="text-rose-400">
+                      Burst parked until {formatBurstTime(kiloBurstStatus.resetAt)} ({formatBurstCountdown(kiloBurstStatus.resetInMs)})
+                    </span>
+                  ) : kiloBurstStatus.degraded ? (
+                    <span className="text-amber-400">
+                      Burst partially live: {kiloBurstStatus.availableModels.length} lane up, reset {formatBurstTime(kiloBurstStatus.resetAt)}
+                    </span>
+                  ) : (
+                    <span className="text-emerald-400">
+                      Burst live now: hunter/healer front the coding chains
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -529,6 +557,14 @@ ProviderCard.propTypes = {
   }).isRequired,
   authType: PropTypes.string,
   onToggle: PropTypes.func,
+  kiloBurstStatus: PropTypes.shape({
+    configured: PropTypes.bool,
+    parked: PropTypes.bool,
+    degraded: PropTypes.bool,
+    resetAt: PropTypes.string,
+    resetInMs: PropTypes.number,
+    availableModels: PropTypes.array,
+  }),
 };
 
 function ApiKeyProviderCard({ providerId, provider, stats, authType, onToggle }) {

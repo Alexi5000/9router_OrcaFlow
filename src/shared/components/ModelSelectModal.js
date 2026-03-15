@@ -27,7 +27,7 @@ export default function ModelSelectModal({
 
   const fetchCombos = async () => {
     try {
-      const res = await fetch("/api/combos");
+      const res = await fetch("/api/combos", { cache: "no-store" });
       if (!res.ok) throw new Error(`Failed to fetch combos: ${res.status}`);
       const data = await res.json();
       setCombos(data.combos || []);
@@ -43,7 +43,7 @@ export default function ModelSelectModal({
 
   const fetchProviderNodes = async () => {
     try {
-      const res = await fetch("/api/provider-nodes");
+      const res = await fetch("/api/provider-nodes", { cache: "no-store" });
       if (!res.ok) throw new Error(`Failed to fetch provider nodes: ${res.status}`);
       const data = await res.json();
       setProviderNodes(data.nodes || []);

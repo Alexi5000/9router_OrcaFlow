@@ -75,7 +75,9 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ connections: safeConnections });
+    const response = NextResponse.json({ connections: safeConnections });
+    response.headers.set("Cache-Control", "no-store, max-age=0");
+    return response;
   } catch (error) {
     console.log("Error fetching providers:", error);
     return NextResponse.json({ error: "Failed to fetch providers" }, { status: 500 });

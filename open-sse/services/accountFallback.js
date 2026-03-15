@@ -11,6 +11,48 @@ export function getQuotaCooldown(backoffLevel = 0) {
   return Math.min(cooldown, BACKOFF_CONFIG.max);
 }
 
+const KILO_FREE_MODEL_PATTERNS = [
+  "openrouter/healer-alpha",
+  "openrouter/hunter-alpha",
+  "openrouter/free",
+  "kilo-auto/free",
+  "kilo/auto-free",
+  "stepfun/step-3.5-flash:free",
+];
+
+export function isKilocodeHourlyFreeModel(model = "", errorText = "") {
+  const normalizedModel = String(model || "").toLowerCase();
+  const normalizedError = String(errorText || "").toLowerCase();
+
+  return (
+    normalizedModel.endsWith(":free") ||
+    KILO_FREE_MODEL_PATTERNS.some((pattern) => normalizedModel === pattern || normalizedModel.startsWith(`${pattern}/`)) ||
+    normalizedError.includes("200 requests/hour") ||
+    normalizedError.includes("requests/hour") ||
+    normalizedError.includes("per ip") ||
+    normalizedError.includes("free model")
+  );
+}
+
+export function getMsUntilNextHour(now = Date.now()) {
+  const nextHour = new Date(now);
+  nextHour.setMinutes(0, 0, 0);
+  nextHour.setHours(nextHour.getHours() + 1);
+  return Math.max(nextHour.getTime() - now, 1000);
+}
+
+export function getProviderCooldownOverride({ provider = null, model = null, status = 0, errorText = "", retryAfterMs = null, now = Date.now() } = {}) {
+  if (Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
+    return retryAfterMs;
+  }
+
+  if (provider === "kilocode" && status === HTTP_STATUS.RATE_LIMITED && isKilocodeHourlyFreeModel(model, errorText)) {
+    return getMsUntilNextHour(now);
+  }
+
+  return null;
+}
+
 /**
  * Check if error should trigger account fallback (switch to next account)
  * @param {number} status - HTTP status code

@@ -10,13 +10,13 @@ vi.mock("../../src/sse/services/auth.js", () => ({
   isValidApiKey: vi.fn(),
 }));
 
-vi.mock("../../src/lib/localDb", () => ({
+vi.mock("@/lib/localDb", () => ({
   getSettings: vi.fn(),
 }));
 
 vi.mock("../../src/sse/services/model.js", () => ({
   getModelInfo: vi.fn(),
-  getComboModels: vi.fn(),
+  getComboConfig: vi.fn(),
 }));
 
 vi.mock("open-sse/handlers/chatCore.js", () => ({
@@ -47,8 +47,8 @@ import {
   markAccountUnavailable,
   extractApiKey,
 } from "../../src/sse/services/auth.js";
-import { getSettings } from "../../src/lib/localDb";
-import { getComboModels, getModelInfo } from "../../src/sse/services/model.js";
+import { getSettings } from "@/lib/localDb";
+import { getComboConfig, getModelInfo } from "../../src/sse/services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { checkAndRefreshToken } from "../../src/sse/services/tokenRefresh.js";
 
@@ -82,9 +82,12 @@ describe("chat schema incompatibility fallback", () => {
   beforeEach(() => {
     vi.mocked(getSettings).mockResolvedValue({ requireApiKey: false });
     vi.mocked(extractApiKey).mockReturnValue(null);
-    vi.mocked(getComboModels).mockImplementation(async (model) => {
+    vi.mocked(getComboConfig).mockImplementation(async (model) => {
       if (model === "sonnet") {
-        return ["codex/gpt-5.4", "claude/claude-sonnet-4-6"];
+        return {
+          name: "sonnet",
+          models: ["codex/gpt-5.4", "claude/claude-sonnet-4-6"],
+        };
       }
       return null;
     });

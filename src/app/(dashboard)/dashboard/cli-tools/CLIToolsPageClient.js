@@ -42,7 +42,7 @@ export default function CLIToolsPageClient({ machineId }) {
       const entries = await Promise.all(
         Object.entries(STATUS_ENDPOINTS).map(async ([toolId, url]) => {
           try {
-            const res = await fetch(url);
+            const res = await fetch(url, { cache: "no-store" });
             const data = await res.json();
             return [toolId, data];
           } catch {
@@ -59,8 +59,8 @@ export default function CLIToolsPageClient({ machineId }) {
   const loadCloudSettings = async () => {
     try {
       const [settingsRes, tunnelRes] = await Promise.all([
-        fetch("/api/settings"),
-        fetch("/api/tunnel/status"),
+        fetch("/api/settings", { cache: "no-store" }),
+        fetch("/api/tunnel/status", { cache: "no-store" }),
       ]);
       if (settingsRes.ok) {
         const data = await settingsRes.json();
@@ -78,7 +78,7 @@ export default function CLIToolsPageClient({ machineId }) {
 
   const fetchApiKeys = async () => {
     try {
-      const res = await fetch("/api/keys");
+      const res = await fetch("/api/keys", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setApiKeys(data.keys || []);
@@ -90,7 +90,7 @@ export default function CLIToolsPageClient({ machineId }) {
 
   const fetchConnections = async () => {
     try {
-      const res = await fetch("/api/providers");
+      const res = await fetch("/api/providers", { cache: "no-store" });
       const data = await res.json();
       if (res.ok) {
         setConnections(data.connections || []);

@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
+import { waitForLowDbWrites, wrapLowDbWrite } from "./lowdbWriteQueue.js";
 
 const isCloud = typeof caches !== 'undefined' || typeof caches === 'object';
 
@@ -35,9 +36,14 @@ const DATA_DIR = getUserDataDir();
 const DB_FILE = isCloud ? null : path.join(DATA_DIR, "db.json");
 
 // Ensure data directory exists
-if (!isCloud && !fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+function ensureDataDir() {
+  if (isCloud) return;
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
 }
+
+ensureDataDir();
 
 // Default data structure
 const defaultData = {
@@ -172,9 +178,11 @@ export async function getDb() {
   if (!dbInstance) {
     const adapter = new JSONFile(DB_FILE);
     dbInstance = new Low(adapter, cloneDefaultData());
+    wrapLowDbWrite(dbInstance, DB_FILE, ensureDataDir);
   }
 
   // Always read latest disk state to avoid stale singleton data across route workers.
+  await waitForLowDbWrites(DB_FILE);
   try {
     await dbInstance.read();
   } catch (error) {

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
+import { formatBurstCountdown, formatBurstTime, getKiloBurstStatus } from "@/shared/utils/kiloBurst";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
@@ -14,17 +15,14 @@ export default function CombosPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCombo, setEditingCombo] = useState(null);
   const [activeProviders, setActiveProviders] = useState([]);
+  const [now, setNow] = useState(Date.now());
   const { copied, copy } = useCopyToClipboard();
 
-  useEffect(() => {
-    fetchData();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [combosRes, providersRes] = await Promise.all([
-        fetch("/api/combos"),
-        fetch("/api/providers"),
+        fetch("/api/combos", { cache: "no-store" }),
+        fetch("/api/providers", { cache: "no-store" }),
       ]);
       const combosData = await combosRes.json();
       const providersData = await providersRes.json();
@@ -38,7 +36,19 @@ export default function CombosPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    const refreshId = setInterval(fetchData, 30000);
+    const tickId = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      clearInterval(refreshId);
+      clearInterval(tickId);
+    };
+  }, [fetchData]);
+
+  const kiloBurstStatus = getKiloBurstStatus(activeProviders, now);
 
   const handleCreate = async (data) => {
     try {
@@ -114,6 +124,8 @@ export default function CombosPage() {
         </Button>
       </div>
 
+      <KiloBurstStatusCard status={kiloBurstStatus} combos={combos} />
+
       {/* Combos List */}
       {combos.length === 0 ? (
         <Card>
@@ -162,6 +174,70 @@ export default function CombosPage() {
         activeProviders={activeProviders}
       />
     </div>
+  );
+}
+
+function KiloBurstStatusCard({ status, combos }) {
+  const kiloCombo = combos.find((combo) => combo.name === "kilo-burst-coding");
+  const paidCombo = combos.find((combo) => combo.name === "paid-coding");
+
+  if (!kiloCombo && !paidCombo && !status.configured) {
+    return null;
+  }
+
+  const stateClasses = status.parked
+    ? "border-rose-500/30 bg-rose-500/10 text-rose-300"
+    : status.degraded
+      ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+      : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+
+  const stateLabel = !status.configured
+    ? "Not configured"
+    : status.parked
+      ? "Parked"
+      : status.degraded
+        ? "Partially Live"
+        : "Live";
+
+  const stateText = !status.configured
+    ? "Kilo burst is not configured."
+    : status.parked
+      ? `Kilo burst is parked until ${formatBurstTime(status.resetAt)} (${formatBurstCountdown(status.resetInMs)}).`
+      : status.degraded
+        ? `${status.availableModels.length} burst lane live, ${status.lockedModels.length} parked until ${formatBurstTime(status.resetAt)}.`
+        : `${status.availableModels.length} burst lanes live now. Paid fallback stays idle until Kilo parks.`;
+
+  return (
+    <Card padding="sm">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold">Kilo Burst Window</h2>
+            <p className="text-sm text-text-muted mt-1">
+              `sonnet`, `build`, `reason`, and `opus` now burn Kilo first, then fall into the paid coding tier.
+            </p>
+          </div>
+          <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${stateClasses}`}>
+            {stateLabel}
+          </span>
+        </div>
+
+        <div className="text-sm text-text-main">{stateText}</div>
+
+        <div className="flex flex-wrap gap-2 text-xs">
+          {kiloCombo && (
+            <span className="rounded-full bg-black/5 px-2.5 py-1 font-mono text-text-muted dark:bg-white/5">
+              kilo: {kiloCombo.models.join(" -> ")}
+            </span>
+          )}
+          {paidCombo && (
+            <span className="rounded-full bg-black/5 px-2.5 py-1 font-mono text-text-muted dark:bg-white/5">
+              paid: {paidCombo.models.slice(0, 3).join(" -> ")}
+            </span>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }
 

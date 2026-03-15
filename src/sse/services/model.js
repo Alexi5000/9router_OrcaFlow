@@ -4,6 +4,18 @@ import { parseModel, resolveModelAliasFromMap, getModelInfoCore } from "open-sse
 
 export { parseModel };
 
+function flattenComboModels(combo) {
+  if (Array.isArray(combo?.models) && combo.models.length > 0) {
+    return combo.models;
+  }
+
+  if (!Array.isArray(combo?.tiers)) {
+    return [];
+  }
+
+  return combo.tiers.flatMap((tier) => Array.isArray(tier?.models) ? tier.models : []);
+}
+
 /**
  * Resolve model alias from localDb
  */
@@ -77,12 +89,27 @@ export async function getModelInfo(modelStr) {
  * @returns {Promise<string[]|null>} Array of models or null if not a combo
  */
 export async function getComboModels(modelStr) {
+  const combo = await getComboConfig(modelStr);
+  return combo?.models || null;
+}
+
+/**
+ * Get full combo config if model is a combo name
+ * @returns {Promise<object|null>}
+ */
+export async function getComboConfig(modelStr) {
   // Only check if it's not in provider/model format
   if (modelStr.includes("/")) return null;
 
   const combo = await getComboByName(modelStr);
-  if (combo && combo.models && combo.models.length > 0) {
-    return combo.models;
+  if (combo) {
+    const models = flattenComboModels(combo);
+    if (models.length > 0) {
+      return {
+        ...combo,
+        models,
+      };
+    }
   }
   return null;
 }

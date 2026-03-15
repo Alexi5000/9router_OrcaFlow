@@ -180,6 +180,25 @@ const PERIODS = [
   { value: "60d", label: "60D" },
 ];
 
+const STATS_FETCH_TIMEOUT_MS = 10000;
+
+async function fetchJsonWithTimeout(url, timeoutMs = STATS_FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    if (error?.name !== "AbortError") {
+      console.error("[UsageStats] fetch failed:", error);
+    }
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export default function UsageStats() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -197,8 +216,7 @@ export default function UsageStats() {
 
   // Fetch connected providers once, deduplicate by provider type
   useEffect(() => {
-    fetch("/api/providers")
-      .then((r) => r.ok ? r.json() : null)
+    fetchJsonWithTimeout("/api/providers")
       .then((d) => {
         if (!d?.connections) return;
         const seen = new Set();
@@ -218,8 +236,7 @@ export default function UsageStats() {
     if (!stats) setLoading(true);
     else setFetching(true);
 
-    fetch(`/api/usage/stats?period=${period}`)
-      .then((r) => r.ok ? r.json() : null)
+    fetchJsonWithTimeout(`/api/usage/stats?period=${period}`)
       .then((data) => {
         if (data) setStats((prev) => ({ ...prev, ...data }));
       })

@@ -5,6 +5,7 @@ import path from "path";
 import os from "os";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import { waitForLowDbWrites, wrapLowDbWrite } from "./lowdbWriteQueue.js";
 
 const isCloud = typeof caches !== 'undefined' || typeof caches === 'object';
 
@@ -53,7 +54,8 @@ const DB_FILE = isCloud ? null : path.join(DATA_DIR, "usage.json");
 const LOG_FILE = isCloud ? null : path.join(DATA_DIR, "log.txt");
 
 // Ensure data directory exists
-if (!isCloud && fs && typeof fs.existsSync === "function") {
+function ensureDataDir() {
+  if (isCloud || !fs || typeof fs.existsSync !== "function") return;
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -63,6 +65,8 @@ if (!isCloud && fs && typeof fs.existsSync === "function") {
     console.error("[usageDb] Failed to create data directory:", error.message);
   }
 }
+
+ensureDataDir();
 
 // Default data structure
 const defaultData = {
@@ -160,6 +164,7 @@ export async function getActiveRequests() {
 
   // Get recent requests from history (re-read to get latest)
   const db = await getUsageDb();
+  await waitForLowDbWrites(DB_FILE);
   await db.read();
   const history = db.data.history || [];
   const seen = new Set();
@@ -203,8 +208,10 @@ export async function getUsageDb() {
   if (!dbInstance) {
     const adapter = new JSONFile(DB_FILE);
     dbInstance = new Low(adapter, defaultData);
+    wrapLowDbWrite(dbInstance, DB_FILE, ensureDataDir);
 
     // Try to read DB with error recovery for corrupt JSON
+    await waitForLowDbWrites(DB_FILE);
     try {
       await dbInstance.read();
     } catch (error) {
@@ -248,10 +255,27 @@ export async function saveRequestUsage(entry) {
 
     const entryCost = await calculateCost(entry.provider, entry.model, entry.tokens);
     entry.cost = entryCost;
-    db.data.history.push(entry);
 
-    // Optional: Limit history size if needed in future
-    // if (db.data.history.length > 10000) db.data.history.shift();
+    // Security: mask API keys before persisting to disk
+    if (entry.apiKey && typeof entry.apiKey === "string" && entry.apiKey.length > 12) {
+      entry.apiKey = entry.apiKey.slice(0, 8) + "...";
+    }
+
+    // Deduplicate: skip if last entry has same timestamp + model + connectionId
+    const last = db.data.history[db.data.history.length - 1];
+    if (last && last.timestamp === entry.timestamp && last.model === entry.model && last.connectionId === entry.connectionId) {
+      // Merge: prefer the entry with more token detail (cache tokens)
+      if (entry.tokens?.cache_read_input_tokens && !last.tokens?.cache_read_input_tokens) {
+        db.data.history[db.data.history.length - 1] = entry;
+      }
+    } else {
+      db.data.history.push(entry);
+    }
+
+    // Retention: keep max 15000 entries (~10 days at heavy usage)
+    while (db.data.history.length > 15000) {
+      db.data.history.shift();
+    }
 
     await db.write();
     statsEmitter.emit("update");
@@ -727,9 +751,9 @@ export async function getUsageStats(period = "all") {
           cost: 0,
           rawModel: entry.model,
           provider: providerDisplayName,
-          apiKey: entry.apiKey,
+          apiKey: (entry.apiKey && entry.apiKey.length > 12) ? entry.apiKey.slice(0, 8) + "..." : entry.apiKey,
           keyName: keyName,
-          apiKeyKey: apiKeyKey,
+          apiKeyKey: (apiKeyKey && apiKeyKey.length > 12) ? apiKeyKey.slice(0, 8) + "..." : apiKeyKey,
           lastUsed: entry.timestamp
         };
       }

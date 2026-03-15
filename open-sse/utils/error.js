@@ -1,4 +1,5 @@
 import { ERROR_TYPES, DEFAULT_ERROR_MESSAGES } from "../config/constants.js";
+import { parseRetryAfterHeader } from "./requestUtils.js";
 
 /**
  * Build OpenAI-compatible error response body
@@ -93,7 +94,7 @@ export function parseAntigravityRetryTime(message) {
  */
 export async function parseUpstreamError(response, provider = null) {
   let message = "";
-  let retryAfterMs = null;
+  let retryAfterMs = parseRetryAfterHeader(response);
   
   try {
     const text = await response.text();
@@ -113,7 +114,7 @@ export async function parseUpstreamError(response, provider = null) {
   const finalMessage = messageStr || DEFAULT_ERROR_MESSAGES[response.status] || `Upstream error: ${response.status}`;
 
   // Parse Antigravity-specific retry time from error message
-  if (provider === "antigravity" && response.status === 429) {
+  if (!retryAfterMs && provider === "antigravity" && response.status === 429) {
     retryAfterMs = parseAntigravityRetryTime(finalMessage);
   }
 
