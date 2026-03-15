@@ -1,10 +1,17 @@
 import https from "https";
 import pkg from "../../../../package.json" with { type: "json" };
 
-const NPM_PACKAGE_NAME = "9router";
+const NPM_PACKAGE_NAME =
+  pkg.private === true || !pkg.name || pkg.name === "orcaflow"
+    ? null
+    : pkg.name;
 
 // Fetch latest version from npm registry
 function fetchLatestVersion() {
+  if (!NPM_PACKAGE_NAME) {
+    return Promise.resolve(null);
+  }
+
   return new Promise((resolve) => {
     const req = https.get(
       `https://registry.npmjs.org/${NPM_PACKAGE_NAME}/latest`,
