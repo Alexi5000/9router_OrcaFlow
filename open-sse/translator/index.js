@@ -1,8 +1,12 @@
+import { createRequire } from "module";
 import { FORMATS } from "./formats.js";
 import { ensureToolCallIds, fixMissingToolResponses } from "./helpers/toolCallHelper.js";
 import { prepareClaudeRequest } from "./helpers/claudeHelper.js";
 import { filterToOpenAIFormat } from "./helpers/openaiHelper.js";
+import { sanitizeOpenAIResponsesRequestBody } from "./helpers/openaiResponsesSchema.js";
 import { normalizeThinkingConfig } from "../services/provider.js";
+
+const require = createRequire(import.meta.url);
 
 // Registry for translators
 const requestRegistry = new Map();
@@ -26,7 +30,7 @@ export function register(from, to, requestFn, responseFn) {
 function ensureInitialized() {
   if (initialized) return;
   initialized = true;
-
+  
   // Request translators - sync require pattern for bundler
   require("./request/claude-to-openai.js");
   require("./request/openai-to-claude.js");
@@ -36,8 +40,7 @@ function ensureInitialized() {
   require("./request/openai-responses.js");
   require("./request/openai-to-kiro.js");
   require("./request/openai-to-cursor.js");
-  require("./request/openai-to-ollama.js");
-
+  
   // Response translators
   require("./response/claude-to-openai.js");
   require("./response/openai-to-claude.js");
@@ -46,7 +49,6 @@ function ensureInitialized() {
   require("./response/openai-responses.js");
   require("./response/kiro-to-openai.js");
   require("./response/cursor-to-openai.js");
-  require("./response/ollama-to-openai.js");
 }
 
 // Translate request: source -> openai -> target
@@ -88,6 +90,10 @@ export function translateRequest(sourceFormat, targetFormat, model, body, stream
   // This handles hybrid requests (e.g., OpenAI messages + Claude tools)
   if (targetFormat === FORMATS.OPENAI) {
     result = filterToOpenAIFormat(result);
+  }
+
+  if (targetFormat === FORMATS.OPENAI_RESPONSES) {
+    result = sanitizeOpenAIResponsesRequestBody(result);
   }
 
   // Final step: prepare request for Claude format endpoints

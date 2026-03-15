@@ -1,13 +1,10 @@
-import { Readable } from "stream";
-import { MEMORY_CONFIG } from "../config/runtimeConfig.js";
-
 const isCloud = typeof caches !== "undefined" && typeof caches === "object";
 
 const originalFetch = globalThis.fetch;
 const proxyDispatchers = new Map();
 
-// DNS cache — use Map to avoid prototype pollution via malformed hostnames
-const DNS_CACHE = new Map();
+// Constants
+const DNS_CACHE = {};
 const MITM_BYPASS_HOSTS = ["cloudcode-pa.googleapis.com", "daily-cloudcode-pa.googleapis.com", "googleapis.com"];
 const MITM_BYPASS_HEADER = "x-request-source";
 const MITM_BYPASS_VALUE = "local";
@@ -25,8 +22,7 @@ function normalizeString(value) {
  * Resolve real IP using Google DNS (bypass system DNS)
  */
 async function resolveRealIP(hostname) {
-  const cached = DNS_CACHE.get(hostname);
-  if (cached && Date.now() < cached.expiry) return cached.ip;
+  if (DNS_CACHE[hostname]) return DNS_CACHE[hostname];
 
   try {
     const dns = await import("dns");
@@ -35,7 +31,7 @@ async function resolveRealIP(hostname) {
     resolver.setServers(GOOGLE_DNS_SERVERS);
     const resolve4 = promisify(resolver.resolve4.bind(resolver));
     const addresses = await resolve4(hostname);
-    DNS_CACHE.set(hostname, { ip: addresses[0], expiry: Date.now() + MEMORY_CONFIG.dnsCacheTtlMs });
+    DNS_CACHE[hostname] = addresses[0];
     return addresses[0];
   } catch (error) {
     console.warn(`[ProxyFetch] DNS resolve failed for ${hostname}:`, error.message);
@@ -54,27 +50,23 @@ function shouldBypassMitmDns(url, options) {
                          headers[MITM_BYPASS_HEADER.charAt(0).toUpperCase() + MITM_BYPASS_HEADER.slice(1)] === MITM_BYPASS_VALUE;
 
   if (!hasLocalMarker) {
-    try {
-      const hostname = new URL(url).hostname;
-      if (MITM_BYPASS_HOSTS.some(host => hostname.includes(host))) {
-        console.warn(`[ProxyFetch] MITM bypass NOT triggered for ${hostname} - missing header`);
-      }
-    } catch { /* invalid URL — skip debug log */ }
+    // Debug: log when bypass is not triggered
+    const hostname = new URL(url).hostname;
+    if (MITM_BYPASS_HOSTS.some(host => hostname.includes(host))) {
+      console.warn(`[ProxyFetch] MITM bypass NOT triggered for ${hostname} - missing header`);
+    }
     return false;
   }
 
-  try {
-    const hostname = new URL(url).hostname;
-    return MITM_BYPASS_HOSTS.some(host => hostname.includes(host));
-  } catch { return false; }
+  const hostname = new URL(url).hostname;
+  return MITM_BYPASS_HOSTS.some(host => hostname.includes(host));
 }
 
 function shouldBypassByNoProxy(targetUrl, noProxyValue) {
   const noProxy = normalizeString(noProxyValue);
   if (!noProxy) return false;
 
-  let hostname;
-  try { hostname = new URL(targetUrl).hostname.toLowerCase(); } catch { return false; }
+  const hostname = new URL(targetUrl).hostname.toLowerCase();
   const patterns = noProxy.split(",").map((p) => p.trim().toLowerCase()).filter(Boolean);
 
   return patterns.some((pattern) => {
@@ -91,8 +83,7 @@ function getEnvProxyUrl(targetUrl) {
   const noProxy = process.env.NO_PROXY || process.env.no_proxy;
   if (shouldBypassByNoProxy(targetUrl, noProxy)) return null;
 
-  let protocol;
-  try { protocol = new URL(targetUrl).protocol; } catch { return null; }
+  const protocol = new URL(targetUrl).protocol;
 
   if (protocol === "https:") {
     return process.env.HTTPS_PROXY || process.env.https_proxy ||
@@ -141,10 +132,6 @@ async function getDispatcher(proxyUrl) {
   if (!normalized) return null;
 
   if (!proxyDispatchers.has(normalized)) {
-    // Evict oldest entry if max size reached
-    if (proxyDispatchers.size >= MEMORY_CONFIG.proxyDispatchersMaxSize) {
-      proxyDispatchers.delete(proxyDispatchers.keys().next().value);
-    }
     const { ProxyAgent } = await import("undici");
     proxyDispatchers.set(normalized, new ProxyAgent({ uri: normalized }));
   }
@@ -156,11 +143,9 @@ async function getDispatcher(proxyUrl) {
  * Create HTTPS request with manual socket connection (bypass DNS)
  */
 async function createBypassRequest(parsedUrl, realIP, options) {
-  const httpsModule = await import("https");
-  const netModule = await import("net");
-  // CJS modules expose exports via .default in ESM dynamic import context
-  const https = httpsModule.default ?? httpsModule;
-  const net = netModule.default ?? netModule;
+  const https = await import("https");
+  const net = await import("net");
+  const { Readable } = require("stream");
 
   return new Promise((resolve, reject) => {
     const socket = new net.Socket();

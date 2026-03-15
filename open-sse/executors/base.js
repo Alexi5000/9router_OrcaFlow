@@ -1,4 +1,4 @@
-import { HTTP_STATUS, RETRY_CONFIG } from "../config/runtimeConfig.js";
+import { HTTP_STATUS, RETRY_CONFIG } from "../config/constants.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { 
   createTimeoutController, 
@@ -98,8 +98,8 @@ export class BaseExecutor {
 
     for (let urlIndex = 0; urlIndex < fallbackCount; urlIndex++) {
       const url = this.buildUrl(model, stream, urlIndex, credentials);
-      const transformedBody = this.transformRequest(model, body, stream, credentials);
       const headers = this.buildHeaders(credentials, stream);
+      const transformedBody = this.transformRequest(model, body, stream, credentials);
 
       if (!retryAttemptsByUrl[urlIndex]) retryAttemptsByUrl[urlIndex] = 0;
 

@@ -139,32 +139,17 @@ export default function ModelSelectModal({
           hasModels: nodeModels.length > 0,
         };
       } else {
-        const hardcodedModels = getModelsByProviderId(providerId);
-        const hardcodedIds = new Set(hardcodedModels.map((m) => m.id));
-
-        // Custom models user added via "Add Model" button (alias === modelId pattern)
-        const customModels = Object.entries(modelAliases)
-          .filter(([aliasName, fullModel]) =>
-            fullModel.startsWith(`${alias}/`) &&
-            aliasName === fullModel.replace(`${alias}/`, "") &&
-            !hardcodedIds.has(fullModel.replace(`${alias}/`, ""))
-          )
-          .map(([, fullModel]) => {
-            const modelId = fullModel.replace(`${alias}/`, "");
-            return { id: modelId, name: modelId, value: fullModel, isCustom: true };
-          });
-
-        const allModels = [
-          ...hardcodedModels.map((m) => ({ id: m.id, name: m.name, value: `${alias}/${m.id}` })),
-          ...customModels,
-        ];
-
-        if (allModels.length > 0) {
+        const models = getModelsByProviderId(providerId);
+        if (models.length > 0) {
           groups[providerId] = {
             name: providerInfo.name,
             alias: alias,
             color: providerInfo.color,
-            models: allModels,
+            models: models.map((m) => ({
+              id: m.id,
+              name: m.name,
+              value: `${alias}/${m.id}`,
+            })),
           };
         }
       }
@@ -313,11 +298,6 @@ export default function ModelSelectModal({
                       <span className="flex items-center gap-1">
                         <span className="material-symbols-outlined text-[11px]">edit</span>
                         {model.name}
-                      </span>
-                    ) : model.isCustom ? (
-                      <span className="flex items-center gap-1">
-                        {model.name}
-                        <span className="text-[9px] opacity-60 font-normal">custom</span>
                       </span>
                     ) : model.name}
                   </button>

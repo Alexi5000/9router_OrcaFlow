@@ -84,6 +84,11 @@ if (!global._lastErrorProvider) {
 }
 const lastErrorProvider = global._lastErrorProvider;
 
+if (!global._usageCostBackfillState) {
+  global._usageCostBackfillState = { done: false, promise: null };
+}
+const usageCostBackfillState = global._usageCostBackfillState;
+
 // Use global to share singleton across Next.js route modules
 if (!global._statsEmitter) {
   global._statsEmitter = new EventEmitter();
@@ -245,11 +250,8 @@ export async function saveRequestUsage(entry) {
     entry.cost = entryCost;
     db.data.history.push(entry);
 
-    // Cap history to prevent unbounded memory/disk growth
-    const MAX_HISTORY = 10000;
-    if (db.data.history.length > MAX_HISTORY) {
-      db.data.history.splice(0, db.data.history.length - MAX_HISTORY);
-    }
+    // Optional: Limit history size if needed in future
+    // if (db.data.history.length > 10000) db.data.history.shift();
 
     await db.write();
     statsEmitter.emit("update");
@@ -432,6 +434,47 @@ async function calculateCost(provider, model, tokens) {
   }
 }
 
+function getTokenCounts(tokens = {}) {
+  return {
+    promptTokens: tokens.prompt_tokens || tokens.input_tokens || 0,
+    completionTokens: tokens.completion_tokens || tokens.output_tokens || 0,
+  };
+}
+
+async function backfillMissingUsageCosts() {
+  if (usageCostBackfillState.done) return;
+  if (usageCostBackfillState.promise) {
+    await usageCostBackfillState.promise;
+    return;
+  }
+
+  usageCostBackfillState.promise = (async () => {
+    const db = await getUsageDb();
+    const history = db.data.history || [];
+    let changed = 0;
+
+    for (const entry of history) {
+      if ((entry.cost || 0) > 0) continue;
+      const recalculatedCost = await calculateCost(entry.provider, entry.model, entry.tokens);
+      if (recalculatedCost > 0) {
+        entry.cost = recalculatedCost;
+        changed++;
+      }
+    }
+
+    if (changed > 0) {
+      await db.write();
+      console.log(`[usageDb] Backfilled costs for ${changed} usage entries`);
+    }
+
+    usageCostBackfillState.done = true;
+  })().finally(() => {
+    usageCostBackfillState.promise = null;
+  });
+
+  await usageCostBackfillState.promise;
+}
+
 const PERIOD_MS = { "24h": 86400000, "7d": 604800000, "30d": 2592000000, "60d": 5184000000 };
 
 /**
@@ -439,6 +482,8 @@ const PERIOD_MS = { "24h": 86400000, "7d": 604800000, "30d": 2592000000, "60d": 
  * @param {"24h"|"7d"|"30d"|"60d"|"all"} period - Time period to filter
  */
 export async function getUsageStats(period = "all") {
+  await backfillMissingUsageCosts();
+
   const db = await getUsageDb();
   let history = db.data.history || [];
 
@@ -498,9 +543,7 @@ export async function getUsageStats(period = "all") {
   const recentRequests = [...history]
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
     .map((e) => {
-      const t = e.tokens || {};
-      const promptTokens = t.prompt_tokens || t.input_tokens || 0;
-      const completionTokens = t.completion_tokens || t.output_tokens || 0;
+      const { promptTokens, completionTokens } = getTokenCounts(e.tokens);
       return {
         timestamp: e.timestamp,
         model: e.model,
@@ -579,8 +622,7 @@ export async function getUsageStats(period = "all") {
   }
 
   for (const entry of history) {
-    const promptTokens = entry.tokens?.prompt_tokens || 0;
-    const completionTokens = entry.tokens?.completion_tokens || 0;
+    const { promptTokens, completionTokens } = getTokenCounts(entry.tokens);
     const entryTime = new Date(entry.timestamp);
 
     // Use pre-stored cost (saved at request time), avoid recalculating
@@ -762,6 +804,8 @@ export async function getUsageStats(period = "all") {
  * @returns {Promise<Array<{label: string, tokens: number, cost: number}>>}
  */
 export async function getChartData(period = "7d") {
+  await backfillMissingUsageCosts();
+
   const db = await getUsageDb();
   const history = db.data.history || [];
   const now = Date.now();
@@ -795,8 +839,7 @@ export async function getChartData(period = "7d") {
     const entryTime = new Date(entry.timestamp).getTime();
     if (entryTime < startTime || entryTime > now) continue;
     const idx = Math.min(Math.floor((entryTime - startTime) / bucketMs), bucketCount - 1);
-    const promptTokens = entry.tokens?.prompt_tokens || 0;
-    const completionTokens = entry.tokens?.completion_tokens || 0;
+    const { promptTokens, completionTokens } = getTokenCounts(entry.tokens);
     buckets[idx].tokens += promptTokens + completionTokens;
     // Use pre-stored cost if available, else 0
     buckets[idx].cost += entry.cost || 0;

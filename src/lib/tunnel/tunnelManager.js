@@ -8,8 +8,7 @@ const MACHINE_ID_SALT = "9router-tunnel-salt";
 const API_KEY_SECRET = "9router-tunnel-api-key-secret";
 const SHORT_ID_LENGTH = 6;
 const SHORT_ID_CHARS = "abcdefghijklmnpqrstuvwxyz23456789";
-const RECONNECT_DELAYS_MS = [5000, 10000, 20000, 30000, 60000];
-const MAX_RECONNECT_ATTEMPTS = RECONNECT_DELAYS_MS.length;
+const RECONNECT_DELAYS_MS = [5000, 15000, 30000];
 
 let isReconnecting = false;
 
@@ -84,10 +83,8 @@ export async function enableTunnel() {
 
   await updateSettings({ tunnelEnabled: true, tunnelUrl: hostname });
 
-  // Re-register exit handler each time tunnel starts (handles reconnect scenario too)
-  setUnexpectedExitHandler(() => {
-    if (!isReconnecting) scheduleReconnect(0);
-  });
+  // Register exit handler for auto-reconnect on unexpected crash/sleep-wake
+  setUnexpectedExitHandler(() => scheduleReconnect(0));
 
   return { success: true, tunnelUrl: hostname, shortId };
 }
@@ -115,7 +112,7 @@ async function scheduleReconnect(attempt) {
     console.log(`[Tunnel] Reconnect attempt ${attempt + 1} failed:`, err.message);
     isReconnecting = false;
     const nextAttempt = attempt + 1;
-    if (nextAttempt < MAX_RECONNECT_ATTEMPTS) {
+    if (nextAttempt < RECONNECT_DELAYS_MS.length) {
       scheduleReconnect(nextAttempt);
     } else {
       console.log("[Tunnel] All reconnect attempts exhausted");

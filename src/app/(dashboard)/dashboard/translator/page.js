@@ -180,11 +180,8 @@ export default function TranslatorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ file: "5_res_provider.txt", content: full })
       });
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setLoad("send", false);
-    }
+    } catch (e) { alert(e.message); }
+    setLoad("send", false);
   };
 
   const handleCopy = async (id) => {

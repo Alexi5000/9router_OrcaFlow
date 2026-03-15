@@ -55,14 +55,22 @@ export function claudeToOpenAIRequest(model, body, stream) {
 
   // Tools
   if (body.tools && Array.isArray(body.tools)) {
-    result.tools = body.tools.map(tool => ({
-      type: "function",
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.input_schema || { type: "object", properties: {} }
+    result.tools = body.tools.map(tool => {
+      // Preserve Claude-native built-in tools so downstream provider-specific
+      // compatibility checks can decide whether to accept or skip them.
+      if (tool?.type && tool.type !== "function" && !tool.input_schema) {
+        return tool;
       }
-    }));
+
+      return {
+        type: "function",
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.input_schema || { type: "object", properties: {} }
+        }
+      };
+    });
   }
 
   // Tool choice

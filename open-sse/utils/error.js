@@ -1,4 +1,4 @@
-import { ERROR_TYPES, DEFAULT_ERROR_MESSAGES } from "../config/runtimeConfig.js";
+import { ERROR_TYPES, DEFAULT_ERROR_MESSAGES } from "../config/constants.js";
 
 /**
  * Build OpenAI-compatible error response body
@@ -129,9 +129,10 @@ export async function parseUpstreamError(response, provider = null) {
  * @param {number} statusCode - HTTP status code
  * @param {string} message - Error message
  * @param {number|null} retryAfterMs - Optional retry-after time in milliseconds
+ * @param {object} options - Additional metadata flags for internal fallback handling
  * @returns {{ success: false, status: number, error: string, response: Response, retryAfterMs?: number }}
  */
-export function createErrorResult(statusCode, message, retryAfterMs = null) {
+export function createErrorResult(statusCode, message, retryAfterMs = null, options = {}) {
   const result = {
     success: false,
     status: statusCode,
@@ -143,6 +144,8 @@ export function createErrorResult(statusCode, message, retryAfterMs = null) {
   if (retryAfterMs) {
     result.retryAfterMs = retryAfterMs;
   }
+
+  Object.assign(result, options);
   
   return result;
 }

@@ -5,7 +5,6 @@ import { IFlowExecutor } from "./iflow.js";
 import { KiroExecutor } from "./kiro.js";
 import { CodexExecutor } from "./codex.js";
 import { CursorExecutor } from "./cursor.js";
-import { VertexExecutor } from "./vertex.js";
 import { DefaultExecutor } from "./default.js";
 
 const executors = {
@@ -17,9 +16,7 @@ const executors = {
   codex: new CodexExecutor(),
   openai: new CodexExecutor(), // Same ChatGPT subscription endpoint
   cursor: new CursorExecutor(),
-  cu: new CursorExecutor(), // Alias for cursor
-  vertex: new VertexExecutor("vertex"),
-  "vertex-partner": new VertexExecutor("vertex-partner"),
+  cu: new CursorExecutor() // Alias for cursor
 };
 
 const defaultCache = new Map();
@@ -42,5 +39,4 @@ export { IFlowExecutor } from "./iflow.js";
 export { KiroExecutor } from "./kiro.js";
 export { CodexExecutor } from "./codex.js";
 export { CursorExecutor } from "./cursor.js";
-export { VertexExecutor } from "./vertex.js";
 export { DefaultExecutor } from "./default.js";

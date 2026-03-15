@@ -15,6 +15,7 @@ import { buildRequestDetail, extractRequestConfig } from "./chatCore/requestDeta
 import { handleForcedSSEToJson } from "./chatCore/sseToJsonHandler.js";
 import { handleNonStreamingResponse } from "./chatCore/nonStreamingHandler.js";
 import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/streamingHandler.js";
+import { OPENAI_RESPONSES_SCHEMA_ERROR_CODE } from "../translator/helpers/openaiResponsesSchema.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -23,14 +24,14 @@ import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/strea
  * @param {object} options.credentials - Provider credentials
  * @param {string} options.sourceFormatOverride - Override detected source format (e.g. "openai-responses")
  */
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, sourceFormatOverride }) {
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, sourceFormatOverride }) {
   const { provider, model } = modelInfo;
   const requestStartTime = Date.now();
 
   const sourceFormat = sourceFormatOverride || detectFormat(body);
 
-  // Check for bypass patterns (warmup, skip, cc naming)
-  const bypassResponse = handleBypassRequest(body, model, userAgent, ccFilterNaming);
+  // Check for bypass patterns (warmup, skip)
+  const bypassResponse = handleBypassRequest(body, model, userAgent);
   if (bypassResponse) return bypassResponse;
 
   const alias = PROVIDER_ID_TO_ALIAS[provider] || provider;
@@ -39,16 +40,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   const clientRequestedStreaming = body.stream === true || sourceFormat === FORMATS.ANTIGRAVITY || sourceFormat === FORMATS.GEMINI || sourceFormat === FORMATS.GEMINI_CLI;
   const providerRequiresStreaming = provider === "openai" || provider === "codex";
-  let stream = providerRequiresStreaming ? true : (body.stream !== false);
-
-  // Check client Accept header preference for non-streaming requests
-  // This fixes AI SDK compatibility where clients send Accept: application/json
-  const acceptHeader = clientRawRequest?.headers?.accept || "";
-  const clientPrefersJson = acceptHeader.includes("application/json");
-  const clientPrefersSSE = acceptHeader.includes("text/event-stream");
-  if (clientPrefersJson && !clientPrefersSSE && body.stream !== true) {
-    stream = false;
-  }
+  const stream = providerRequiresStreaming ? true : (body.stream !== false);
 
   const reqLogger = await createRequestLogger(sourceFormat, targetFormat, model);
   if (clientRawRequest) reqLogger.logClientRawRequest(clientRawRequest.endpoint, clientRawRequest.body, clientRawRequest.headers);
@@ -61,15 +53,44 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     return createErrorResult(HTTP_STATUS.BAD_REQUEST, `Failed to translate request for ${sourceFormat} → ${targetFormat}`);
   }
   const toolNameMap = translatedBody._toolNameMap;
+  const schemaIncompatibility = translatedBody._schemaIncompatibility;
   delete translatedBody._toolNameMap;
+  delete translatedBody._schemaIncompatibility;
   translatedBody.model = model;
 
-  const executor = getExecutor(provider);
   trackPendingRequest(model, provider, connectionId, true);
   appendRequestLog({ model, provider, connectionId, status: "PENDING" }).catch(() => {});
 
   const msgCount = translatedBody.messages?.length || translatedBody.input?.length || translatedBody.contents?.length || translatedBody.request?.contents?.length || 0;
   log?.debug?.("REQUEST", `${provider.toUpperCase()} | ${model} | ${msgCount} msgs`);
+
+  if (schemaIncompatibility) {
+    trackPendingRequest(model, provider, connectionId, false, true);
+    appendRequestLog({ model, provider, connectionId, status: "SKIPPED SCHEMA" }).catch(() => {});
+    saveRequestDetail(buildRequestDetail({
+      provider, model, connectionId,
+      latency: { ttft: 0, total: Date.now() - requestStartTime },
+      tokens: { prompt_tokens: 0, completion_tokens: 0 },
+      request: extractRequestConfig(body, stream),
+      providerRequest: translatedBody || null,
+      response: { error: schemaIncompatibility.message, status: HTTP_STATUS.BAD_REQUEST, thinking: null },
+      status: "schema_incompatible"
+    })).catch(() => {});
+
+    log?.warn?.("REQUEST", `${provider.toUpperCase()} | ${model} | schema incompatible`);
+    return createErrorResult(
+      HTTP_STATUS.BAD_REQUEST,
+      schemaIncompatibility.message,
+      null,
+      {
+        skipProviderCooldown: true,
+        requestScopedFallback: true,
+        errorCode: OPENAI_RESPONSES_SCHEMA_ERROR_CODE
+      }
+    );
+  }
+
+  const executor = getExecutor(provider);
 
   const streamController = createStreamController({
     onDisconnect: (reason) => {
@@ -141,23 +162,17 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   // Handle 401/403 - try token refresh
   if (providerResponse.status === HTTP_STATUS.UNAUTHORIZED || providerResponse.status === HTTP_STATUS.FORBIDDEN) {
-    try {
-      const newCredentials = await refreshWithRetry(() => executor.refreshCredentials(credentials, log), 3, log);
-      if (newCredentials?.accessToken || newCredentials?.copilotToken) {
-        log?.info?.("TOKEN", `${provider.toUpperCase()} | refreshed`);
-        Object.assign(credentials, newCredentials);
-        if (onCredentialsRefreshed) {
-          try { await onCredentialsRefreshed(newCredentials); } catch (e) { log?.warn?.("TOKEN", `onCredentialsRefreshed failed: ${e.message}`); }
-        }
-        try {
-          const retryResult = await executor.execute({ model, body: translatedBody, stream, credentials, signal: streamController.signal, log, proxyOptions });
-          if (retryResult.response.ok) { providerResponse = retryResult.response; providerUrl = retryResult.url; }
-        } catch { log?.warn?.("TOKEN", `${provider.toUpperCase()} | retry after refresh failed`); }
-      } else {
-        log?.warn?.("TOKEN", `${provider.toUpperCase()} | refresh failed`);
-      }
-    } catch (e) {
-      log?.warn?.("TOKEN", `${provider.toUpperCase()} | refresh threw: ${e.message}`);
+    const newCredentials = await refreshWithRetry(() => executor.refreshCredentials(credentials, log), 3, log);
+    if (newCredentials?.accessToken || newCredentials?.copilotToken) {
+      log?.info?.("TOKEN", `${provider.toUpperCase()} | refreshed`);
+      Object.assign(credentials, newCredentials);
+      if (onCredentialsRefreshed) await onCredentialsRefreshed(newCredentials);
+      try {
+        const retryResult = await executor.execute({ model, body: translatedBody, stream, credentials, signal: streamController.signal, log, proxyOptions });
+        if (retryResult.response.ok) { providerResponse = retryResult.response; providerUrl = retryResult.url; }
+      } catch { log?.warn?.("TOKEN", `${provider.toUpperCase()} | retry after refresh failed`); }
+    } else {
+      log?.warn?.("TOKEN", `${provider.toUpperCase()} | refresh failed`);
     }
   }
 
@@ -192,14 +207,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Provider forced streaming but client wants JSON
   if (!clientRequestedStreaming && providerRequiresStreaming) {
     const result = await handleForcedSSEToJson({ ...sharedCtx, providerResponse, sourceFormat, trackDone, appendLog });
-    if (result) { streamController.handleComplete(); return result; }
+    if (result) return result;
   }
 
   // True non-streaming response
   if (!stream) {
-    const result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat, reqLogger, trackDone, appendLog });
-    streamController.handleComplete();
-    return result;
+    return handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat, reqLogger, trackDone, appendLog });
   }
 
   // Streaming response

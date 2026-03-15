@@ -2,7 +2,6 @@ const fs = require("fs");
 const crypto = require("crypto");
 const { exec } = require("child_process");
 const { execWithPassword } = require("../dns/dnsConfig.js");
-const { log, err } = require("../logger");
 
 const IS_WIN = process.platform === "win32";
 const IS_MAC = process.platform === "darwin";
@@ -61,7 +60,7 @@ async function installCert(sudoPassword, certPath) {
 
   const isInstalled = await checkCertInstalled(certPath);
   if (isInstalled) {
-    log("🔐 Cert: already trusted ✅");
+    console.log("✅ Certificate already installed");
     return;
   }
 
@@ -75,12 +74,10 @@ async function installCert(sudoPassword, certPath) {
 }
 
 async function installCertMac(sudoPassword, certPath) {
-  // Remove all old certs with same name first to avoid duplicate/stale cert conflict
-  const deleteOld = `security delete-certificate -c "9Router MITM Root CA" /Library/Keychains/System.keychain 2>/dev/null || true`;
-  const install = `security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "${certPath}"`;
+  const command = `security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "${certPath}"`;
   try {
-    await execWithPassword(`${deleteOld} && ${install}`, sudoPassword);
-    log("🔐 Cert: ✅ installed to system keychain");
+    await execWithPassword(command, sudoPassword);
+    console.log(`✅ Installed certificate to system keychain: ${certPath}`);
   } catch (error) {
     const msg = error.message?.includes("canceled") ? "User canceled authorization" : "Certificate install failed";
     throw new Error(msg);
@@ -96,7 +93,7 @@ async function installCertWindows(certPath) {
       { windowsHide: true },
       (error) => {
         if (error) reject(new Error(`Failed to install certificate: ${error.message}`));
-        else { log("🔐 Cert: ✅ installed to Windows Root store"); resolve(); }
+        else { console.log("✅ Installed certificate to Windows Root store"); resolve(); }
       }
     );
   });
@@ -108,7 +105,7 @@ async function installCertWindows(certPath) {
 async function uninstallCert(sudoPassword, certPath) {
   const isInstalled = await checkCertInstalled(certPath);
   if (!isInstalled) {
-    log("🔐 Cert: not found in system store");
+    console.log("Certificate not found in system store");
     return;
   }
 
@@ -126,7 +123,7 @@ async function uninstallCertMac(sudoPassword, certPath) {
   const command = `security delete-certificate -Z "${fingerprint}" /Library/Keychains/System.keychain`;
   try {
     await execWithPassword(command, sudoPassword);
-    log("🔐 Cert: ✅ uninstalled from system keychain");
+    console.log("✅ Uninstalled certificate from system keychain");
   } catch (err) {
     throw new Error("Failed to uninstall certificate");
   }
@@ -140,7 +137,7 @@ async function uninstallCertWindows() {
       { windowsHide: true },
       (error) => {
         if (error) reject(new Error(`Failed to uninstall certificate: ${error.message}`));
-        else { log("🔐 Cert: ✅ uninstalled from Windows Root store"); resolve(); }
+        else { console.log("✅ Uninstalled certificate from Windows Root store"); resolve(); }
       }
     );
   });
@@ -157,7 +154,7 @@ async function installCertLinux(sudoPassword, certPath) {
   const cmd = `cp "${certPath}" "${destFile}" && (update-ca-certificates 2>/dev/null || update-ca-trust 2>/dev/null || true)`;
   try {
     await execWithPassword(cmd, sudoPassword);
-    log("🔐 Cert: ✅ installed to Linux trust store");
+    console.log("✅ Installed certificate to Linux trust store");
   } catch (error) {
     throw new Error("Certificate install failed");
   }
@@ -168,7 +165,7 @@ async function uninstallCertLinux(sudoPassword) {
   const cmd = `rm -f "${destFile}" && (update-ca-certificates 2>/dev/null || update-ca-trust 2>/dev/null || true)`;
   try {
     await execWithPassword(cmd, sudoPassword);
-    log("🔐 Cert: ✅ uninstalled from Linux trust store");
+    console.log("✅ Uninstalled certificate from Linux trust store");
   } catch (error) {
     throw new Error("Failed to uninstall certificate");
   }

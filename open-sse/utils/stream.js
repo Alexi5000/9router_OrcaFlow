@@ -6,7 +6,7 @@ import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE } from "./str
 
 export { COLORS, formatSSE };
 
-// sharedEncoder is stateless — safe to share across streams
+const sharedDecoder = new TextDecoder();
 const sharedEncoder = new TextEncoder();
 
 /**
@@ -49,9 +49,6 @@ export function createSSEStream(options = {}) {
   let buffer = "";
   let usage = null;
 
-  // Per-stream decoder with stream:true to correctly handle multi-byte chars split across chunks
-  const decoder = new TextDecoder("utf-8", { fatal: false });
-
   const state = mode === STREAM_MODE.TRANSLATE ? { ...initState(sourceFormat), provider, toolNameMap, model } : null;
 
   let totalContentLength = 0;
@@ -64,7 +61,7 @@ export function createSSEStream(options = {}) {
       if (!ttftAt) {
         ttftAt = Date.now();
       }
-      const text = decoder.decode(chunk, { stream: true });
+      const text = sharedDecoder.decode(chunk, { stream: true });
       buffer += text;
       reqLogger?.appendProviderChunk?.(text);
 
@@ -162,12 +159,10 @@ export function createSSEStream(options = {}) {
         // Translate mode
         if (!trimmed) continue;
 
-        const parsed = parseSSELine(trimmed, targetFormat);
+        const parsed = parseSSELine(trimmed);
         if (!parsed) continue;
 
-        // For Ollama: done=true is the final chunk with finish_reason/usage, must translate
-        // For other formats: done=true is the [DONE] sentinel, skip
-        if (parsed && parsed.done && targetFormat !== FORMATS.OLLAMA) {
+        if (parsed && parsed.done) {
           const output = "data: [DONE]\n\n";
           reqLogger?.appendConvertedChunk?.(output);
           controller.enqueue(sharedEncoder.encode(output));
@@ -256,7 +251,7 @@ export function createSSEStream(options = {}) {
     flush(controller) {
       trackPendingRequest(model, provider, connectionId, false);
       try {
-        const remaining = decoder.decode();
+        const remaining = sharedDecoder.decode();
         if (remaining) buffer += remaining;
 
         if (mode === STREAM_MODE.PASSTHROUGH) {

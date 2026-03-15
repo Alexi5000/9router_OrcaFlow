@@ -33,17 +33,13 @@ import os from "os";
 // Multiple modules register SIGINT/SIGTERM handlers legitimately
 process.setMaxListeners(20);
 
-// Use global to survive Next.js hot reload — prevents duplicate intervals
-const g = global.__appSingleton ??= {
-  signalHandlersRegistered: false,
-  watchdogInterval: null,
-  networkMonitorInterval: null,
-  lastNetworkFingerprint: null,
-  lastWatchdogTick: Date.now(),
-  lastTunnelRestartAt: 0,
-  tunnelRestartInProgress: false,
-};
-
+let signalHandlersRegistered = false;
+let watchdogInterval = null;
+let networkMonitorInterval = null;
+let lastNetworkFingerprint = null;
+let lastWatchdogTick = Date.now();
+let lastTunnelRestartAt = 0;
+let tunnelRestartInProgress = false;
 const WATCHDOG_INTERVAL_MS = 60000;
 const NETWORK_CHECK_INTERVAL_MS = 5000;
 const NETWORK_RESTART_COOLDOWN_MS = 30000;
@@ -72,14 +68,14 @@ export async function initializeApp() {
     }
 
     // Kill cloudflared on process exit (register once only)
-    if (!g.signalHandlersRegistered) {
+    if (!signalHandlersRegistered) {
       const cleanup = () => {
         killCloudflared();
         process.exit();
       };
       process.on("SIGINT", cleanup);
       process.on("SIGTERM", cleanup);
-      g.signalHandlersRegistered = true;
+      signalHandlersRegistered = true;
     }
 
     // Pre-download cloudflared binary in background
@@ -131,8 +127,8 @@ async function autoStartMitm() {
 
 /** Periodically check tunnel process health and reconnect if crashed */
 function startWatchdog() {
-  if (g.watchdogInterval) return;
-  g.watchdogInterval = setInterval(async () => {
+  if (watchdogInterval) return;
+  watchdogInterval = setInterval(async () => {
     try {
       const settings = await getSettings();
       if (!settings.tunnelEnabled) return;
@@ -145,7 +141,7 @@ function startWatchdog() {
     }
   }, WATCHDOG_INTERVAL_MS);
 
-  if (g.watchdogInterval.unref) g.watchdogInterval.unref();
+  if (watchdogInterval.unref) watchdogInterval.unref();
 }
 
 /** Get network fingerprint from active interfaces (IPv4 only) */
@@ -165,53 +161,53 @@ function getNetworkFingerprint() {
 
 /** Monitor network changes + sleep/wake → kill and reconnect tunnel */
 function startNetworkMonitor() {
-  if (g.networkMonitorInterval) return;
+  if (networkMonitorInterval) return;
 
-  g.lastNetworkFingerprint = getNetworkFingerprint();
-  g.lastWatchdogTick = Date.now();
+  lastNetworkFingerprint = getNetworkFingerprint();
+  lastWatchdogTick = Date.now();
 
-  g.networkMonitorInterval = setInterval(async () => {
+  networkMonitorInterval = setInterval(async () => {
     try {
       const settings = await getSettings();
       if (!settings.tunnelEnabled) return;
 
       const now = Date.now();
-      const elapsed = now - g.lastWatchdogTick;
-      g.lastWatchdogTick = now;
+      const elapsed = now - lastWatchdogTick;
+      lastWatchdogTick = now;
 
       const currentFingerprint = getNetworkFingerprint();
-      const networkChanged = currentFingerprint !== g.lastNetworkFingerprint;
+      const networkChanged = currentFingerprint !== lastNetworkFingerprint;
       const wasSleep = elapsed > NETWORK_CHECK_INTERVAL_MS * 3;
 
-      if (networkChanged) g.lastNetworkFingerprint = currentFingerprint;
+      if (networkChanged) lastNetworkFingerprint = currentFingerprint;
 
       if (!networkChanged && !wasSleep) return;
 
       // Skip if restart already in progress or restarted recently
-      if (g.tunnelRestartInProgress) return;
-      if (now - g.lastTunnelRestartAt < NETWORK_RESTART_COOLDOWN_MS) return;
+      if (tunnelRestartInProgress) return;
+      if (now - lastTunnelRestartAt < NETWORK_RESTART_COOLDOWN_MS) return;
 
       const reason = wasSleep && networkChanged ? "sleep/wake + network change"
         : wasSleep ? "sleep/wake" : "network change";
       console.log(`[NetworkMonitor] ${reason} detected, restarting tunnel...`);
 
-      g.tunnelRestartInProgress = true;
-      g.lastTunnelRestartAt = now;
+      tunnelRestartInProgress = true;
+      lastTunnelRestartAt = now;
       try {
         killCloudflared();
         await new Promise(r => setTimeout(r, 2000));
         await enableTunnel();
         console.log("[NetworkMonitor] Tunnel restarted");
-        g.lastNetworkFingerprint = getNetworkFingerprint();
+        lastNetworkFingerprint = getNetworkFingerprint();
       } finally {
-        g.tunnelRestartInProgress = false;
+        tunnelRestartInProgress = false;
       }
     } catch (err) {
       console.log("[NetworkMonitor] Tunnel restart failed:", err.message);
     }
   }, NETWORK_CHECK_INTERVAL_MS);
 
-  if (g.networkMonitorInterval.unref) g.networkMonitorInterval.unref();
+  if (networkMonitorInterval.unref) networkMonitorInterval.unref();
 }
 
 export default initializeApp;

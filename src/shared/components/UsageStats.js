@@ -193,6 +193,7 @@ export default function UsageStats() {
   const [tableView, setTableView] = useState("model");
   const [providers, setProviders] = useState([]);
   const [period, setPeriod] = useState("7d");
+  const [chartRefreshNonce, setChartRefreshNonce] = useState(0);
 
   // Fetch connected providers once, deduplicate by provider type
   useEffect(() => {
@@ -229,21 +230,17 @@ export default function UsageStats() {
       });
   }, [period]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // SSE connection - real-time updates for activeRequests + recentRequests only
+  // SSE connection - keep period-filtered totals and live request state in sync
   useEffect(() => {
-    const es = new EventSource("/api/usage/stream");
+    const es = new EventSource(`/api/usage/stream?period=${period}`);
 
     es.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
-        // Only update real-time fields from SSE, keep filtered stats intact
-        setStats((prev) => prev ? {
-          ...prev,
-          activeRequests: data.activeRequests,
-          recentRequests: data.recentRequests,
-          errorProvider: data.errorProvider,
-          pending: data.pending,
-        } : data);
+        setStats((prev) => prev ? { ...prev, ...data } : data);
+        if (data.kind === "full") {
+          setChartRefreshNonce((prev) => prev + 1);
+        }
         setLoading(false);
       } catch (err) {
         console.error("[SSE CLIENT] parse error:", err);
@@ -253,7 +250,7 @@ export default function UsageStats() {
     es.onerror = () => setLoading(false);
 
     return () => es.close();
-  }, []);
+  }, [period]);
 
   const toggleSort = useCallback((tableType, field) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -429,7 +426,7 @@ export default function UsageStats() {
       )}
 
       {/* Token / Cost chart - sync period */}
-      {loading ? spinner : <UsageChart period={period} />}
+      {loading ? spinner : <UsageChart period={period} refreshNonce={chartRefreshNonce} />}
 
       {/* Table with dropdown selector */}
       <div className="flex flex-col gap-3">
