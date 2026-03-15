@@ -14,6 +14,7 @@ import {
   refreshQwenToken as _refreshQwenToken,
   refreshCodexToken as _refreshCodexToken,
   refreshIflowToken as _refreshIflowToken,
+  refreshKiroToken as _refreshKiroToken,
   refreshGitHubToken as _refreshGitHubToken,
   refreshCopilotToken as _refreshCopilotToken,
   getAccessToken as _getAccessToken,
@@ -43,6 +44,9 @@ export const refreshCodexToken = (refreshToken) =>
 
 export const refreshIflowToken = (refreshToken) =>
   _refreshIflowToken(refreshToken, log);
+
+export const refreshKiroToken = (refreshToken, providerSpecificData) =>
+  _refreshKiroToken(refreshToken, providerSpecificData, log);
 
 export const refreshGitHubToken = (refreshToken) =>
   _refreshGitHubToken(refreshToken, log);

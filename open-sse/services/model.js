@@ -180,7 +180,9 @@ export async function getModelInfoCore(modelStr, aliasesOrGetter) {
 function inferProviderFromModelName(modelName) {
   if (!modelName) return "openai";
   const m = modelName.toLowerCase();
-  if (m.startsWith("claude-")) return "anthropic";
+  // In this fork, bare Claude model names should resolve to the Claude OAuth
+  // provider unless the caller explicitly requested the Anthropic API provider.
+  if (m.startsWith("claude-")) return "claude";
   if (m.startsWith("gemini-")) return "gemini";
   if (m.startsWith("gpt-")) return "openai";
   if (m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4"))
