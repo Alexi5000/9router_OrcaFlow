@@ -144,15 +144,12 @@ export async function getModelInfoCore(modelStr, aliasesOrGetter) {
   if (!parsed.isAlias) {
     const resolvedPrefixedAlias = resolveModelAliasFromMap(parsed.model, aliases);
 
-    // Tool/provider shorthand such as "cc/model-id" should still honor model aliases.
-    // In addition, explicit provider/model requests can be redirected when the alias
-    // target is a combo, which keeps provider-specific Claude IDs on the combo chain.
+    // Only provider shorthand such as "cc/model-id" should honor model aliases.
+    // Explicit provider hops inside combos must stay direct to avoid combo recursion.
     if (
       resolvedPrefixedAlias &&
-      (
-        (parsed.providerAlias && parsed.providerAlias !== parsed.provider) ||
-        resolvedPrefixedAlias.provider === null
-      )
+      parsed.providerAlias &&
+      parsed.providerAlias !== parsed.provider
     ) {
       return resolvedPrefixedAlias;
     }

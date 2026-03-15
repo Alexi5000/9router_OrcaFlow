@@ -7,6 +7,7 @@
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
 import { normalizeResponsesInput } from "../helpers/responsesApiHelper.js";
+import { sanitizeOpenAIResponsesRequestBody } from "../helpers/openaiResponsesSchema.js";
 
 /**
  * Convert OpenAI Responses API request to OpenAI Chat Completions format
@@ -159,7 +160,9 @@ export function openaiResponsesToOpenAIRequest(model, body, stream, credentials)
  */
 export function openaiToOpenAIResponsesRequest(model, body, stream, credentials) {
   // Body already in Responses API format (e.g. Cursor CLI calling /chat/completions with input[])
-  if (body.input) return { ...body, model, stream: true };
+  if (body.input) {
+    return sanitizeOpenAIResponsesRequestBody({ ...body, model, stream: true });
+  }
 
   const result = {
     model,
@@ -264,7 +267,7 @@ export function openaiToOpenAIResponsesRequest(model, body, stream, credentials)
   if (body.max_tokens !== undefined) result.max_tokens = body.max_tokens;
   if (body.top_p !== undefined) result.top_p = body.top_p;
 
-  return result;
+  return sanitizeOpenAIResponsesRequestBody(result);
 }
 
 // Register both directions

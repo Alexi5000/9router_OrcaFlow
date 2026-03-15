@@ -18,8 +18,8 @@ export default function SegmentedControl({
   return (
     <div
       className={cn(
-        "inline-flex items-center p-1 rounded-lg",
-        "bg-black/10 dark:bg-white/10",
+        "inline-flex items-center gap-1 p-1 rounded-lg border border-border",
+        "bg-black/10 dark:bg-white/10 cyberpunk:bg-white/5",
         className
       )}
     >
@@ -31,8 +31,8 @@ export default function SegmentedControl({
             "px-4 rounded-md font-medium transition-all",
             sizes[size],
             value === option.value
-              ? "bg-white dark:bg-white/10 text-text-main shadow-sm"
-              : "text-text-muted hover:text-text-main bg-transparent hover:bg-black/10 dark:hover:bg-white/10"
+              ? "bg-primary text-white shadow-sm cyberpunk:text-black"
+              : "text-text-muted hover:text-text-main bg-transparent hover:bg-black/10 dark:hover:bg-white/10 cyberpunk:hover:bg-white/5"
           )}
         >
           {option.icon && (

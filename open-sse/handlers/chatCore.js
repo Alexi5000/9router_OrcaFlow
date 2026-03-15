@@ -15,6 +15,7 @@ import { buildRequestDetail, extractRequestConfig } from "./chatCore/requestDeta
 import { handleForcedSSEToJson } from "./chatCore/sseToJsonHandler.js";
 import { handleNonStreamingResponse } from "./chatCore/nonStreamingHandler.js";
 import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/streamingHandler.js";
+import { OPENAI_RESPONSES_SCHEMA_ERROR_CODE } from "../translator/helpers/openaiResponsesSchema.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -48,15 +49,44 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   let translatedBody = translateRequest(sourceFormat, targetFormat, model, body, stream, credentials, provider, reqLogger);
   const toolNameMap = translatedBody._toolNameMap;
+  const schemaIncompatibility = translatedBody._schemaIncompatibility;
   delete translatedBody._toolNameMap;
+  delete translatedBody._schemaIncompatibility;
   translatedBody.model = model;
 
-  const executor = getExecutor(provider);
   trackPendingRequest(model, provider, connectionId, true);
   appendRequestLog({ model, provider, connectionId, status: "PENDING" }).catch(() => {});
 
   const msgCount = translatedBody.messages?.length || translatedBody.input?.length || translatedBody.contents?.length || translatedBody.request?.contents?.length || 0;
   log?.debug?.("REQUEST", `${provider.toUpperCase()} | ${model} | ${msgCount} msgs`);
+
+  if (schemaIncompatibility) {
+    trackPendingRequest(model, provider, connectionId, false, true);
+    appendRequestLog({ model, provider, connectionId, status: "SKIPPED SCHEMA" }).catch(() => {});
+    saveRequestDetail(buildRequestDetail({
+      provider, model, connectionId,
+      latency: { ttft: 0, total: Date.now() - requestStartTime },
+      tokens: { prompt_tokens: 0, completion_tokens: 0 },
+      request: extractRequestConfig(body, stream),
+      providerRequest: translatedBody || null,
+      response: { error: schemaIncompatibility.message, status: HTTP_STATUS.BAD_REQUEST, thinking: null },
+      status: "schema_incompatible"
+    })).catch(() => {});
+
+    log?.warn?.("REQUEST", `${provider.toUpperCase()} | ${model} | schema incompatible`);
+    return createErrorResult(
+      HTTP_STATUS.BAD_REQUEST,
+      schemaIncompatibility.message,
+      null,
+      {
+        skipProviderCooldown: true,
+        requestScopedFallback: true,
+        errorCode: OPENAI_RESPONSES_SCHEMA_ERROR_CODE
+      }
+    );
+  }
+
+  const executor = getExecutor(provider);
 
   const streamController = createStreamController({
     onDisconnect: (reason) => {

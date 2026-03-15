@@ -23,10 +23,8 @@ export async function getModelInfo(modelStr) {
     const resolvedPrefixedAlias = resolveModelAliasFromMap(parsed.model, aliases);
     if (
       resolvedPrefixedAlias &&
-      (
-        (parsed.providerAlias && parsed.providerAlias !== parsed.provider) ||
-        resolvedPrefixedAlias.provider === null
-      )
+      parsed.providerAlias &&
+      parsed.providerAlias !== parsed.provider
     ) {
       return resolvedPrefixedAlias;
     }

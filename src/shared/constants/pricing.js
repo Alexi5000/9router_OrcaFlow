@@ -46,6 +46,13 @@ export const DEFAULT_PRICING = {
 
   // OpenAI Codex (cx)
   cx: {
+    "gpt-5.4": {
+      input: 2.50,
+      output: 15.00,
+      cached: 1.25,
+      reasoning: 15.00,
+      cache_creation: 2.50
+    },
     "gpt-5.3-codex": {
       input: 6.00,
       output: 24.00,
@@ -583,10 +590,112 @@ export const DEFAULT_PRICING = {
     }
   },
 
+  // KiloCode
+  kilocode: {
+    "gemini-2.5-pro": {
+      input: 2.00,
+      output: 12.00,
+      cached: 0.25,
+      reasoning: 18.00,
+      cache_creation: 2.00
+    },
+    "gemini-2.5-flash": {
+      input: 0.30,
+      output: 2.50,
+      cached: 0.03,
+      reasoning: 3.75,
+      cache_creation: 0.30
+    },
+    "gpt-4.1": {
+      input: 2.50,
+      output: 10.00,
+      cached: 1.25,
+      reasoning: 15.00,
+      cache_creation: 2.50
+    },
+    "claude-sonnet-4": {
+      input: 3.00,
+      output: 15.00,
+      cached: 0.30,
+      reasoning: 15.00,
+      cache_creation: 3.75
+    },
+    "o3": {
+      input: 15.00,
+      output: 60.00,
+      cached: 7.50,
+      reasoning: 60.00,
+      cache_creation: 15.00
+    }
+  },
+
   // API Key Providers (alias = id)
 
   // OpenAI
   openai: {
+    "gpt-4.1": {
+      input: 2.50,
+      output: 10.00,
+      cached: 1.25,
+      reasoning: 15.00,
+      cache_creation: 2.50
+    },
+    "gpt-5": {
+      input: 1.25,
+      output: 10.00,
+      cached: 0.125,
+      reasoning: 10.00,
+      cache_creation: 1.25
+    },
+    "gpt-5-mini": {
+      input: 0.25,
+      output: 2.00,
+      cached: 0.025,
+      reasoning: 2.00,
+      cache_creation: 0.25
+    },
+    "gpt-5.4": {
+      input: 2.50,
+      output: 15.00,
+      cached: 1.25,
+      reasoning: 15.00,
+      cache_creation: 2.50
+    },
+    "gpt-5.3-codex": {
+      input: 6.00,
+      output: 24.00,
+      cached: 3.00,
+      reasoning: 36.00,
+      cache_creation: 6.00
+    },
+    "gpt-5.3-codex-high": {
+      input: 8.00,
+      output: 32.00,
+      cached: 4.00,
+      reasoning: 48.00,
+      cache_creation: 8.00
+    },
+    "gpt-5.3-codex-low": {
+      input: 4.00,
+      output: 16.00,
+      cached: 2.00,
+      reasoning: 24.00,
+      cache_creation: 4.00
+    },
+    "gpt-5.3-codex-none": {
+      input: 3.00,
+      output: 12.00,
+      cached: 1.50,
+      reasoning: 18.00,
+      cache_creation: 3.00
+    },
+    "gpt-5.3-codex-spark": {
+      input: 3.00,
+      output: 12.00,
+      cached: 0.30,
+      reasoning: 12.00,
+      cache_creation: 3.00
+    },
     "gpt-4o": {
       input: 2.50,
       output: 10.00,

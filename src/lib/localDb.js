@@ -1004,9 +1004,33 @@ export async function getPricing() {
 export async function getPricingForModel(provider, model) {
   const pricing = await getPricing();
 
+  const candidateModels = new Set();
+  if (model) {
+    candidateModels.add(model);
+
+    const parts = model.split("/").filter(Boolean);
+    for (let i = 1; i < parts.length; i++) {
+      candidateModels.add(parts.slice(i).join("/"));
+    }
+    if (parts.length) {
+      candidateModels.add(parts[parts.length - 1]);
+    }
+  }
+
+  const lookupPricing = (providerKey) => {
+    if (!providerKey || !pricing[providerKey]) return null;
+    for (const candidate of candidateModels) {
+      if (pricing[providerKey]?.[candidate]) {
+        return pricing[providerKey][candidate];
+      }
+    }
+    return null;
+  };
+
   // Try direct lookup
-  if (pricing[provider]?.[model]) {
-    return pricing[provider][model];
+  const directMatch = lookupPricing(provider);
+  if (directMatch) {
+    return directMatch;
   }
 
   // Try mapping provider ID to alias
@@ -1021,6 +1045,7 @@ export async function getPricingForModel(provider, model) {
     antigravity: "ag",
     github: "gh",
     kiro: "kr",
+    kilocode: "kilocode",
     openai: "openai",
     anthropic: "anthropic",
     gemini: "gemini",
@@ -1031,8 +1056,9 @@ export async function getPricingForModel(provider, model) {
   };
 
   const alias = PROVIDER_ID_TO_ALIAS[provider];
-  if (alias && pricing[alias]) {
-    return pricing[alias][model] || null;
+  const aliasMatch = lookupPricing(alias);
+  if (aliasMatch) {
+    return aliasMatch;
   }
 
   return null;

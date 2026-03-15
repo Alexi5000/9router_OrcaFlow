@@ -25,14 +25,25 @@ describe("model alias resolution for prefixed client models", () => {
     });
   });
 
-  it("redirects explicit provider requests when the alias target is a combo", async () => {
+  it("keeps explicit provider requests direct even when the bare model alias points to a combo", async () => {
     const result = await getModelInfoCore("claude/claude-sonnet-4-6", {
       "claude-sonnet-4-6": "combo/sonnet",
     });
 
     expect(result).toEqual({
-      provider: null,
-      model: "sonnet",
+      provider: "claude",
+      model: "claude-sonnet-4-6",
+    });
+  });
+
+  it("does not recurse combo hops back into the combo alias", async () => {
+    const result = await getModelInfoCore("antigravity/claude-sonnet-4-6", {
+      "claude-sonnet-4-6": "combo/sonnet",
+    });
+
+    expect(result).toEqual({
+      provider: "antigravity",
+      model: "claude-sonnet-4-6",
     });
   });
 });

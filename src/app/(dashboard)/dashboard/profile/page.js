@@ -331,7 +331,7 @@ export default function ProfilePage() {
                 <p className="text-text-muted">Running on your machine</p>
               </div>
             </div>
-            <div className="inline-flex p-1 rounded-lg bg-black/5 dark:bg-white/5">
+            <div className="inline-flex gap-1 p-1 rounded-lg border border-border bg-black/5 dark:bg-white/5 cyberpunk:bg-white/5">
               {["light", "dark", "system"].map((option) => (
                 <button
                   key={option}
@@ -340,8 +340,8 @@ export default function ProfilePage() {
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all",
                     theme === option
-                      ? "bg-white dark:bg-white/10 text-text-main shadow-sm"
-                      : "text-text-muted hover:text-text-main"
+                      ? "bg-primary text-white shadow-sm cyberpunk:text-black"
+                      : "text-text-muted hover:text-text-main hover:bg-black/10 dark:hover:bg-white/10 cyberpunk:hover:bg-white/5"
                   )}
                 >
                   <span className="material-symbols-outlined text-[18px]">

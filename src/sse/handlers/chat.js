@@ -231,6 +231,11 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
 
     if (result.success) return result.response;
 
+    if (result.skipProviderCooldown) {
+      log.warn("AUTH", `Skipping provider cooldown for ${provider}/${model} (${result.errorCode || "request-scoped error"})`);
+      return result.response;
+    }
+
     // Mark account unavailable (auto-calculates cooldown with exponential backoff)
     const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model);
 

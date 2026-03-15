@@ -1,8 +1,12 @@
+import { createRequire } from "module";
 import { FORMATS } from "./formats.js";
 import { ensureToolCallIds, fixMissingToolResponses } from "./helpers/toolCallHelper.js";
 import { prepareClaudeRequest } from "./helpers/claudeHelper.js";
 import { filterToOpenAIFormat } from "./helpers/openaiHelper.js";
+import { sanitizeOpenAIResponsesRequestBody } from "./helpers/openaiResponsesSchema.js";
 import { normalizeThinkingConfig } from "../services/provider.js";
+
+const require = createRequire(import.meta.url);
 
 // Registry for translators
 const requestRegistry = new Map();
@@ -86,6 +90,10 @@ export function translateRequest(sourceFormat, targetFormat, model, body, stream
   // This handles hybrid requests (e.g., OpenAI messages + Claude tools)
   if (targetFormat === FORMATS.OPENAI) {
     result = filterToOpenAIFormat(result);
+  }
+
+  if (targetFormat === FORMATS.OPENAI_RESPONSES) {
+    result = sanitizeOpenAIResponsesRequestBody(result);
   }
 
   // Final step: prepare request for Claude format endpoints
