@@ -89,6 +89,23 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
         newBackoffLevel: newLevel
       };
     }
+
+    // Request-scoped / client-side 400s should not poison provider health.
+    if (
+      lowerError.includes("not a valid model id") ||
+      lowerError.includes("invalid model") ||
+      lowerError.includes("invalid json") ||
+      lowerError.includes("missing required field") ||
+      lowerError.includes("input required") ||
+      lowerError.includes("input must be") ||
+      lowerError.includes("messages must be") ||
+      lowerError.includes("messages array cannot be empty") ||
+      lowerError.includes("tool schema incompatible") ||
+      lowerError.includes("unsupported provider") ||
+      lowerError.includes("invalid request")
+    ) {
+      return { shouldFallback: false, cooldownMs: 0 };
+    }
   }
 
   if (status === HTTP_STATUS.UNAUTHORIZED) {

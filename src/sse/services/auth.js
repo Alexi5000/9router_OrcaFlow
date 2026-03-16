@@ -2,6 +2,7 @@ import { getProviderConnections, validateApiKey, updateProviderConnection, getSe
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil, getProviderCooldownOverride } from "open-sse/services/accountFallback.js";
 import { resolveProviderId } from "@/shared/constants/providers.js";
+import { isGlobalProviderHealthError } from "@/shared/utils/providerHealth.js";
 import * as log from "../utils/logger.js";
 
 // Mutex to prevent race conditions during account selection
@@ -169,18 +170,24 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
 
   const reason = typeof errorText === "string" ? errorText.slice(0, 100) : "Provider error";
   const lockUpdate = buildModelLockUpdate(model, finalCooldownMs);
+  const shouldMarkUnavailable = isGlobalProviderHealthError(status, reason);
 
-  await updateProviderConnection(connectionId, {
+  const update = {
     ...lockUpdate,
-    testStatus: "unavailable",
+    testStatus: shouldMarkUnavailable ? "unavailable" : "active",
     lastError: reason,
     errorCode: status,
     lastErrorAt: new Date().toISOString(),
     backoffLevel: newBackoffLevel ?? backoffLevel
-  });
+  };
+
+  await updateProviderConnection(connectionId, update);
 
   const lockKey = Object.keys(lockUpdate)[0];
-  log.warn("AUTH", `${connectionId.slice(0, 8)} locked ${lockKey} for ${Math.round(finalCooldownMs / 1000)}s [${status}]`);
+  log.warn(
+    "AUTH",
+    `${connectionId.slice(0, 8)} locked ${lockKey} for ${Math.round(finalCooldownMs / 1000)}s [${status}]${shouldMarkUnavailable ? " (connection unavailable)" : ""}`
+  );
 
   if (provider && status && reason) {
     console.error(`❌ ${provider} [${status}]: ${reason}`);

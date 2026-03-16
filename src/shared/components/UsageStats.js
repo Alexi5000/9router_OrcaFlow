@@ -214,18 +214,28 @@ export default function UsageStats() {
   const [period, setPeriod] = useState("7d");
   const [chartRefreshNonce, setChartRefreshNonce] = useState(0);
 
-  // Fetch connected providers once, deduplicate by provider type
+  const recentProviders = useMemo(() => {
+    if (!stats?.recentRequests?.length) return [];
+    const unique = [];
+    const seen = new Set();
+
+    for (const req of stats.recentRequests) {
+      const provider = req?.provider?.toLowerCase?.();
+      if (!provider || seen.has(provider)) continue;
+      seen.add(provider);
+      unique.push(provider);
+      if (unique.length >= 8) break;
+    }
+
+    return unique;
+  }, [stats?.recentRequests]);
+
+  // Fetch connected provider accounts for the topology view.
   useEffect(() => {
     fetchJsonWithTimeout("/api/providers")
       .then((d) => {
         if (!d?.connections) return;
-        const seen = new Set();
-        const unique = d.connections.filter((c) => {
-          if (seen.has(c.provider)) return false;
-          seen.add(c.provider);
-          return true;
-        });
-        setProviders(unique);
+        setProviders(d.connections.filter((c) => c.isActive !== false));
       })
       .catch(() => {});
   }, []);
@@ -435,6 +445,7 @@ export default function UsageStats() {
           <ProviderTopology
             providers={providers}
             activeRequests={stats.activeRequests || []}
+            recentProviders={recentProviders}
             lastProvider={stats.recentRequests?.[0]?.provider || ""}
             errorProvider={stats.errorProvider || ""}
           />

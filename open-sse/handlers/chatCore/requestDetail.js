@@ -1,4 +1,4 @@
-import { saveRequestDetail } from "@/lib/usageDb.js";
+import { appendRequestLog, saveRequestDetail, saveRequestUsage } from "@/lib/usageDb.js";
 import { COLORS } from "../../utils/stream.js";
 
 const OPTIONAL_PARAMS = [
@@ -72,7 +72,7 @@ export function buildRequestDetail(base, overrides = {}) {
   };
 }
 
-export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, endpoint, label = "USAGE" }) {
+export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, endpoint, label = "USAGE", persist = false }) {
   if (!tokens || typeof tokens !== "object") return;
 
   const inTokens = tokens.input_tokens ?? tokens.prompt_tokens ?? 0;
@@ -84,6 +84,31 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
   const accountSuffix = connectionId ? ` | account=${connectionId.slice(0, 8)}...` : "";
   console.log(`${COLORS.green}[${time}] 📊 [${label}] ${provider.toUpperCase()} | in=${inTokens} | out=${outTokens}${accountSuffix}${COLORS.reset}`);
 
-  // Usage persistence removed — usageTracking.js already handles saveRequestUsage
-  // (with cache tokens, reasoning tokens, cost) and appendRequestLog.
+  if (!persist) return;
+
+  const normalizedTokens = {
+    prompt_tokens: inTokens,
+    completion_tokens: outTokens,
+    cache_read_input_tokens: tokens.cache_read_input_tokens || 0,
+    cache_creation_input_tokens: tokens.cache_creation_input_tokens || 0,
+    cached_tokens: tokens.cached_tokens || 0,
+    reasoning_tokens: tokens.reasoning_tokens || 0,
+  };
+
+  saveRequestUsage({
+    model,
+    provider,
+    connectionId,
+    tokens: normalizedTokens,
+    apiKey: apiKey || undefined,
+    endpoint: endpoint || undefined,
+  }).catch(() => {});
+
+  appendRequestLog({
+    model,
+    provider,
+    connectionId,
+    tokens: normalizedTokens,
+    status: "200 OK",
+  }).catch(() => {});
 }

@@ -9,6 +9,7 @@ import { FREE_PROVIDERS, OPENAI_COMPATIBLE_PREFIX, ANTHROPIC_COMPATIBLE_PREFIX }
 import Link from "next/link";
 import { getErrorCode, getRelativeTime } from "@/shared/utils";
 import { formatBurstCountdown, formatBurstTime, getKiloBurstStatus } from "@/shared/utils/kiloBurst";
+import { getEffectiveConnectionStatus } from "@/shared/utils/providerHealth";
 import { useNotificationStore } from "@/store/notificationStore";
 import ModelAvailabilityBadge from "./components/ModelAvailabilityBadge";
 
@@ -112,19 +113,13 @@ export default function ProvidersPage() {
       (c) => c.provider === providerId && (authType === null || c.authType === authType)
     );
 
-    const getEffectiveStatus = (conn) => {
-      const isCooldown = Object.entries(conn)
-        .some(([k, v]) => k.startsWith("modelLock_") && v && new Date(v).getTime() > Date.now());
-      return conn.testStatus === "unavailable" && !isCooldown ? "active" : conn.testStatus;
-    };
-
     const connected = providerConnections.filter((c) => {
-      const status = getEffectiveStatus(c);
+      const status = getEffectiveConnectionStatus(c, now);
       return status === "active" || status === "success";
     }).length;
 
     const errorConns = providerConnections.filter((c) => {
-      const status = getEffectiveStatus(c);
+      const status = getEffectiveConnectionStatus(c, now);
       return status === "error" || status === "expired" || status === "unavailable";
     });
 

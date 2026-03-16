@@ -7,6 +7,8 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { waitForLowDbWrites, wrapLowDbWrite } from "./lowdbWriteQueue.js";
 import { getMsUntilNextHour, isKilocodeHourlyFreeModel } from "../../open-sse/services/accountFallback.js";
+import { getKiloBurstStatus } from "../shared/utils/kiloBurst.js";
+import { getEffectiveConnectionStatus, isGlobalProviderHealthError } from "../shared/utils/providerHealth.js";
 
 const isCloud = typeof caches !== 'undefined' || typeof caches === 'object';
 
@@ -108,7 +110,7 @@ function getHourWindowStart(now = Date.now()) {
   return hourStart.getTime();
 }
 
-function buildKiloHourlyStats(history, now = Date.now()) {
+function buildKiloHourlyStats(history, kiloConnections = [], now = Date.now()) {
   const hourStart = getHourWindowStart(now);
   const resetInMs = getMsUntilNextHour(now);
   const resetAt = new Date(now + resetInMs).toISOString();
@@ -160,6 +162,29 @@ function buildKiloHourlyStats(history, now = Date.now()) {
   const requestsThisHour = requests.length;
   const remainingRequests = Math.max(KILO_HOURLY_REQUEST_LIMIT - requestsThisHour, 0);
   const usedPercent = Math.min((requestsThisHour / KILO_HOURLY_REQUEST_LIMIT) * 100, 100);
+  const burstStatus = getKiloBurstStatus(kiloConnections, now);
+  const kiloConnection = kiloConnections.find((connection) => connection.provider === "kilocode" && connection.isActive !== false) || null;
+  const effectiveStatus = kiloConnection ? getEffectiveConnectionStatus(kiloConnection, now) : null;
+  const connectionUnavailable = effectiveStatus === "unavailable" && isGlobalProviderHealthError(kiloConnection?.errorCode, kiloConnection?.lastError || "");
+
+  let state = "available";
+  let statusText = `${remainingRequests} free requests left this hour.`;
+
+  if (!burstStatus.configured) {
+    state = "unconfigured";
+    statusText = "Kilo is not configured.";
+  } else if (burstStatus.parked) {
+    state = "parked";
+    statusText = `Kilo burst is parked until ${burstStatus.resetAt || resetAt}.`;
+  } else if (connectionUnavailable) {
+    state = "unavailable";
+    statusText = kiloConnection?.lastError
+      ? `Kilo is temporarily unavailable: ${kiloConnection.lastError}`
+      : "Kilo is temporarily unavailable.";
+  } else if (burstStatus.degraded) {
+    state = "degraded";
+    statusText = `${burstStatus.availableModels.length} Kilo burst lane is live, ${burstStatus.lockedModels.length} parked.`;
+  }
 
   return {
     requestLimit: KILO_HOURLY_REQUEST_LIMIT,
@@ -169,6 +194,12 @@ function buildKiloHourlyStats(history, now = Date.now()) {
     resetAt,
     resetInMs,
     byModel,
+    state,
+    statusText,
+    connectionStatus: effectiveStatus || kiloConnection?.testStatus || null,
+    lastError: kiloConnection?.lastError || null,
+    lastErrorAt: kiloConnection?.lastErrorAt || null,
+    burst: burstStatus,
   };
 }
 
@@ -583,6 +614,8 @@ export async function getUsageStats(period = "all") {
   const db = await getUsageDb();
   const allHistory = db.data.history || [];
   let history = allHistory;
+  const { getProviderConnections: getKiloConnections } = await import("@/lib/localDb.js");
+  const kiloConnections = await getKiloConnections({ provider: "kilocode", isActive: true });
 
   // Filter history by period
   if (period && PERIOD_MS[period]) {
@@ -676,7 +709,7 @@ export async function getUsageStats(period = "all") {
     activeRequests: [],
     recentRequests,
     errorProvider: (Date.now() - lastErrorProvider.ts < 10000) ? lastErrorProvider.provider : "",
-    kiloHourly: buildKiloHourlyStats(allHistory),
+    kiloHourly: buildKiloHourlyStats(allHistory, kiloConnections),
   };
 
   // Build active requests list from pending counts
