@@ -4,7 +4,7 @@ module.exports = {
       name: '9router',
       cwd: 'C:\\Users\\Admin\\TechTide\\Tools\\9router',
       script: 'node',
-      args: 'scripts/start-standalone.cjs',
+      args: 'node_modules/next/dist/bin/next start -p 20128',
       env_file: '.env',
       env: {
         NODE_ENV: 'production',
