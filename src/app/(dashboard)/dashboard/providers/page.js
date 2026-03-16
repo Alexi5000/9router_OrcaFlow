@@ -69,6 +69,7 @@ export default function ProvidersPage() {
   const [providerNodes, setProviderNodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
+  const [kiloHourly, setKiloHourly] = useState(null);
   const [showAddCompatibleModal, setShowAddCompatibleModal] = useState(false);
   const [showAddAnthropicCompatibleModal, setShowAddAnthropicCompatibleModal] = useState(false);
   const [testingMode, setTestingMode] = useState(null);
@@ -78,14 +79,17 @@ export default function ProvidersPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [connectionsRes, nodesRes] = await Promise.all([
+        const [connectionsRes, nodesRes, usageRes] = await Promise.all([
           fetch("/api/providers", { cache: "no-store" }),
           fetch("/api/provider-nodes", { cache: "no-store" }),
+          fetch("/api/usage/stats?period=24h", { cache: "no-store" }),
         ]);
         const connectionsData = await connectionsRes.json();
         const nodesData = await nodesRes.json();
+        const usageData = usageRes.ok ? await usageRes.json() : null;
         if (connectionsRes.ok) setConnections(connectionsData.connections || []);
         if (nodesRes.ok) setProviderNodes(nodesData.nodes || []);
+        if (usageData?.kiloHourly) setKiloHourly(usageData.kiloHourly);
       } catch (error) {
         console.log("Error fetching data:", error);
       } finally {
@@ -247,6 +251,7 @@ export default function ProvidersPage() {
               provider={info}
               stats={getProviderStats(key, "oauth")}
               kiloBurstStatus={key === "kilocode" ? kiloBurstStatus : null}
+              kiloHourly={key === "kilocode" ? kiloHourly : null}
               authType="oauth"
               onToggle={(active) => handleToggleProvider(key, "oauth", active)}
             />
@@ -284,6 +289,8 @@ export default function ProvidersPage() {
               providerId={key}
               provider={info}
               stats={getProviderStats(key, null)}
+              kiloBurstStatus={key === "kilocode" ? kiloBurstStatus : null}
+              kiloHourly={key === "kilocode" ? kiloHourly : null}
               authType="free"
               onToggle={(active) => handleToggleProvider(key, "oauth", active)}
             />
@@ -438,7 +445,7 @@ export default function ProvidersPage() {
   );
 }
 
-function ProviderCard({ providerId, provider, stats, authType, onToggle, kiloBurstStatus = null }) {
+function ProviderCard({ providerId, provider, stats, authType, onToggle, kiloBurstStatus = null, kiloHourly = null }) {
   const { connected, error, errorCode, errorTime, allDisabled } = stats;
   const [imgError, setImgError] = useState(false);
 
@@ -505,13 +512,19 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle, kiloBur
                     </span>
                   ) : kiloBurstStatus.degraded ? (
                     <span className="text-amber-400">
-                      Burst partially live: {kiloBurstStatus.availableModels.length} lane up, reset {formatBurstTime(kiloBurstStatus.resetAt)}
+                      Burst partially live: {kiloBurstStatus.availableModels.length} lane up, parked lane resets {formatBurstTime(kiloBurstStatus.resetAt)}. Hour rolls at {formatBurstTime(kiloBurstStatus.nextResetAt)}
                     </span>
                   ) : (
                     <span className="text-emerald-400">
-                      Burst live now: hunter/healer front the coding chains
+                      Burst live now: hunter/healer front the coding chains. Next hour reset {formatBurstTime(kiloBurstStatus.nextResetAt)} ({formatBurstCountdown(kiloBurstStatus.nextResetInMs)})
                     </span>
                   )}
+                </div>
+              )}
+              {providerId === "kilocode" && kiloHourly && (
+                <div className="mt-1 text-[11px] text-text-muted">
+                  {kiloHourly.remainingRequests} of {kiloHourly.requestLimit} free Kilo requests left this hour
+                  {" "}({Math.round(kiloHourly.usedPercent)}% used, resets {formatBurstTime(kiloHourly.resetAt)})
                 </div>
               )}
             </div>
@@ -563,7 +576,15 @@ ProviderCard.propTypes = {
     degraded: PropTypes.bool,
     resetAt: PropTypes.string,
     resetInMs: PropTypes.number,
+    nextResetAt: PropTypes.string,
+    nextResetInMs: PropTypes.number,
     availableModels: PropTypes.array,
+  }),
+  kiloHourly: PropTypes.shape({
+    requestLimit: PropTypes.number,
+    remainingRequests: PropTypes.number,
+    usedPercent: PropTypes.number,
+    resetAt: PropTypes.string,
   }),
 };
 

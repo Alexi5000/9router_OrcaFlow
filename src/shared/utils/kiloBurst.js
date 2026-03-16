@@ -3,6 +3,13 @@ export const KILO_BURST_MODELS = [
   "openrouter/healer-alpha",
 ];
 
+function getNextHourIso(now = Date.now()) {
+  const nextHour = new Date(now);
+  nextHour.setMinutes(0, 0, 0);
+  nextHour.setHours(nextHour.getHours() + 1);
+  return nextHour.toISOString();
+}
+
 function getActiveModelLock(connection, model, now = Date.now()) {
   const key = `modelLock_${model}`;
   const value = connection?.[key];
@@ -18,6 +25,8 @@ function getActiveModelLock(connection, model, now = Date.now()) {
 
 export function getKiloBurstStatus(connections = [], now = Date.now()) {
   const kiloConnection = connections.find((connection) => connection.provider === "kilocode" && connection.isActive !== false);
+  const nextResetAt = getNextHourIso(now);
+  const nextResetInMs = Math.max(new Date(nextResetAt).getTime() - now, 0);
 
   if (!kiloConnection) {
     return {
@@ -29,6 +38,8 @@ export function getKiloBurstStatus(connections = [], now = Date.now()) {
       availableModels: [],
       resetAt: null,
       resetInMs: null,
+      nextResetAt,
+      nextResetInMs,
     };
   }
 
@@ -52,6 +63,8 @@ export function getKiloBurstStatus(connections = [], now = Date.now()) {
     availableModels,
     resetAt,
     resetInMs: resetAt ? Math.max(new Date(resetAt).getTime() - now, 0) : null,
+    nextResetAt,
+    nextResetInMs,
   };
 }
 

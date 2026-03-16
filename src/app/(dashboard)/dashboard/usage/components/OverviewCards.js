@@ -8,7 +8,7 @@ const fmtCost = (n) => `$${(n || 0).toFixed(2)}`;
 
 export default function OverviewCards({ stats }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
       <Card className="px-4 py-3 flex flex-col gap-1">
         <span className="text-text-muted text-sm uppercase font-semibold">Total Requests</span>
         <span className="text-2xl font-bold">{fmt(stats.totalRequests)}</span>
@@ -25,6 +25,15 @@ export default function OverviewCards({ stats }) {
         <span className="text-text-muted text-sm uppercase font-semibold">Est. Cost</span>
         <span className="text-2xl font-bold text-warning">~{fmtCost(stats.totalCost)}</span>
         <span className="text-[10px] text-text-muted">Estimated, not actual billing</span>
+      </Card>
+      <Card className="px-4 py-3 flex flex-col gap-1">
+        <span className="text-text-muted text-sm uppercase font-semibold">Kilo This Hour</span>
+        <span className="text-2xl font-bold text-[#FF6B35]">
+          {fmt(stats.kiloHourly?.remainingRequests)} left
+        </span>
+        <span className="text-[10px] text-text-muted">
+          {fmt(stats.kiloHourly?.requestsThisHour)}/{fmt(stats.kiloHourly?.requestLimit)} used, resets {stats.kiloHourly?.resetAt ? new Date(stats.kiloHourly.resetAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "soon"}
+        </span>
       </Card>
     </div>
   );

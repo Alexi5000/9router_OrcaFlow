@@ -10,7 +10,7 @@ import { readFile } from 'fs/promises';
 import { resolve, posix } from 'path';
 
 function normalizeDataDir(rawPath) {
-  if (!rawPath) return resolve('C:/TechTide/Tools/9router/data');
+  if (!rawPath) return resolve('C:/Users/Admin/TechTide/Tools/9router/data');
   if (process.platform === 'win32') return rawPath;
 
   const winDriveMatch = rawPath.match(/^([A-Za-z]):[\\/](.*)$/);

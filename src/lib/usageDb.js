@@ -6,6 +6,7 @@ import os from "os";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { waitForLowDbWrites, wrapLowDbWrite } from "./lowdbWriteQueue.js";
+import { getMsUntilNextHour, isKilocodeHourlyFreeModel } from "../../open-sse/services/accountFallback.js";
 
 const isCloud = typeof caches !== 'undefined' || typeof caches === 'object';
 
@@ -52,6 +53,7 @@ function getUserDataDir() {
 const DATA_DIR = getUserDataDir();
 const DB_FILE = isCloud ? null : path.join(DATA_DIR, "usage.json");
 const LOG_FILE = isCloud ? null : path.join(DATA_DIR, "log.txt");
+const KILO_HOURLY_REQUEST_LIMIT = 200;
 
 // Ensure data directory exists
 function ensureDataDir() {
@@ -99,6 +101,76 @@ if (!global._statsEmitter) {
   global._statsEmitter.setMaxListeners(50);
 }
 export const statsEmitter = global._statsEmitter;
+
+function getHourWindowStart(now = Date.now()) {
+  const hourStart = new Date(now);
+  hourStart.setMinutes(0, 0, 0);
+  return hourStart.getTime();
+}
+
+function buildKiloHourlyStats(history, now = Date.now()) {
+  const hourStart = getHourWindowStart(now);
+  const resetInMs = getMsUntilNextHour(now);
+  const resetAt = new Date(now + resetInMs).toISOString();
+  const seen = new Set();
+  const requests = [];
+
+  for (const entry of history || []) {
+    if (entry?.provider !== "kilocode" || !isKilocodeHourlyFreeModel(entry?.model)) {
+      continue;
+    }
+
+    const entryTime = new Date(entry.timestamp).getTime();
+    if (!Number.isFinite(entryTime) || entryTime < hourStart || entryTime > now) {
+      continue;
+    }
+
+    const { promptTokens, completionTokens } = getTokenCounts(entry.tokens);
+    const minute = entry.timestamp ? entry.timestamp.slice(0, 16) : "";
+    const dedupeKey = [
+      entry.provider,
+      entry.model,
+      promptTokens,
+      completionTokens,
+      minute,
+    ].join("|");
+
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+
+    requests.push({
+      model: entry.model,
+      timestamp: entry.timestamp,
+      promptTokens,
+      completionTokens,
+    });
+  }
+
+  const byModel = {};
+  for (const request of requests) {
+    if (!byModel[request.model]) {
+      byModel[request.model] = { requests: 0, lastUsed: request.timestamp };
+    }
+    byModel[request.model].requests += 1;
+    if (request.timestamp > byModel[request.model].lastUsed) {
+      byModel[request.model].lastUsed = request.timestamp;
+    }
+  }
+
+  const requestsThisHour = requests.length;
+  const remainingRequests = Math.max(KILO_HOURLY_REQUEST_LIMIT - requestsThisHour, 0);
+  const usedPercent = Math.min((requestsThisHour / KILO_HOURLY_REQUEST_LIMIT) * 100, 100);
+
+  return {
+    requestLimit: KILO_HOURLY_REQUEST_LIMIT,
+    requestsThisHour,
+    remainingRequests,
+    usedPercent,
+    resetAt,
+    resetInMs,
+    byModel,
+  };
+}
 
 /**
  * Track a pending request
@@ -509,7 +581,8 @@ export async function getUsageStats(period = "all") {
   await backfillMissingUsageCosts();
 
   const db = await getUsageDb();
-  let history = db.data.history || [];
+  const allHistory = db.data.history || [];
+  let history = allHistory;
 
   // Filter history by period
   if (period && PERIOD_MS[period]) {
@@ -603,6 +676,7 @@ export async function getUsageStats(period = "all") {
     activeRequests: [],
     recentRequests,
     errorProvider: (Date.now() - lastErrorProvider.ts < 10000) ? lastErrorProvider.provider : "",
+    kiloHourly: buildKiloHourlyStats(allHistory),
   };
 
   // Build active requests list from pending counts

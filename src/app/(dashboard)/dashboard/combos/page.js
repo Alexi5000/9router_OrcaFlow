@@ -15,22 +15,26 @@ export default function CombosPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCombo, setEditingCombo] = useState(null);
   const [activeProviders, setActiveProviders] = useState([]);
+  const [kiloHourly, setKiloHourly] = useState(null);
   const [now, setNow] = useState(Date.now());
   const { copied, copy } = useCopyToClipboard();
 
   const fetchData = useCallback(async () => {
     try {
-      const [combosRes, providersRes] = await Promise.all([
+      const [combosRes, providersRes, usageRes] = await Promise.all([
         fetch("/api/combos", { cache: "no-store" }),
         fetch("/api/providers", { cache: "no-store" }),
+        fetch("/api/usage/stats?period=24h", { cache: "no-store" }),
       ]);
       const combosData = await combosRes.json();
       const providersData = await providersRes.json();
+      const usageData = usageRes.ok ? await usageRes.json() : null;
       
       if (combosRes.ok) setCombos(combosData.combos || []);
       if (providersRes.ok) {
         setActiveProviders(providersData.connections || []);
       }
+      if (usageData?.kiloHourly) setKiloHourly(usageData.kiloHourly);
     } catch (error) {
       console.log("Error fetching data:", error);
     } finally {
@@ -124,7 +128,7 @@ export default function CombosPage() {
         </Button>
       </div>
 
-      <KiloBurstStatusCard status={kiloBurstStatus} combos={combos} />
+      <KiloBurstStatusCard status={kiloBurstStatus} combos={combos} kiloHourly={kiloHourly} />
 
       {/* Combos List */}
       {combos.length === 0 ? (
@@ -177,7 +181,7 @@ export default function CombosPage() {
   );
 }
 
-function KiloBurstStatusCard({ status, combos }) {
+function KiloBurstStatusCard({ status, combos, kiloHourly }) {
   const kiloCombo = combos.find((combo) => combo.name === "kilo-burst-coding");
   const paidCombo = combos.find((combo) => combo.name === "paid-coding");
 
@@ -204,8 +208,8 @@ function KiloBurstStatusCard({ status, combos }) {
     : status.parked
       ? `Kilo burst is parked until ${formatBurstTime(status.resetAt)} (${formatBurstCountdown(status.resetInMs)}).`
       : status.degraded
-        ? `${status.availableModels.length} burst lane live, ${status.lockedModels.length} parked until ${formatBurstTime(status.resetAt)}.`
-        : `${status.availableModels.length} burst lanes live now. Paid fallback stays idle until Kilo parks.`;
+        ? `${status.availableModels.length} burst lane live, ${status.lockedModels.length} parked until ${formatBurstTime(status.resetAt)}. Hourly window rolls again at ${formatBurstTime(status.nextResetAt)} (${formatBurstCountdown(status.nextResetInMs)}).`
+        : `${status.availableModels.length} burst lanes live now. Paid fallback stays idle until Kilo parks. Next hourly reset: ${formatBurstTime(status.nextResetAt)} (${formatBurstCountdown(status.nextResetInMs)}).`;
 
   return (
     <Card padding="sm">
@@ -214,7 +218,7 @@ function KiloBurstStatusCard({ status, combos }) {
           <div>
             <h2 className="text-base font-semibold">Kilo Burst Window</h2>
             <p className="text-sm text-text-muted mt-1">
-              `sonnet`, `build`, `reason`, and `opus` now burn Kilo first, then fall into the paid coding tier.
+              `fast`, `sonnet`, `build`, `reason`, and `opus` now burn Kilo first, then fall into the paid coding or overflow tiers.
             </p>
           </div>
           <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${stateClasses}`}>
@@ -223,6 +227,20 @@ function KiloBurstStatusCard({ status, combos }) {
         </div>
 
         <div className="text-sm text-text-main">{stateText}</div>
+
+        {kiloHourly && (
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="rounded-full bg-black/5 px-2.5 py-1 font-medium text-text-main dark:bg-white/5">
+              Kilo this hour: {kiloHourly.requestsThisHour}/{kiloHourly.requestLimit}
+            </span>
+            <span className="rounded-full bg-black/5 px-2.5 py-1 font-medium text-text-main dark:bg-white/5">
+              Estimated left: {kiloHourly.remainingRequests} requests
+            </span>
+            <span className="rounded-full bg-black/5 px-2.5 py-1 font-medium text-text-main dark:bg-white/5">
+              {Math.round(kiloHourly.usedPercent)}% used, resets {formatBurstTime(kiloHourly.resetAt)}
+            </span>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-2 text-xs">
           {kiloCombo && (
