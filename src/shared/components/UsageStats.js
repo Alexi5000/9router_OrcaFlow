@@ -8,6 +8,7 @@ import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/Overview
 import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
 import ProviderTopology from "@/app/(dashboard)/dashboard/usage/components/ProviderTopology";
 import UsageChart from "@/app/(dashboard)/dashboard/usage/components/UsageChart";
+import { TOPOLOGY_RECENT_WINDOW_MS, getRecentLastProvider, getRecentProvidersFromRequests } from "@/shared/utils/usageTopology";
 
 function timeAgo(timestamp) {
   const diff = Math.floor((Date.now() - new Date(timestamp)) / 1000);
@@ -181,6 +182,7 @@ const PERIODS = [
 ];
 
 const STATS_FETCH_TIMEOUT_MS = 10000;
+const TOPOLOGY_TICK_MS = 15 * 1000;
 
 async function fetchJsonWithTimeout(url, timeoutMs = STATS_FETCH_TIMEOUT_MS) {
   const controller = new AbortController();
@@ -213,22 +215,20 @@ export default function UsageStats() {
   const [providers, setProviders] = useState([]);
   const [period, setPeriod] = useState("7d");
   const [chartRefreshNonce, setChartRefreshNonce] = useState(0);
+  const [topologyNow, setTopologyNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTopologyNow(Date.now()), TOPOLOGY_TICK_MS);
+    return () => clearInterval(timer);
+  }, []);
 
   const recentProviders = useMemo(() => {
-    if (!stats?.recentRequests?.length) return [];
-    const unique = [];
-    const seen = new Set();
+    return getRecentProvidersFromRequests(stats?.recentRequests, topologyNow, TOPOLOGY_RECENT_WINDOW_MS, 4);
+  }, [stats?.recentRequests, topologyNow]);
 
-    for (const req of stats.recentRequests) {
-      const provider = req?.provider?.toLowerCase?.();
-      if (!provider || seen.has(provider)) continue;
-      seen.add(provider);
-      unique.push(provider);
-      if (unique.length >= 8) break;
-    }
-
-    return unique;
-  }, [stats?.recentRequests]);
+  const recentLastProvider = useMemo(() => {
+    return getRecentLastProvider(stats?.recentRequests, topologyNow, TOPOLOGY_RECENT_WINDOW_MS);
+  }, [stats?.recentRequests, topologyNow]);
 
   // Fetch connected provider accounts for the topology view.
   useEffect(() => {
@@ -446,7 +446,7 @@ export default function UsageStats() {
             providers={providers}
             activeRequests={stats.activeRequests || []}
             recentProviders={recentProviders}
-            lastProvider={stats.recentRequests?.[0]?.provider || ""}
+            lastProvider={recentLastProvider}
             errorProvider={stats.errorProvider || ""}
           />
           <RecentRequests requests={stats.recentRequests || []} />
