@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardSkeleton } from "@/shared/components";
 import { CLI_TOOLS } from "@/shared/constants/cliTools";
 import { getModelsByProviderId, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
-import { ClaudeToolCard, CodexToolCard, DroidToolCard, OpenClawToolCard, DefaultToolCard, OpenCodeToolCard } from "./components";
+import { ClaudeToolCard, CodexToolCard, DeepSeekToolCard, DroidToolCard, OpenClawToolCard, DefaultToolCard, OpenCodeToolCard } from "./components";
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
 
@@ -14,6 +14,7 @@ const MITM_TOOL_IDS = ["antigravity", "copilot"];
 const STATUS_ENDPOINTS = {
   claude: "/api/cli-tools/claude-settings",
   codex: "/api/cli-tools/codex-settings",
+  deepseek: "/api/cli-tools/deepseek-settings",
   opencode: "/api/cli-tools/opencode-settings",
   droid: "/api/cli-tools/droid-settings",
   openclaw: "/api/cli-tools/openclaw-settings",
@@ -174,6 +175,8 @@ export default function CLIToolsPageClient({ machineId }) {
         );
       case "codex":
         return <CodexToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} cloudEnabled={cloudEnabled} initialStatus={toolStatuses.codex} />;
+      case "deepseek":
+        return <DeepSeekToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} cloudEnabled={cloudEnabled} initialStatus={toolStatuses.deepseek} />;
       case "opencode":
         return <OpenCodeToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} cloudEnabled={cloudEnabled} initialStatus={toolStatuses.opencode} />;
       case "droid":

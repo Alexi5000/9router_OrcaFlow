@@ -38,6 +38,22 @@ export const CLI_TOOLS = {
     description: "OpenAI Codex CLI",
     configType: "custom",
   },
+  deepseek: {
+    id: "deepseek",
+    name: "DeepSeek CLI",
+    image: "/providers/deepseek.png",
+    color: "#4F7CFF",
+    description: "DeepSeek CLI with OrcaFlow routes",
+    configType: "custom",
+    defaultModels: [
+      { id: "gsd", name: "GSD", alias: "gsd" },
+      { id: "deepseek-swarm", name: "DeepSeek Swarm", alias: "deepseek-swarm" },
+      { id: "deepseek-code", name: "DeepSeek Code", alias: "deepseek-code" },
+      { id: "deepseek-think", name: "DeepSeek Think", alias: "deepseek-think" },
+      { id: "deepseek-chat", name: "Direct DeepSeek Chat", alias: "deepseek-chat" },
+      { id: "deepseek-reasoner", name: "Direct DeepSeek Reasoner", alias: "deepseek-reasoner" },
+    ],
+  },
   opencode: {
     id: "opencode",
     name: "OpenCode",

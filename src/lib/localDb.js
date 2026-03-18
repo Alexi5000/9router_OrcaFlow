@@ -6,7 +6,14 @@ import os from "node:os";
 import fs from "node:fs";
 import { waitForLowDbWrites, wrapLowDbWrite } from "./lowdbWriteQueue.js";
 
-const isCloud = typeof caches !== 'undefined' || typeof caches === 'object';
+function detectCloudRuntime() {
+  if (typeof EdgeRuntime !== "undefined") return true;
+  if (process.env.NEXT_RUNTIME === "edge") return true;
+  if (process.env.CF_PAGES === "1" || process.env.CF_WORKER === "1") return true;
+  return false;
+}
+
+const isCloud = detectCloudRuntime();
 
 // Get app name - fixed constant to avoid Windows path issues in standalone build
 function getAppName() {

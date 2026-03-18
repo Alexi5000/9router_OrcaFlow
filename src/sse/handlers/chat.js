@@ -15,6 +15,7 @@ import { handleComboChat } from "open-sse/services/combo.js";
 import { HTTP_STATUS } from "open-sse/config/constants.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
 import { classifyRequestFailure } from "@/shared/utils/requestFailure.js";
+import { shapeDeepseekSwarmCombo } from "@/shared/utils/deepseekSwarmRouting.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
@@ -224,7 +225,8 @@ export async function handleChat(request, clientRawRequest = null) {
   }
 
   // Check if model is a combo (has multiple models with fallback)
-  const combo = await getComboConfig(modelStr);
+  const comboConfig = await getComboConfig(modelStr);
+  const combo = shapeDeepseekSwarmCombo(comboConfig, body);
   if (combo?.models?.length) {
     log.info("CHAT", `Combo "${modelStr}" with ${combo.models.length} models`);
     updateClientRouting(clientRawRequest, {
@@ -274,7 +276,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   // Use modelInfo.model (alias-resolved) not modelStr (original), since aliases can point to combo names
   if (!modelInfo.provider) {
     const comboName = modelInfo.model || modelStr;
-    const combo = await getComboConfig(comboName);
+    const comboConfig = await getComboConfig(comboName);
+    const combo = shapeDeepseekSwarmCombo(comboConfig, body);
     if (combo?.models?.length) {
       log.info("CHAT", `Combo "${comboName}" with ${combo.models.length} models (from ${modelStr})`);
       updateClientRouting(clientRawRequest, {
