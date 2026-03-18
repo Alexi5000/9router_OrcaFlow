@@ -77,7 +77,16 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
 
       const usage = jsonResponse.usage || {};
       appendLog({ tokens: usage, status: "200 OK" });
-      saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, persist: true });
+      saveUsageStats({
+        provider,
+        model,
+        tokens: usage,
+        connectionId,
+        apiKey,
+        endpoint: clientRawRequest?.endpoint,
+        route: clientRawRequest?.routing,
+        persist: true,
+      });
 
       const msgItem = jsonResponse.output?.find(item => item.type === "message");
       const textContent = msgItem?.content?.find(c => c.type === "output_text")?.text || msgItem?.content?.[0]?.text || null;
@@ -88,7 +97,8 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
         latency: { ttft: totalLatency, total: totalLatency },
         tokens: { prompt_tokens: usage.input_tokens || 0, completion_tokens: usage.output_tokens || 0 },
         response: { content: textContent, thinking: null, finish_reason: jsonResponse.status || "unknown" },
-        status: "success"
+        status: "success",
+        route: clientRawRequest?.routing,
       }, { endpoint: clientRawRequest?.endpoint || null })).catch(() => {});
 
       // Client is Responses API → return as-is
@@ -138,7 +148,16 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
 
     const usage = parsed.usage || {};
     appendLog({ tokens: usage, status: "200 OK" });
-    saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, persist: true });
+    saveUsageStats({
+      provider,
+      model,
+      tokens: usage,
+      connectionId,
+      apiKey,
+      endpoint: clientRawRequest?.endpoint,
+      route: clientRawRequest?.routing,
+      persist: true,
+    });
 
     const totalLatency = Date.now() - requestStartTime;
     saveRequestDetail(buildRequestDetail({
@@ -150,7 +169,8 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
         thinking: parsed.choices?.[0]?.message?.reasoning_content || null,
         finish_reason: parsed.choices?.[0]?.finish_reason || "unknown"
       },
-      status: "success"
+      status: "success",
+      route: clientRawRequest?.routing,
     }, { endpoint: clientRawRequest?.endpoint || null })).catch(() => {});
 
     return { success: true, response: new Response(JSON.stringify(parsed), { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }) };

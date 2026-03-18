@@ -55,6 +55,8 @@ export function resolveProviderAlias(aliasOrId) {
   return ALIAS_TO_PROVIDER_ID[aliasOrId] || aliasOrId;
 }
 
+const STRICT_CLIENT_ALIAS_PROVIDERS = new Set(["claude", "cc"]);
+
 /**
  * Parse model string: "alias/model" or "provider/model" or just alias
  */
@@ -133,7 +135,7 @@ export function resolveModelAliasFromMap(alias, aliases) {
  * @param {string} modelStr - Model string
  * @param {object|function} aliasesOrGetter - Aliases object or async function to get aliases
  */
-export async function getModelInfoCore(modelStr, aliasesOrGetter) {
+export async function getModelInfoCore(modelStr, aliasesOrGetter, options = {}) {
   const parsed = parseModel(modelStr);
 
   const aliases =
@@ -145,11 +147,17 @@ export async function getModelInfoCore(modelStr, aliasesOrGetter) {
     const resolvedPrefixedAlias = resolveModelAliasFromMap(parsed.model, aliases);
 
     // Only provider shorthand such as "cc/model-id" should honor model aliases.
-    // Explicit provider hops inside combos must stay direct to avoid combo recursion.
+    // Explicit provider hops inside combos stay direct by default, but
+    // Claude-facing client entry paths can opt in to strict alias routing.
     if (
       resolvedPrefixedAlias &&
-      parsed.providerAlias &&
-      parsed.providerAlias !== parsed.provider
+      (
+        (parsed.providerAlias && parsed.providerAlias !== parsed.provider) ||
+        (
+          options.resolveClientPrefixedAliases === true &&
+          STRICT_CLIENT_ALIAS_PROVIDERS.has(parsed.providerAlias || parsed.provider)
+        )
+      )
     ) {
       return resolvedPrefixedAlias;
     }

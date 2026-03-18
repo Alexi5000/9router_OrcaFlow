@@ -134,11 +134,26 @@ export async function parseUpstreamError(response, provider = null) {
  * @returns {{ success: false, status: number, error: string, response: Response, retryAfterMs?: number }}
  */
 export function createErrorResult(statusCode, message, retryAfterMs = null, options = {}) {
+  const responseHeaders = {};
+  if (options.requestScopedFallback) {
+    responseHeaders["X-9Router-Request-Scoped-Fallback"] = "1";
+  }
+  if (options.errorCode) {
+    responseHeaders["X-9Router-Error-Code"] = String(options.errorCode);
+  }
+
   const result = {
     success: false,
     status: statusCode,
     error: message,
-    response: errorResponse(statusCode, message)
+    response: new Response(JSON.stringify(buildErrorBody(statusCode, message)), {
+      status: statusCode,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        ...responseHeaders,
+      },
+    })
   };
   
   // Add retryAfterMs if available (for Antigravity quota errors)

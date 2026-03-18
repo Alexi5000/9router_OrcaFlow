@@ -5,21 +5,14 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
-import os from "os";
+import { resolveClaudeSettingsPath } from "@/shared/utils/claudeConfig";
 
 const execAsync = promisify(exec);
-
-// Get claude settings path based on OS
-const getClaudeSettingsPath = () => {
-  const homeDir = os.homedir();
-  return path.join(homeDir, ".claude", "settings.json");
-};
-
 
 // Check if claude CLI is installed
 const checkClaudeInstalled = async () => {
   try {
-    const isWindows = os.platform() === "win32";
+    const isWindows = process.platform === "win32";
     const command = isWindows ? "where claude" : "command -v claude";
     await execAsync(command, { windowsHide: true });
     return true;
@@ -31,7 +24,7 @@ const checkClaudeInstalled = async () => {
 // Read current settings
 const readSettings = async () => {
   try {
-    const settingsPath = getClaudeSettingsPath();
+    const settingsPath = resolveClaudeSettingsPath();
     const content = await fs.readFile(settingsPath, "utf-8");
     return JSON.parse(content);
   } catch (error) {
@@ -60,9 +53,9 @@ export async function GET() {
 
     return NextResponse.json({
       installed: true,
-      settings: settings,
-      has9Router: has9Router,
-      settingsPath: getClaudeSettingsPath(),
+        settings: settings,
+        has9Router: has9Router,
+        settingsPath: resolveClaudeSettingsPath(),
     });
   } catch (error) {
     console.log("Error checking claude settings:", error);
@@ -85,7 +78,7 @@ export async function POST(request) {
       );
     }
 
-    const settingsPath = getClaudeSettingsPath();
+    const settingsPath = resolveClaudeSettingsPath();
     const claudeDir = path.dirname(settingsPath);
 
     // Ensure .claude directory exists
@@ -147,7 +140,7 @@ const RESET_ENV_KEYS = [
 // DELETE - Reset settings (remove env fields)
 export async function DELETE() {
   try {
-    const settingsPath = getClaudeSettingsPath();
+    const settingsPath = resolveClaudeSettingsPath();
 
     // Read current settings
     let currentSettings = {};

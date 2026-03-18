@@ -14,22 +14,49 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 
 const BASE = "http://localhost:20128";
 const PASSWORD = process.env.INITIAL_PASSWORD || "[REDACTED-ROTATED]";
+const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || path.join(
   process.env.APPDATA || path.join(process.env.USERPROFILE || "C:/Users/Admin", "AppData", "Roaming"),
   "9router"
 );
 const DB_FILE = path.join(DATA_DIR, "db.json");
 const REQUEST_DETAILS_FILE = path.join(DATA_DIR, "request-details.json");
+const STANDALONE_SERVER_FILE = path.join(APP_ROOT, ".next", "standalone", "server.js");
 const MAX_LINES = 50_000; // ~50k log entries max before trim
+const execFileAsync = promisify(execFile);
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function log(msg) {
   const ts = new Date().toISOString().slice(11, 19);
   console.log(`[${ts}] [WATCHDOG] ${msg}`);
+}
+
+function isGlobalHealthError(status = 0, errorText = "") {
+  const code = Number(status) || 0;
+  const message = String(errorText || "").toLowerCase();
+
+  if (code === 401 || code === 402 || code === 403) {
+    return true;
+  }
+
+  return (
+    message.includes("oauth token has expired") ||
+    message.includes("token has expired") ||
+    message.includes("refresh token") ||
+    message.includes("refresh failed") ||
+    message.includes("invalid api key") ||
+    message.includes("api key invalid") ||
+    message.includes("unauthorized") ||
+    message.includes("forbidden") ||
+    message.includes("no credentials")
+  );
 }
 
 async function login() {
@@ -44,6 +71,47 @@ async function login() {
   if (!cookie) throw new Error("No session cookie returned");
   // Return just the first name=value pair
   return cookie.split(";")[0];
+}
+
+async function fetchClaudeHealth() {
+  const res = await fetch(`${BASE}/api/health/claude`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`GET /api/health/claude failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+async function restartRouter() {
+  await execFileAsync("pm2", ["restart", "9router"]);
+}
+
+async function ensureRouterOnline() {
+  try {
+    const health = await fetchClaudeHealth();
+    return { ok: true, health };
+  } catch (error) {
+    if (!fs.existsSync(STANDALONE_SERVER_FILE)) {
+      return {
+        ok: false,
+        reason: `standalone bundle missing at ${STANDALONE_SERVER_FILE}`,
+      };
+    }
+
+    log(`Router health check failed (${error.message}) — restarting PM2 app...`);
+    try {
+      await restartRouter();
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      const health = await fetchClaudeHealth();
+      return { ok: true, health, restarted: true };
+    } catch (restartError) {
+      return {
+        ok: false,
+        reason: `restart failed: ${restartError.message}`,
+      };
+    }
+  }
 }
 
 async function getConnections(cookie) {
@@ -129,6 +197,23 @@ async function run() {
   // 1. Trim log if bloated
   trimRequestDetails();
 
+  const routerState = await ensureRouterOnline();
+  if (!routerState.ok) {
+    log(`Router unavailable: ${routerState.reason}`);
+    return;
+  }
+  if (routerState.restarted) {
+    log("Router restart succeeded.");
+  }
+
+  const health = routerState.health;
+  if (health?.providers?.critical) {
+    const criticalSummary = Object.entries(health.providers.critical)
+      .map(([provider, status]) => `${provider}=${status}`)
+      .join(", ");
+    log(`Health: ${criticalSummary}`);
+  }
+
   // 2. Login
   let cookie;
   try {
@@ -165,7 +250,8 @@ async function run() {
 
     const isStuckUnavailable =
       conn.testStatus === "unavailable" &&
-      activeLocks.length === 0; // no locks still valid
+      activeLocks.length === 0 &&
+      !isGlobalHealthError(conn.errorCode, conn.lastError || ""); // do not auto-reactivate auth failures
 
     if (isStuckUnavailable || expiredLocks.length > 0) {
       const provider = conn.provider || conn.id?.slice(0, 8);

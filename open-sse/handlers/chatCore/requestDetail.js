@@ -1,5 +1,6 @@
 import { appendRequestLog, saveRequestDetail, saveRequestUsage } from "@/lib/usageDb.js";
 import { COLORS } from "../../utils/stream.js";
+import { normalizeRequestRoute } from "../../../src/shared/utils/requestRoute.js";
 
 const OPTIONAL_PARAMS = [
   "temperature", "top_p", "top_k",
@@ -56,6 +57,13 @@ export function extractUsageFromResponse(responseBody) {
 }
 
 export function buildRequestDetail(base, overrides = {}) {
+  const route = normalizeRequestRoute(base.route, {
+    requestedModel: base.request?.model,
+    resolvedProvider: base.provider,
+    resolvedModel: base.model,
+    finalModel: base.provider && base.model ? `${base.provider}/${base.model}` : null,
+  });
+
   return {
     provider: base.provider || "unknown",
     model: base.model || "unknown",
@@ -68,11 +76,15 @@ export function buildRequestDetail(base, overrides = {}) {
     providerResponse: base.providerResponse || null,
     response: base.response || {},
     status: base.status || "success",
+    route,
+    routeSummary: route.summary || null,
+    errorClass: base.errorClass || null,
+    errorCode: base.errorCode || null,
     ...overrides
   };
 }
 
-export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, endpoint, label = "USAGE", persist = false }) {
+export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, endpoint, route, label = "USAGE", persist = false }) {
   if (!tokens || typeof tokens !== "object") return;
 
   const inTokens = tokens.input_tokens ?? tokens.prompt_tokens ?? 0;
@@ -95,6 +107,12 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
     reasoning_tokens: tokens.reasoning_tokens || 0,
   };
 
+  const normalizedRoute = normalizeRequestRoute(route, {
+    resolvedProvider: provider,
+    resolvedModel: model,
+    finalModel: provider && model ? `${provider}/${model}` : null,
+  });
+
   saveRequestUsage({
     model,
     provider,
@@ -102,6 +120,7 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
     tokens: normalizedTokens,
     apiKey: apiKey || undefined,
     endpoint: endpoint || undefined,
+    route: normalizedRoute,
   }).catch(() => {});
 
   appendRequestLog({

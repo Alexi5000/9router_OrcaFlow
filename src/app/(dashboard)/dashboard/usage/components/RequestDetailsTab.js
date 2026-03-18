@@ -6,6 +6,7 @@ import Button from "@/shared/components/Button";
 import Drawer from "@/shared/components/Drawer";
 import Pagination from "@/shared/components/Pagination";
 import { cn } from "@/shared/utils/cn";
+import { buildRequestRouteSummary, normalizeRequestRoute } from "@/shared/utils/requestRoute";
 import { AI_PROVIDERS, getProviderByAlias } from "@/shared/constants/providers";
 
 let providerNameCache = null;
@@ -260,6 +261,16 @@ export default function RequestDetailsTab() {
                 </tr>
               ) : (
                 details.map((detail, index) => (
+                  (() => {
+                    const route = normalizeRequestRoute(detail.route, {
+                      requestedModel: detail.request?.model || detail.model,
+                      resolvedProvider: detail.provider,
+                      resolvedModel: detail.model,
+                      finalModel: detail.provider && detail.model ? `${detail.provider}/${detail.model}` : null,
+                    });
+                    const routeSummary = buildRequestRouteSummary(route);
+
+                    return (
                   <tr
                     key={`${detail.id}-${index}`}
                     className="border-b border-black/5 dark:border-white/5 last:border-b-0 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors"
@@ -267,8 +278,15 @@ export default function RequestDetailsTab() {
                     <td className="p-4 text-sm text-text-main">
                       {new Date(detail.timestamp).toLocaleString()}
                     </td>
-                    <td className="p-4 text-sm text-text-main font-mono">
-                      {detail.model}
+                    <td className="p-4 text-sm text-text-main">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-mono">{route.requestedModel || detail.model}</span>
+                        {routeSummary && routeSummary !== (route.requestedModel || detail.model) && (
+                          <span className="text-xs text-text-muted" title={routeSummary}>
+                            {routeSummary}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4 text-sm text-text-main">
                        <span className="font-medium">
@@ -297,6 +315,8 @@ export default function RequestDetailsTab() {
                       </Button>
                     </td>
                   </tr>
+                    );
+                  })()
                 ))
               )}
             </tbody>
@@ -323,6 +343,15 @@ export default function RequestDetailsTab() {
         width="lg"
       >
         {selectedDetail && (
+          (() => {
+            const route = normalizeRequestRoute(selectedDetail.route, {
+              requestedModel: selectedDetail.request?.model || selectedDetail.model,
+              resolvedProvider: selectedDetail.provider,
+              resolvedModel: selectedDetail.model,
+              finalModel: selectedDetail.provider && selectedDetail.model ? `${selectedDetail.provider}/${selectedDetail.model}` : null,
+            });
+
+            return (
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
@@ -340,6 +369,12 @@ export default function RequestDetailsTab() {
               <div>
                 <span className="text-text-muted">Model:</span>{" "}
                 <span className="text-text-main font-mono">{selectedDetail.model}</span>
+              </div>
+              <div className="col-span-2">
+                <span className="text-text-muted">Route:</span>{" "}
+                <span className="text-text-main font-mono break-all">
+                  {buildRequestRouteSummary(route)}
+                </span>
               </div>
               <div>
                 <span className="text-text-muted">Status:</span>{" "}
@@ -371,6 +406,45 @@ export default function RequestDetailsTab() {
             </div>
             
             <div className="space-y-4">
+              <CollapsibleSection title="0. Route Summary" defaultOpen={true} icon="route">
+                <div className="grid grid-cols-1 gap-3 text-sm">
+                  <div>
+                    <span className="text-text-muted">Requested Model:</span>{" "}
+                    <span className="text-text-main font-mono">{route.requestedModel || "Unknown"}</span>
+                  </div>
+                  {route.comboName && (
+                    <div>
+                      <span className="text-text-muted">Combo:</span>{" "}
+                      <span className="text-text-main font-mono">combo/{route.comboName}</span>
+                    </div>
+                  )}
+                  {route.tierName && (
+                    <div>
+                      <span className="text-text-muted">Tier:</span>{" "}
+                      <span className="text-text-main">{route.tierName}</span>
+                    </div>
+                  )}
+                  {route.finalModel && (
+                    <div>
+                      <span className="text-text-muted">Final Hop:</span>{" "}
+                      <span className="text-text-main font-mono">{route.finalModel}</span>
+                    </div>
+                  )}
+                  {route.attemptedModels?.length > 0 && (
+                    <div>
+                      <span className="text-text-muted">Attempts:</span>{" "}
+                      <span className="text-text-main font-mono break-all">{route.attemptedModels.join(" -> ")}</span>
+                    </div>
+                  )}
+                  {selectedDetail.endpoint && (
+                    <div>
+                      <span className="text-text-muted">Endpoint:</span>{" "}
+                      <span className="text-text-main font-mono">{selectedDetail.endpoint}</span>
+                    </div>
+                  )}
+                </div>
+              </CollapsibleSection>
+
               <CollapsibleSection title="1. Client Request (Input)" defaultOpen={true} icon="input">
                 <pre className="bg-black/5 dark:bg-white/5 p-4 rounded-lg overflow-auto max-h-[300px] text-xs font-mono text-text-main border border-black/5 dark:border-white/5">
                   {JSON.stringify(selectedDetail.request, null, 2)}
@@ -418,6 +492,8 @@ export default function RequestDetailsTab() {
               </CollapsibleSection>
             </div>
           </div>
+            );
+          })()
         )}
       </Drawer>
     </div>

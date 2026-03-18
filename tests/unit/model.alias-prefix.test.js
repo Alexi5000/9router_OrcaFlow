@@ -36,6 +36,21 @@ describe("model alias resolution for prefixed client models", () => {
     });
   });
 
+  it("routes explicit Claude client requests through aliases when strict client routing is enabled", async () => {
+    const result = await getModelInfoCore(
+      "claude/claude-sonnet-4-6",
+      {
+        "claude-sonnet-4-6": "combo/sonnet",
+      },
+      { resolveClientPrefixedAliases: true }
+    );
+
+    expect(result).toEqual({
+      provider: null,
+      model: "sonnet",
+    });
+  });
+
   it("does not recurse combo hops back into the combo alias", async () => {
     const result = await getModelInfoCore("antigravity/claude-sonnet-4-6", {
       "claude-sonnet-4-6": "combo/sonnet",

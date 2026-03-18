@@ -9,6 +9,7 @@ import { waitForLowDbWrites, wrapLowDbWrite } from "./lowdbWriteQueue.js";
 import { getMsUntilNextHour, isKilocodeHourlyFreeModel } from "../../open-sse/services/accountFallback.js";
 import { getKiloBurstStatus } from "../shared/utils/kiloBurst.js";
 import { getEffectiveConnectionStatus, isGlobalProviderHealthError } from "../shared/utils/providerHealth.js";
+import { buildRequestRouteSummary, normalizeRequestRoute } from "../shared/utils/requestRoute.js";
 
 const isCloud = typeof caches !== 'undefined' || typeof caches === 'object';
 
@@ -86,6 +87,11 @@ if (!global._pendingRequests) {
 }
 const pendingRequests = global._pendingRequests;
 
+if (!global._pendingRequestEntries) {
+  global._pendingRequestEntries = {};
+}
+const pendingRequestEntries = global._pendingRequestEntries;
+
 // Track last error provider for UI edge coloring (auto-clears after 10s)
 if (!global._lastErrorProvider) {
   global._lastErrorProvider = { provider: "", ts: 0 };
@@ -103,6 +109,104 @@ if (!global._statsEmitter) {
   global._statsEmitter.setMaxListeners(50);
 }
 export const statsEmitter = global._statsEmitter;
+
+function buildPendingRequestEntryKey(connectionId, provider, model, requestId = null) {
+  if (requestId) return requestId;
+  return `${connectionId || "local"}:${provider || "unknown"}:${model || "unknown"}`;
+}
+
+function normalizePendingRoute(route, provider, model, requestedModel = null) {
+  return normalizeRequestRoute(route, {
+    requestedModel: requestedModel || route?.requestedModel || model,
+    resolvedProvider: provider,
+    resolvedModel: model,
+    finalModel: provider && model ? `${provider}/${model}` : null,
+  });
+}
+
+async function getConnectionNameMap() {
+  const connectionMap = {};
+  try {
+    const { getProviderConnections } = await import("@/lib/localDb.js");
+    const allConnections = await getProviderConnections();
+    for (const conn of allConnections) {
+      connectionMap[conn.id] = conn.name || conn.email || conn.displayName || conn.id;
+    }
+  } catch {}
+  return connectionMap;
+}
+
+function getLivePendingRequests(connectionMap = {}) {
+  return Object.values(pendingRequestEntries)
+    .filter((entry) => entry && entry.provider && entry.model)
+    .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0))
+    .map((entry) => ({
+      requestId: entry.requestId,
+      timestamp: entry.timestamp,
+      model: entry.model,
+      provider: entry.provider,
+      account: entry.connectionId
+        ? (connectionMap[entry.connectionId] || `Account ${entry.connectionId.slice(0, 8)}...`)
+        : "Local",
+      count: entry.count || 1,
+      status: "pending",
+      promptTokens: 0,
+      completionTokens: 0,
+      route: entry.route || null,
+      routeSummary: entry.routeSummary || buildRequestRouteSummary(entry.route),
+      endpoint: entry.endpoint || null,
+    }));
+}
+
+function buildHistoryRecentRequests(history = []) {
+  const seen = new Set();
+  return [...history]
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .map((e) => {
+      const t = e.tokens || {};
+      const promptTokens = t.prompt_tokens || t.input_tokens || 0;
+      const completionTokens = t.completion_tokens || t.output_tokens || 0;
+      const route = normalizeRequestRoute(e.route, {
+        requestedModel: e.model,
+        resolvedProvider: e.provider,
+        resolvedModel: e.model,
+        finalModel: e.provider && e.model ? `${e.provider}/${e.model}` : null,
+      });
+      return {
+        timestamp: e.timestamp,
+        model: e.model,
+        provider: e.provider || "",
+        promptTokens,
+        completionTokens,
+        status: e.status || "ok",
+        route,
+        routeSummary: buildRequestRouteSummary(route),
+      };
+    })
+    .filter((e) => {
+      if (e.promptTokens === 0 && e.completionTokens === 0) return false;
+      const minute = e.timestamp ? e.timestamp.slice(0, 16) : "";
+      const key = `${e.model}|${e.provider}|${e.promptTokens}|${e.completionTokens}|${minute}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function mergeRecentRequests(liveRequests = [], historyRequests = [], limit = 20) {
+  const merged = [];
+  const seen = new Set();
+
+  for (const entry of [...liveRequests, ...historyRequests]) {
+    const key = entry.requestId || `${entry.timestamp || ""}|${entry.provider || ""}|${entry.model || ""}|${entry.status || ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(entry);
+    if (merged.length >= limit) break;
+  }
+
+  return merged;
+}
 
 function getHourWindowStart(now = Date.now()) {
   const hourStart = new Date(now);
@@ -211,8 +315,9 @@ function buildKiloHourlyStats(history, kiloConnections = [], now = Date.now()) {
  * @param {boolean} started - true if started, false if finished
  * @param {boolean} [error] - true if ended with error
  */
-export function trackPendingRequest(model, provider, connectionId, started, error = false) {
+export function trackPendingRequest(model, provider, connectionId, started, error = false, metadata = null) {
   const modelKey = provider ? `${model} (${provider})` : model;
+  const requestKey = buildPendingRequestEntryKey(connectionId, provider, model, metadata?.requestId);
 
   // Track by model
   if (!pendingRequests.byModel[modelKey]) pendingRequests.byModel[modelKey] = 0;
@@ -224,6 +329,38 @@ export function trackPendingRequest(model, provider, connectionId, started, erro
     if (!pendingRequests.byAccount[accountKey]) pendingRequests.byAccount[accountKey] = {};
     if (!pendingRequests.byAccount[accountKey][modelKey]) pendingRequests.byAccount[accountKey][modelKey] = 0;
     pendingRequests.byAccount[accountKey][modelKey] = Math.max(0, pendingRequests.byAccount[accountKey][modelKey] + (started ? 1 : -1));
+  }
+
+  if (started) {
+    const route = normalizePendingRoute(
+      metadata?.route,
+      provider,
+      model,
+      metadata?.requestedModel
+    );
+    pendingRequestEntries[requestKey] = {
+      requestId: requestKey,
+      timestamp: metadata?.timestamp || new Date().toISOString(),
+      model,
+      provider,
+      connectionId: connectionId || null,
+      endpoint: metadata?.endpoint || null,
+      route,
+      routeSummary: buildRequestRouteSummary(route),
+      count: 1,
+    };
+  } else if (pendingRequestEntries[requestKey]) {
+    delete pendingRequestEntries[requestKey];
+  } else {
+    for (const [key, entry] of Object.entries(pendingRequestEntries)) {
+      if (
+        entry?.connectionId === (connectionId || null) &&
+        entry?.provider === provider &&
+        entry?.model === model
+      ) {
+        delete pendingRequestEntries[key];
+      }
+    }
   }
 
   // Track error provider (auto-clears after 10s)
@@ -241,58 +378,25 @@ export function trackPendingRequest(model, provider, connectionId, started, erro
  * Lightweight: get only activeRequests + recentRequests without full stats recalc
  */
 export async function getActiveRequests() {
-  const activeRequests = [];
-
-  // Build active requests from pending state
-  let connectionMap = {};
-  try {
-    const { getProviderConnections } = await import("@/lib/localDb.js");
-    const allConnections = await getProviderConnections();
-    for (const conn of allConnections) {
-      connectionMap[conn.id] = conn.name || conn.email || conn.id;
-    }
-  } catch {}
-
-  for (const [connectionId, models] of Object.entries(pendingRequests.byAccount)) {
-    for (const [modelKey, count] of Object.entries(models)) {
-      if (count > 0) {
-        const accountName = connectionMap[connectionId] || `Account ${connectionId.slice(0, 8)}...`;
-        const match = modelKey.match(/^(.*) \((.*)\)$/);
-        const modelName = match ? match[1] : modelKey;
-        const providerName = match ? match[2] : "unknown";
-        activeRequests.push({ model: modelName, provider: providerName, account: accountName, count });
-      }
-    }
-  }
+  const connectionMap = await getConnectionNameMap();
+  const activeRequests = getLivePendingRequests(connectionMap);
 
   // Get recent requests from history (re-read to get latest)
   const db = await getUsageDb();
   await waitForLowDbWrites(DB_FILE);
   await db.read();
   const history = db.data.history || [];
-  const seen = new Set();
-  const recentRequests = [...history]
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .map((e) => {
-      const t = e.tokens || {};
-      const promptTokens = t.prompt_tokens || t.input_tokens || 0;
-      const completionTokens = t.completion_tokens || t.output_tokens || 0;
-      return { timestamp: e.timestamp, model: e.model, provider: e.provider || "", promptTokens, completionTokens, status: e.status || "ok" };
-    })
-    .filter((e) => {
-      if (e.promptTokens === 0 && e.completionTokens === 0) return false;
-      const minute = e.timestamp ? e.timestamp.slice(0, 16) : "";
-      const key = `${e.model}|${e.provider}|${e.promptTokens}|${e.completionTokens}|${minute}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 20);
+  const recentRequests = mergeRecentRequests(activeRequests, buildHistoryRecentRequests(history), 20);
 
   // Error provider (auto-clear after 10s)
   const errorProvider = (Date.now() - lastErrorProvider.ts < 10000) ? lastErrorProvider.provider : "";
 
-  return { activeRequests, recentRequests, errorProvider };
+  return {
+    activeRequests,
+    recentRequests,
+    errorProvider,
+    pendingRequestCount: activeRequests.length,
+  };
 }
 
 /**
@@ -358,6 +462,12 @@ export async function saveRequestUsage(entry) {
 
     const entryCost = await calculateCost(entry.provider, entry.model, entry.tokens);
     entry.cost = entryCost;
+    entry.route = normalizeRequestRoute(entry.route, {
+      requestedModel: entry.model,
+      resolvedProvider: entry.provider,
+      resolvedModel: entry.model,
+      finalModel: entry.provider && entry.model ? `${entry.provider}/${entry.model}` : null,
+    });
 
     // Security: mask API keys before persisting to disk
     if (entry.apiKey && typeof entry.apiKey === "string" && entry.apiKey.length > 12) {
@@ -668,31 +778,8 @@ export async function getUsageStats(period = "all") {
     };
   }
 
-  // 20 most recent requests from history (always in sync with SSE emit)
-  const seen = new Set();
-  const recentRequests = [...history]
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .map((e) => {
-      const { promptTokens, completionTokens } = getTokenCounts(e.tokens);
-      return {
-        timestamp: e.timestamp,
-        model: e.model,
-        provider: e.provider || "",
-        promptTokens,
-        completionTokens,
-        status: e.status || "ok",
-      };
-    })
-    .filter((e) => {
-      if (e.promptTokens === 0 && e.completionTokens === 0) return false;
-      // Deduplicate: same model+provider+tokens within same minute
-      const minute = e.timestamp ? e.timestamp.slice(0, 16) : "";
-      const key = `${e.model}|${e.provider}|${e.promptTokens}|${e.completionTokens}|${minute}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 20);
+  const activeRequests = getLivePendingRequests(connectionMap);
+  const recentRequests = mergeRecentRequests(activeRequests, buildHistoryRecentRequests(history), 20);
 
   const stats = {
     totalRequests: history.length,
@@ -706,31 +793,12 @@ export async function getUsageStats(period = "all") {
     byEndpoint: {},
     last10Minutes: [],
     pending: pendingRequests,
-    activeRequests: [],
+    activeRequests,
+    pendingRequestCount: activeRequests.length,
     recentRequests,
     errorProvider: (Date.now() - lastErrorProvider.ts < 10000) ? lastErrorProvider.provider : "",
     kiloHourly: buildKiloHourlyStats(allHistory, kiloConnections),
   };
-
-  // Build active requests list from pending counts
-  for (const [connectionId, models] of Object.entries(pendingRequests.byAccount)) {
-    for (const [modelKey, count] of Object.entries(models)) {
-      if (count > 0) {
-        const accountName = connectionMap[connectionId] || `Account ${connectionId.slice(0, 8)}...`;
-        // modelKey is "model (provider)"
-        const match = modelKey.match(/^(.*) \((.*)\)$/);
-        const modelName = match ? match[1] : modelKey;
-        const providerName = match ? match[2] : "unknown";
-
-        stats.activeRequests.push({
-          model: modelName,
-          provider: providerName,
-          account: accountName,
-          count
-        });
-      }
-    }
-  }
 
   // Initialize 10-minute buckets using stable minute boundaries
   const now = new Date();

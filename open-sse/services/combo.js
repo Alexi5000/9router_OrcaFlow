@@ -134,7 +134,15 @@ export function getComboModelsFromData(modelStr, combosData) {
  * @param {Object} options.log - Logger object
  * @returns {Promise<Response>}
  */
-export async function handleComboChat({ body, models, handleSingleModel, log, combo = null }) {
+export async function handleComboChat({
+  body,
+  models,
+  handleSingleModel,
+  log,
+  combo = null,
+  onTierStart = null,
+  onModelAttempt = null,
+}) {
   let lastError = null;
   let earliestRetryAfter = null;
   let lastStatus = null;
@@ -145,13 +153,23 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   for (let tierIndex = 0; tierIndex < tiers.length; tierIndex++) {
     const tier = tiers[tierIndex];
     log.info("COMBO", `Tier ${tierIndex + 1}/${tiers.length}: ${tier.name}`);
+    onTierStart?.(tier, tierIndex, tiers);
 
     for (const modelStr of tier.models) {
       modelIndex += 1;
       log.info("COMBO", `Trying model ${modelIndex}/${orderedModels.length}: ${modelStr}`);
+      onModelAttempt?.({
+        modelStr,
+        tier,
+        tierIndex,
+        modelIndex,
+        totalModels: orderedModels.length,
+      });
 
       try {
         const result = await handleSingleModel(body, modelStr);
+        const requestScopedFallback = result.headers?.get?.("x-9router-request-scoped-fallback") === "1";
+        const requestScopedErrorCode = result.headers?.get?.("x-9router-error-code") || null;
       
         // Success (2xx) - return response
         if (result.ok) {
@@ -181,7 +199,9 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         }
 
         // Check if should fallback to next model
-        const { shouldFallback } = checkFallbackError(result.status, errorText);
+        const { shouldFallback } = requestScopedFallback
+          ? { shouldFallback: true }
+          : checkFallbackError(result.status, errorText);
       
         if (!shouldFallback) {
           log.warn("COMBO", `Model ${modelStr} failed (no fallback)`, { status: result.status });
@@ -191,7 +211,11 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         // Fallback to next model
         lastError = errorText || String(result.status);
         if (!lastStatus) lastStatus = result.status;
-        log.warn("COMBO", `Model ${modelStr} failed, trying next`, { status: result.status });
+        log.warn("COMBO", `Model ${modelStr} failed, trying next`, {
+          status: result.status,
+          requestScopedFallback,
+          errorCode: requestScopedErrorCode,
+        });
       } catch (error) {
         // Catch unexpected exceptions to ensure fallback continues
         lastError = error.message || String(error);

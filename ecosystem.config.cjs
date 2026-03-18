@@ -62,5 +62,24 @@ module.exports = {
       out_file: path.join(logsDir, 'usage-ingest.log'),
       error_file: path.join(logsDir, 'usage-ingest-err.log'),
     },
+    {
+      name: 'mem-bridge',
+      cwd: appRoot,
+      script: 'scripts/mem-bridge.mjs',
+      env: {
+        CLAUDE_MEM_URL: 'http://localhost:37777',
+        AXEL_API_URL: 'http://localhost:4000',
+        AXEL_USER_ID: '00000000-0000-0000-0000-000000000001',
+        MIN_CONTENT_LENGTH: '60',
+        POST_DELAY_MS: '200',
+      },
+      // Run daily at 2:30 AM — after usage-ingest has finished
+      cron_restart: '30 2 * * *',
+      autorestart: false,
+      watch: false,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      out_file: path.join(logsDir, 'mem-bridge.log'),
+      error_file: path.join(logsDir, 'mem-bridge-err.log'),
+    },
   ],
 };

@@ -21,7 +21,7 @@ function getProviderImageUrl(providerId) {
 
 // Custom provider node - rectangle with image + name
 function ProviderNode({ data }) {
-  const { label, color, imageUrl, textIcon, active, recent } = data;
+  const { label, color, imageUrl, textIcon, active, recent, activityLabel, activityMeta } = data;
   const [imgError, setImgError] = useState(false);
   return (
     <div
@@ -49,13 +49,24 @@ function ProviderNode({ data }) {
         )}
       </div>
 
-      {/* Provider name */}
-      <span
-        className="text-base font-medium truncate"
-        style={{ color: active || recent ? color : "var(--color-text)" }}
-      >
-        {label}
-      </span>
+      <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+        <span
+          className="text-base font-medium truncate"
+          style={{ color: active || recent ? color : "var(--color-text)" }}
+        >
+          {label}
+        </span>
+        {activityLabel && (
+          <span
+            className="text-[11px] truncate"
+            style={{ color: active ? color : "var(--color-text-muted)" }}
+            title={activityMeta ? `${activityLabel} • ${activityMeta}` : activityLabel}
+          >
+            {activityLabel}
+            {activityMeta ? ` • ${activityMeta}` : ""}
+          </span>
+        )}
+      </div>
 
       {/* Active indicator */}
       {active && (
@@ -102,7 +113,7 @@ RouterNode.propTypes = {
 const nodeTypes = { provider: ProviderNode, router: RouterNode };
 
 // Place N nodes evenly along an ellipse around the router center.
-function buildLayout(providers, activeSet, recentSet, lastSet, errorSet) {
+function buildLayout(providers, activeSet, recentSet, lastSet, errorSet, activeByProvider, recentByProvider) {
   const nodeW = 180;
   const nodeH = 30;
   const routerW = 120;
@@ -164,6 +175,8 @@ function buildLayout(providers, activeSet, recentSet, lastSet, errorSet) {
       textIcon: config.textIcon || (p.provider || "?").slice(0, 2).toUpperCase(),
       active,
       recent,
+      activityLabel: activeByProvider[p.provider?.toLowerCase()]?.label || recentByProvider[p.provider?.toLowerCase()]?.label || "",
+      activityMeta: activeByProvider[p.provider?.toLowerCase()]?.meta || recentByProvider[p.provider?.toLowerCase()]?.meta || "",
     };
 
     // Distribute evenly starting from top (−π/2), clockwise
@@ -205,29 +218,85 @@ function buildLayout(providers, activeSet, recentSet, lastSet, errorSet) {
   return { nodes, edges };
 }
 
-export default function ProviderTopology({ providers = [], activeRequests = [], recentProviders = [], lastProvider = "", errorProvider = "" }) {
-  // Serialize to stable string keys so useMemo only re-runs when values actually change
+function buildActiveByProvider(activeRequests = []) {
+  const map = {};
+
+  for (const request of activeRequests) {
+    const provider = request?.provider?.toLowerCase?.();
+    if (!provider) continue;
+
+    const model = request?.model || "unknown";
+    const count = Number(request?.count) || 0;
+    const existing = map[provider] || { models: new Set(), totalCount: 0 };
+    existing.models.add(model);
+    existing.totalCount += Math.max(count, 1);
+    map[provider] = existing;
+  }
+
+  return Object.fromEntries(Object.entries(map).map(([provider, entry]) => {
+    const models = [...entry.models];
+    const firstModel = models[0] || "unknown";
+    const extraModels = models.length > 1 ? ` +${models.length - 1}` : "";
+    const countMeta = entry.totalCount > 1 ? `${entry.totalCount} active` : "live";
+    return [provider, {
+      label: firstModel + extraModels,
+      meta: countMeta,
+    }];
+  }));
+}
+
+function buildRecentByProvider(recentRequests = [], recentProviders = []) {
+  const providerSet = new Set((recentProviders || []).map((provider) => provider?.toLowerCase?.()).filter(Boolean));
+  const map = {};
+
+  for (const request of recentRequests || []) {
+    const provider = request?.provider?.toLowerCase?.();
+    if (!provider || !providerSet.has(provider) || map[provider]) continue;
+
+    map[provider] = {
+      label: request?.route?.requestedModel || request?.model || "recent request",
+      meta: "recent",
+    };
+  }
+
+  return map;
+}
+
+export default function ProviderTopology({ providers = [], activeRequests = [], recentRequests = [], recentProviders = [], lastProvider = "", errorProvider = "" }) {
+  // Serialize all live state to stable string keys.
+  // This prevents useMemo from recomputing (and ReactFlow from re-rendering)
+  // when props contain new array/object references with identical content.
   const activeKey = useMemo(
     () => activeRequests.map((r) => r.provider?.toLowerCase()).filter(Boolean).sort().join(","),
     [activeRequests]
+  );
+  // Stable string key for recent providers — avoids creating a new Set reference
+  // on every render, which was the root cause of constant ReactFlow remounts.
+  const recentKey = useMemo(
+    () => (recentProviders || []).map((p) => p?.toLowerCase()).filter(Boolean).sort().join(","),
+    [recentProviders]
   );
   const lastKey = lastProvider?.toLowerCase() || "";
   const errorKey = errorProvider?.toLowerCase() || "";
 
   const activeSet = useMemo(() => new Set(activeKey ? activeKey.split(",") : []), [activeKey]);
-  const recentSet = useMemo(
-    () => new Set((recentProviders || []).map((provider) => provider?.toLowerCase()).filter(Boolean)),
-    [recentProviders]
-  );
+  const recentSet = useMemo(() => new Set(recentKey ? recentKey.split(",") : []), [recentKey]);
   const lastSet = useMemo(() => new Set(lastKey ? [lastKey] : []), [lastKey]);
   const errorSet = useMemo(() => new Set(errorKey ? [errorKey] : []), [errorKey]);
+  const activeByProvider = useMemo(() => buildActiveByProvider(activeRequests), [activeRequests]);
+  const recentByProvider = useMemo(() => buildRecentByProvider(recentRequests, recentProviders), [recentRequests, recentProviders]);
 
+  // Use stable string keys as deps so nodes/edges only recompute when values change,
+  // not when array/Set references change (which happens on every SSE event).
   const { nodes, edges } = useMemo(
-    () => buildLayout(providers, activeSet, recentSet, lastSet, errorSet),
-    [providers, activeKey, recentSet, lastKey, errorKey]
+    () => buildLayout(providers, activeSet, recentSet, lastSet, errorSet, activeByProvider, recentByProvider),
+    [providers, activeKey, recentKey, lastKey, errorKey, activeByProvider, recentByProvider]
   );
 
-  // Stable key — only remount when provider list changes
+  // Stable key — only remount ReactFlow when the provider list structure changes.
+  // Do NOT include liveKey: nodes/edges are controlled props and update in-place
+  // without needing a full remount. Including liveKey caused ReactFlow to remount
+  // on every SSE event (~2s), destroying all edge animations before they were visible.
   const providersKey = useMemo(
     () => providers.map((p) => p.id || `${p.provider}:${p.name || ""}`).sort().join(","),
     [providers]
@@ -279,6 +348,11 @@ ProviderTopology.propTypes = {
     provider: PropTypes.string,
     model: PropTypes.string,
     account: PropTypes.string,
+  })),
+  recentRequests: PropTypes.arrayOf(PropTypes.shape({
+    provider: PropTypes.string,
+    model: PropTypes.string,
+    route: PropTypes.object,
   })),
   recentProviders: PropTypes.arrayOf(PropTypes.string),
   lastProvider: PropTypes.string,

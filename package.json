@@ -7,6 +7,8 @@
     "dev": "next dev --webpack --port 20128",
     "build": "NODE_ENV=production next build --webpack",
     "start": "NODE_ENV=production next start",
+    "deploy:prod": "node scripts/redeploy-production.cjs",
+    "validate:deepseek-route": "node scripts/validate-deepseek-route.mjs",
     "dev:bun": "bun --bun next dev --webpack --port 20128",
     "build:bun": "NODE_ENV=production bun --bun next build --webpack",
     "start:bun": "NODE_ENV=production bun ./.next/standalone/server.js"

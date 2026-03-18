@@ -98,7 +98,7 @@ export default function ProvidersPage() {
       }
     };
     fetchData();
-    const refreshId = setInterval(fetchData, 30000);
+    const refreshId = setInterval(fetchData, 5000);
     const tickId = setInterval(() => setNow(Date.now()), 1000);
     return () => {
       clearInterval(refreshId);

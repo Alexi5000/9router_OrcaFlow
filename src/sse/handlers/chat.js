@@ -8,15 +8,121 @@ import {
   isValidApiKey,
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
-import { getModelInfo, getComboConfig } from "../services/model.js";
+import { getModelInfoWithOptions, getComboConfig } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { handleComboChat } from "open-sse/services/combo.js";
 import { HTTP_STATUS } from "open-sse/config/constants.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
+import { classifyRequestFailure } from "@/shared/utils/requestFailure.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
+import { buildRequestDetail, extractRequestConfig } from "open-sse/handlers/chatCore/requestDetail.js";
+import { saveRequestDetail } from "@/lib/usageDb";
+
+function appendUniqueRouteAttempt(clientRawRequest, modelStr) {
+  if (!clientRawRequest) return;
+  if (!clientRawRequest.routing) clientRawRequest.routing = {};
+  if (!Array.isArray(clientRawRequest.routing.attemptedModels)) {
+    clientRawRequest.routing.attemptedModels = [];
+  }
+
+  if (typeof modelStr !== "string" || !modelStr.length) return;
+  if (!clientRawRequest.routing.attemptedModels.includes(modelStr)) {
+    clientRawRequest.routing.attemptedModels.push(modelStr);
+  }
+}
+
+function updateClientRouting(clientRawRequest, patch = {}) {
+  if (!clientRawRequest) return;
+  const current = clientRawRequest.routing || {};
+  const next = { ...current, ...patch };
+
+  if (patch.attemptedModels || current.attemptedModels) {
+    const attempts = [
+      ...(Array.isArray(current.attemptedModels) ? current.attemptedModels : []),
+      ...(Array.isArray(patch.attemptedModels) ? patch.attemptedModels : []),
+    ].filter((value, index, list) => typeof value === "string" && value.length > 0 && list.indexOf(value) === index);
+    next.attemptedModels = attempts;
+  }
+
+  if (patch.attempts || current.attempts) {
+    next.attempts = [
+      ...(Array.isArray(current.attempts) ? current.attempts : []),
+      ...(Array.isArray(patch.attempts) ? patch.attempts : []),
+    ];
+  }
+
+  clientRawRequest.routing = next;
+}
+
+function recordRouteAttempt(clientRawRequest, attempt = {}) {
+  if (!clientRawRequest) return;
+
+  updateClientRouting(clientRawRequest, {
+    attempts: [{
+      requestedModel: attempt.requestedModel || null,
+      selectedModel: attempt.selectedModel || null,
+      provider: attempt.provider || null,
+      model: attempt.model || null,
+      finalModel: attempt.finalModel || null,
+      status: attempt.status || null,
+      errorClass: attempt.errorClass || null,
+      errorCode: attempt.errorCode || null,
+      message: attempt.message || null,
+      statusCode: attempt.statusCode || null,
+      timestamp: attempt.timestamp || new Date().toISOString(),
+    }],
+  });
+}
+
+function setTerminalRouteError(clientRawRequest, errorClass = null, errorCode = null) {
+  if (!clientRawRequest) return;
+  updateClientRouting(clientRawRequest, {
+    terminalErrorClass: errorClass,
+    terminalErrorCode: errorCode,
+  });
+}
+
+function saveTerminalFailureDetail({ body, provider = null, model = null, connectionId = null, clientRawRequest = null, statusCode, message, errorClass, errorCode = null }) {
+  saveRequestDetail(buildRequestDetail({
+    provider: provider || "router",
+    model: model || body?.model || "unknown",
+    connectionId,
+    latency: { ttft: 0, total: 0 },
+    tokens: { prompt_tokens: 0, completion_tokens: 0 },
+    request: extractRequestConfig(body || {}, Boolean(body?.stream)),
+    providerRequest: null,
+    providerResponse: null,
+    response: { error: message, status: statusCode, thinking: null },
+    status: "error",
+    route: clientRawRequest?.routing,
+    errorClass,
+    errorCode,
+  }, { endpoint: clientRawRequest?.endpoint || null })).catch(() => {});
+}
+
+async function applyTerminalErrorFromResponse(clientRawRequest, response, fallback = {}) {
+  if (!clientRawRequest || response?.ok) return;
+
+  let message = fallback.message || "";
+  let errorCode = fallback.errorCode || null;
+  try {
+    const payload = await response.clone().json();
+    message = payload?.error?.message || payload?.message || message;
+    errorCode = payload?.error?.code || errorCode;
+  } catch {
+    // Ignore non-JSON error bodies.
+  }
+
+  const errorClass = classifyRequestFailure({
+    status: response.status,
+    message,
+    errorCode,
+  });
+  setTerminalRouteError(clientRawRequest, errorClass, errorCode);
+}
 
 /**
  * Handle chat completion request
@@ -69,7 +175,12 @@ export async function handleChat(request, clientRawRequest = null) {
     clientRawRequest = {
       endpoint: url.pathname,
       body,
-      headers: Object.fromEntries(request.headers.entries())
+      headers: Object.fromEntries(request.headers.entries()),
+      routing: {
+        requestedModel: body.model || null,
+        routeType: "single",
+        attemptedModels: [],
+      },
     };
   }
 
@@ -116,13 +227,34 @@ export async function handleChat(request, clientRawRequest = null) {
   const combo = await getComboConfig(modelStr);
   if (combo?.models?.length) {
     log.info("CHAT", `Combo "${modelStr}" with ${combo.models.length} models`);
-    return handleComboChat({
+    updateClientRouting(clientRawRequest, {
+      requestedModel: body.model || modelStr,
+      comboName: combo.name || modelStr,
+      routeType: "combo",
+    });
+    const comboResponse = await handleComboChat({
       body,
       models: combo.models,
       combo,
       handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+      onTierStart: (tier) => {
+        updateClientRouting(clientRawRequest, {
+          comboName: combo.name || modelStr,
+          tierName: tier?.name || null,
+        });
+      },
+      onModelAttempt: ({ modelStr: attemptedModel, tier }) => {
+        appendUniqueRouteAttempt(clientRawRequest, attemptedModel);
+        updateClientRouting(clientRawRequest, {
+          comboName: combo.name || modelStr,
+          tierName: tier?.name || null,
+          selectedModel: attemptedModel,
+        });
+      },
       log
     });
+    await applyTerminalErrorFromResponse(clientRawRequest, comboResponse);
+    return comboResponse;
   }
 
   // Single model request
@@ -133,7 +265,10 @@ export async function handleChat(request, clientRawRequest = null) {
  * Handle single model chat request
  */
 async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null) {
-  const modelInfo = await getModelInfo(modelStr);
+  appendUniqueRouteAttempt(clientRawRequest, modelStr);
+  const modelInfo = await getModelInfoWithOptions(modelStr, {
+    resolveClientPrefixedAliases: !clientRawRequest?.routing?.comboName,
+  });
 
   // If provider is null, this might be a combo name - check and handle
   // Use modelInfo.model (alias-resolved) not modelStr (original), since aliases can point to combo names
@@ -142,15 +277,49 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     const combo = await getComboConfig(comboName);
     if (combo?.models?.length) {
       log.info("CHAT", `Combo "${comboName}" with ${combo.models.length} models (from ${modelStr})`);
-      return handleComboChat({
+      updateClientRouting(clientRawRequest, {
+        requestedModel: clientRawRequest?.routing?.requestedModel || body.model || modelStr,
+        requestedAlias: modelStr,
+        comboName,
+        routeType: "combo",
+      });
+      const comboResponse = await handleComboChat({
         body,
         models: combo.models,
         combo,
         handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+        onTierStart: (tier) => {
+          updateClientRouting(clientRawRequest, {
+            comboName,
+            tierName: tier?.name || null,
+          });
+        },
+        onModelAttempt: ({ modelStr: attemptedModel, tier }) => {
+          appendUniqueRouteAttempt(clientRawRequest, attemptedModel);
+          updateClientRouting(clientRawRequest, {
+            comboName,
+            tierName: tier?.name || null,
+            selectedModel: attemptedModel,
+          });
+        },
         log
       });
+      await applyTerminalErrorFromResponse(clientRawRequest, comboResponse);
+      return comboResponse;
     }
     log.warn("CHAT", "Invalid model format", { model: modelStr });
+    const errorClass = classifyRequestFailure({
+      status: HTTP_STATUS.BAD_REQUEST,
+      message: "Invalid model format",
+    });
+    setTerminalRouteError(clientRawRequest, errorClass, null);
+    saveTerminalFailureDetail({
+      body,
+      clientRawRequest,
+      statusCode: HTTP_STATUS.BAD_REQUEST,
+      message: "Invalid model format",
+      errorClass,
+    });
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
   }
 
@@ -162,6 +331,15 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   } else {
     log.info("ROUTING", `Provider: ${provider}, Model: ${model}`);
   }
+  updateClientRouting(clientRawRequest, {
+    requestedModel: clientRawRequest?.routing?.requestedModel || body.model || modelStr,
+    requestedAlias: modelStr !== `${provider}/${model}` ? modelStr : (clientRawRequest?.routing?.requestedAlias || null),
+    selectedModel: modelStr,
+    resolvedProvider: provider,
+    resolvedModel: model,
+    finalModel: `${provider}/${model}`,
+    routeType: clientRawRequest?.routing?.comboName ? "combo" : "single",
+  });
 
   // Extract userAgent from request
   const userAgent = request?.headers?.get("user-agent") || "";
@@ -179,13 +357,91 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       if (credentials?.allRateLimited) {
         const errorMsg = lastError || credentials.lastError || "Unavailable";
         const status = lastStatus || Number(credentials.lastErrorCode) || HTTP_STATUS.SERVICE_UNAVAILABLE;
+        const errorClass = classifyRequestFailure({
+          status,
+          message: errorMsg,
+          errorCode: credentials.lastErrorCode,
+        });
+        recordRouteAttempt(clientRawRequest, {
+          requestedModel: modelStr,
+          selectedModel: modelStr,
+          provider,
+          model,
+          finalModel: `${provider}/${model}`,
+          status: "failed",
+          statusCode: status,
+          errorClass,
+          errorCode: credentials.lastErrorCode || null,
+          message: errorMsg,
+        });
+        setTerminalRouteError(clientRawRequest, errorClass, credentials.lastErrorCode || null);
+        saveTerminalFailureDetail({
+          body,
+          provider,
+          model,
+          clientRawRequest,
+          statusCode: status,
+          message: errorMsg,
+          errorClass,
+          errorCode: credentials.lastErrorCode || null,
+        });
         log.warn("CHAT", `[${provider}/${model}] ${errorMsg} (${credentials.retryAfterHuman})`);
         return unavailableResponse(status, `[${provider}/${model}] ${errorMsg}`, credentials.retryAfter, credentials.retryAfterHuman);
       }
       if (!excludeConnectionId) {
+        const errorClass = classifyRequestFailure({
+          status: HTTP_STATUS.BAD_REQUEST,
+          message: `No credentials for provider: ${provider}`,
+        });
+        recordRouteAttempt(clientRawRequest, {
+          requestedModel: modelStr,
+          selectedModel: modelStr,
+          provider,
+          model,
+          finalModel: `${provider}/${model}`,
+          status: "failed",
+          statusCode: HTTP_STATUS.BAD_REQUEST,
+          errorClass,
+          message: `No credentials for provider: ${provider}`,
+        });
+        setTerminalRouteError(clientRawRequest, errorClass, null);
+        saveTerminalFailureDetail({
+          body,
+          provider,
+          model,
+          clientRawRequest,
+          statusCode: HTTP_STATUS.BAD_REQUEST,
+          message: `No credentials for provider: ${provider}`,
+          errorClass,
+        });
         log.error("AUTH", `No credentials for provider: ${provider}`);
         return errorResponse(HTTP_STATUS.BAD_REQUEST, `No credentials for provider: ${provider}`);
       }
+      const errorClass = classifyRequestFailure({
+        status: lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE,
+        message: lastError || "All accounts unavailable",
+      });
+      recordRouteAttempt(clientRawRequest, {
+        requestedModel: modelStr,
+        selectedModel: modelStr,
+        provider,
+        model,
+        finalModel: `${provider}/${model}`,
+        status: "failed",
+        statusCode: lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE,
+        errorClass,
+        message: lastError || "All accounts unavailable",
+      });
+      setTerminalRouteError(clientRawRequest, errorClass, null);
+      saveTerminalFailureDetail({
+        body,
+        provider,
+        model,
+        clientRawRequest,
+        statusCode: lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE,
+        message: lastError || "All accounts unavailable",
+        errorClass,
+      });
       log.warn("CHAT", "No more accounts available", { provider });
       return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, lastError || "All accounts unavailable");
     }
@@ -231,10 +487,41 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       }
     });
 
-    if (result.success) return result.response;
+    if (result.success) {
+      recordRouteAttempt(clientRawRequest, {
+        requestedModel: modelStr,
+        selectedModel: modelStr,
+        provider,
+        model,
+        finalModel: `${provider}/${model}`,
+        status: "success",
+        statusCode: 200,
+      });
+      setTerminalRouteError(clientRawRequest, null, null);
+      return result.response;
+    }
 
     if (result.skipProviderCooldown) {
       log.warn("AUTH", `Skipping provider cooldown for ${provider}/${model} (${result.errorCode || "request-scoped error"})`);
+      const errorClass = classifyRequestFailure({
+        status: result.status,
+        message: result.error,
+        errorCode: result.errorCode,
+        requestScopedFallback: result.requestScopedFallback,
+      });
+      recordRouteAttempt(clientRawRequest, {
+        requestedModel: modelStr,
+        selectedModel: modelStr,
+        provider,
+        model,
+        finalModel: `${provider}/${model}`,
+        status: "failed",
+        statusCode: result.status,
+        errorClass,
+        errorCode: result.errorCode || null,
+        message: result.error,
+      });
+      setTerminalRouteError(clientRawRequest, errorClass, result.errorCode || null);
       return result.response;
     }
 
@@ -249,6 +536,22 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     );
 
     if (shouldFallback) {
+      recordRouteAttempt(clientRawRequest, {
+        requestedModel: modelStr,
+        selectedModel: modelStr,
+        provider,
+        model,
+        finalModel: `${provider}/${model}`,
+        status: "failed",
+        statusCode: result.status,
+        errorClass: classifyRequestFailure({
+          status: result.status,
+          message: result.error,
+          errorCode: result.errorCode,
+        }),
+        errorCode: result.errorCode || null,
+        message: result.error,
+      });
       log.warn("AUTH", `Account ${accountId}... unavailable (${result.status}), trying fallback`);
       excludeConnectionId = credentials.connectionId;
       lastError = result.error;
@@ -256,6 +559,24 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       continue;
     }
 
+    const terminalErrorClass = classifyRequestFailure({
+      status: result.status,
+      message: result.error,
+      errorCode: result.errorCode,
+    });
+    recordRouteAttempt(clientRawRequest, {
+      requestedModel: modelStr,
+      selectedModel: modelStr,
+      provider,
+      model,
+      finalModel: `${provider}/${model}`,
+      status: "failed",
+      statusCode: result.status,
+      errorClass: terminalErrorClass,
+      errorCode: result.errorCode || null,
+      message: result.error,
+    });
+    setTerminalRouteError(clientRawRequest, terminalErrorClass, result.errorCode || null);
     return result.response;
   }
 }

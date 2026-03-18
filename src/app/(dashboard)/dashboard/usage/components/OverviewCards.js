@@ -43,6 +43,9 @@ export default function OverviewCards({ stats }) {
       <Card className="px-4 py-3 flex flex-col gap-1">
         <span className="text-text-muted text-sm uppercase font-semibold">Total Requests</span>
         <span className="text-2xl font-bold">{fmt(stats.totalRequests)}</span>
+        <span className="text-[10px] text-text-muted">
+          {stats.pendingRequestCount > 0 ? `+${fmt(stats.pendingRequestCount)} live right now` : "Live count updates during active streams"}
+        </span>
       </Card>
       <Card className="px-4 py-3 flex flex-col gap-1">
         <span className="text-text-muted text-sm uppercase font-semibold">Total Input Tokens</span>

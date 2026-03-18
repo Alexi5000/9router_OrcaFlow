@@ -24,9 +24,43 @@ function syncDir(sourceRelativePath, targetRelativePath) {
   fs.cpSync(sourcePath, targetPath, { recursive: true });
 }
 
+function assertPathExists(targetPath, message) {
+  if (!fs.existsSync(targetPath)) {
+    throw new Error(message);
+  }
+}
+
+function assertDirHasFiles(targetPath, message) {
+  assertPathExists(targetPath, message);
+  const entries = fs.readdirSync(targetPath);
+  if (!entries.length) {
+    throw new Error(message);
+  }
+}
+
+function validateStandaloneBundle() {
+  assertPathExists(
+    path.join(standaloneRoot, "server.js"),
+    `[standalone] Missing standalone server bundle at ${path.join(standaloneRoot, "server.js")}`
+  );
+  assertDirHasFiles(
+    path.join(appRoot, ".next", "static"),
+    `[standalone] Missing build static assets at ${path.join(appRoot, ".next", "static")}`
+  );
+}
+
+function validateRuntimeAssets() {
+  assertDirHasFiles(
+    path.join(standaloneRoot, ".next", "static"),
+    `[standalone] Runtime static assets were not copied to ${path.join(standaloneRoot, ".next", "static")}`
+  );
+}
+
+validateStandaloneBundle();
 syncDir(path.join(".next", "static"), path.join(".next", "static"));
 syncDir("public", "public");
 syncDir("open-sse", "open-sse");
+validateRuntimeAssets();
 
 function warmRoute(pathname) {
   const url = `http://127.0.0.1:${port}${pathname}`;

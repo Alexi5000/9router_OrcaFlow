@@ -2,7 +2,7 @@ import { getProviderConnections, validateApiKey, updateProviderConnection, getSe
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil, getProviderCooldownOverride } from "open-sse/services/accountFallback.js";
 import { resolveProviderId } from "@/shared/constants/providers.js";
-import { isGlobalProviderHealthError } from "@/shared/utils/providerHealth.js";
+import { getEffectiveConnectionStatus, isGlobalProviderHealthError } from "@/shared/utils/providerHealth.js";
 import * as log from "../utils/logger.js";
 
 // Mutex to prevent race conditions during account selection
@@ -39,6 +39,7 @@ export async function getProviderCredentials(provider, excludeConnectionId = nul
     const availableConnections = connections.filter(c => {
       if (excludeConnectionId && c.id === excludeConnectionId) return false;
       if (isModelLockActive(c, model)) return false;
+      if (getEffectiveConnectionStatus(c) === "unavailable") return false;
       return true;
     });
 
@@ -49,6 +50,8 @@ export async function getProviderCredentials(provider, excludeConnectionId = nul
       if (excluded || locked) {
         const lockUntil = getEarliestModelLockUntil(c);
         log.debug("AUTH", `  → ${c.id?.slice(0, 8)} | ${excluded ? "excluded" : ""} ${locked ? `modelLocked(${model}) until ${lockUntil}` : ""}`);
+      } else if (getEffectiveConnectionStatus(c) === "unavailable") {
+        log.debug("AUTH", `  → ${c.id?.slice(0, 8)} | unavailable (${c.lastError || c.errorCode || c.testStatus})`);
       }
     });
 

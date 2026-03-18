@@ -319,6 +319,24 @@ export const DEFAULT_PRICING = {
     }
   },
 
+  // Direct DeepSeek
+  deepseek: {
+    "deepseek-chat": {
+      input: 0.28,
+      output: 0.42,
+      cached: 0.028,
+      reasoning: 0.42,
+      cache_creation: 0.28
+    },
+    "deepseek-reasoner": {
+      input: 0.28,
+      output: 0.42,
+      cached: 0.028,
+      reasoning: 0.42,
+      cache_creation: 0.28
+    }
+  },
+
   // Antigravity (ag) - User-provided pricing
   ag: {
     "gemini-3.1-pro-low": {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Badge from "./Badge";
 import Card from "./Card";
@@ -9,6 +9,7 @@ import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/comp
 import ProviderTopology from "@/app/(dashboard)/dashboard/usage/components/ProviderTopology";
 import UsageChart from "@/app/(dashboard)/dashboard/usage/components/UsageChart";
 import { TOPOLOGY_RECENT_WINDOW_MS, getRecentLastProvider, getRecentProvidersFromRequests } from "@/shared/utils/usageTopology";
+import { buildRequestRouteSummary, normalizeRequestRoute } from "@/shared/utils/requestRoute";
 
 function timeAgo(timestamp) {
   const diff = Math.floor((Date.now() - new Date(timestamp)) / 1000);
@@ -54,12 +55,29 @@ function RecentRequests({ requests = [] }) {
             <tbody className="divide-y divide-border/50">
               {requests.map((r, i) => {
                 const ok = !r.status || r.status === "ok" || r.status === "success";
+                const route = normalizeRequestRoute(r.route, {
+                  requestedModel: r.model,
+                  resolvedProvider: r.provider,
+                  resolvedModel: r.model,
+                  finalModel: r.provider && r.model ? `${r.provider}/${r.model}` : null,
+                });
+                const displayModel = route.requestedModel || r.model;
+                const routeSummary = r.routeSummary || buildRequestRouteSummary(route);
                 return (
                   <tr key={i} className="hover:bg-bg-subtle transition-colors">
                     <td className="py-1.5">
                       <span className={`block w-1.5 h-1.5 rounded-full ${ok ? "bg-success" : "bg-error"}`} />
                     </td>
-                    <td className="py-1.5 font-mono truncate max-w-[120px]" title={r.model}>{r.model}</td>
+                    <td className="py-1.5 max-w-[180px]">
+                      <div className="flex flex-col">
+                        <span className="font-mono truncate" title={displayModel}>{displayModel}</span>
+                        {routeSummary && routeSummary !== displayModel && (
+                          <span className="text-[11px] text-text-muted truncate" title={routeSummary}>
+                            {routeSummary}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-1.5 text-right whitespace-nowrap">
                       <span className="text-primary">{fmt(r.promptTokens)}↑</span>
                       {" "}
@@ -183,12 +201,19 @@ const PERIODS = [
 
 const STATS_FETCH_TIMEOUT_MS = 10000;
 const TOPOLOGY_TICK_MS = 15 * 1000;
+const LIVE_REFRESH_INTERVAL_MS = 30000;
 
 async function fetchJsonWithTimeout(url, timeoutMs = STATS_FETCH_TIMEOUT_MS) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, {
+      signal: controller.signal,
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+      },
+    });
     if (!res.ok) return null;
     return await res.json();
   } catch (error) {
@@ -216,11 +241,47 @@ export default function UsageStats() {
   const [period, setPeriod] = useState("7d");
   const [chartRefreshNonce, setChartRefreshNonce] = useState(0);
   const [topologyNow, setTopologyNow] = useState(() => Date.now());
+  const hasLoadedStatsRef = useRef(false);
+  const lastLiveUpdateAtRef = useRef(0);
+  const lastFullRefreshAtRef = useRef(0);
 
   useEffect(() => {
     const timer = setInterval(() => setTopologyNow(Date.now()), TOPOLOGY_TICK_MS);
     return () => clearInterval(timer);
   }, []);
+
+  const mergeStats = useCallback((data) => {
+    if (!data) return;
+    hasLoadedStatsRef.current = true;
+    lastLiveUpdateAtRef.current = Date.now();
+    if (data.kind === "full" || !lastFullRefreshAtRef.current) {
+      lastFullRefreshAtRef.current = Date.now();
+    }
+    setStats((prev) => (prev ? { ...prev, ...data } : data));
+    if (data.kind === "full") {
+      setChartRefreshNonce((prev) => prev + 1);
+    }
+    setLoading(false);
+  }, []);
+
+  const fetchStatsSnapshot = useCallback(async ({ loud = false } = {}) => {
+    if (loud) {
+      if (!hasLoadedStatsRef.current) setLoading(true);
+      else setFetching(true);
+    }
+
+    try {
+      const data = await fetchJsonWithTimeout(`/api/usage/stats?period=${period}`);
+      if (data) {
+        mergeStats({ ...data, kind: "full" });
+      }
+    } finally {
+      if (loud) {
+        setLoading(false);
+        setFetching(false);
+      }
+    }
+  }, [mergeStats, period]);
 
   const recentProviders = useMemo(() => {
     return getRecentProvidersFromRequests(stats?.recentRequests, topologyNow, TOPOLOGY_RECENT_WINDOW_MS, 4);
@@ -242,42 +303,92 @@ export default function UsageStats() {
 
   // Fetch filtered stats via REST when period changes
   useEffect(() => {
-    // First load: show full spinner; subsequent: show subtle fetching indicator
-    if (!stats) setLoading(true);
-    else setFetching(true);
+    fetchStatsSnapshot({ loud: true }).catch(() => {});
+  }, [fetchStatsSnapshot]);
 
-    fetchJsonWithTimeout(`/api/usage/stats?period=${period}`)
-      .then((data) => {
-        if (data) setStats((prev) => ({ ...prev, ...data }));
-      })
-      .catch(() => {})
-      .finally(() => {
-        setLoading(false);
-        setFetching(false);
-      });
-  }, [period]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // SSE connection - keep period-filtered totals and live request state in sync
+  // SSE connection - keep period-filtered totals and live request state in sync.
+  // Reconnects automatically with exponential backoff so the dashboard never
+  // goes silently stale after a network hiccup or server restart.
   useEffect(() => {
-    const es = new EventSource(`/api/usage/stream?period=${period}`);
+    let es = null;
+    let reconnectTimer = null;
+    let backoffMs = 1000;
+    const MAX_BACKOFF_MS = 30000;
+    let destroyed = false;
 
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        setStats((prev) => prev ? { ...prev, ...data } : data);
-        if (data.kind === "full") {
-          setChartRefreshNonce((prev) => prev + 1);
+    function connect() {
+      if (destroyed) return;
+      es = new EventSource(`/api/usage/stream?period=${period}`);
+
+      es.onmessage = (e) => {
+        backoffMs = 1000; // reset on any successful message
+        try {
+          const data = JSON.parse(e.data);
+          mergeStats(data);
+        } catch (err) {
+          console.error("[SSE CLIENT] parse error:", err);
         }
+      };
+
+      es.onerror = () => {
         setLoading(false);
-      } catch (err) {
-        console.error("[SSE CLIENT] parse error:", err);
+        es.close();
+        if (!destroyed) {
+          console.warn(`[SSE CLIENT] connection lost — reconnecting in ${backoffMs}ms`);
+          reconnectTimer = setTimeout(() => {
+            backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
+            connect();
+          }, backoffMs);
+        }
+      };
+    }
+
+    connect();
+
+    return () => {
+      destroyed = true;
+      clearTimeout(reconnectTimer);
+      if (es) es.close();
+    };
+  }, [mergeStats, period]);
+
+  // Fallback live refresh. Some browser sessions or extensions can interfere
+  // with EventSource, so we keep the dashboard moving with a silent no-cache
+  // snapshot refresh while the page is visible.
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshIfNeeded = async () => {
+      if (cancelled || document.visibilityState !== "visible") return;
+
+      const now = Date.now();
+      const liveAgeMs = now - lastLiveUpdateAtRef.current;
+      const fullAgeMs = now - lastFullRefreshAtRef.current;
+
+      if (!lastLiveUpdateAtRef.current || liveAgeMs > LIVE_REFRESH_INTERVAL_MS || fullAgeMs > LIVE_REFRESH_INTERVAL_MS * 2) {
+        await fetchStatsSnapshot();
       }
     };
 
-    es.onerror = () => setLoading(false);
+    const interval = setInterval(() => {
+      refreshIfNeeded().catch(() => {});
+    }, LIVE_REFRESH_INTERVAL_MS);
 
-    return () => es.close();
-  }, [period]);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshIfNeeded().catch(() => {});
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    refreshIfNeeded().catch(() => {});
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchStatsSnapshot]);
 
   const toggleSort = useCallback((tableType, field) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -445,6 +556,7 @@ export default function UsageStats() {
           <ProviderTopology
             providers={providers}
             activeRequests={stats.activeRequests || []}
+            recentRequests={stats.recentRequests || []}
             recentProviders={recentProviders}
             lastProvider={recentLastProvider}
             errorProvider={stats.errorProvider || ""}

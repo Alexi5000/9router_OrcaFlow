@@ -19,6 +19,13 @@ describe("saveUsageStats", () => {
 
   it("persists usage when explicitly requested", async () => {
     const { saveUsageStats } = await import("../../open-sse/handlers/chatCore/requestDetail.js");
+    const route = {
+      requestedModel: "claude-sonnet-4-6",
+      comboName: "sonnet",
+      tierName: "kilo-burst-coding",
+      selectedModel: "kilocode/openrouter/hunter-alpha",
+      attemptedModels: ["kilocode/openrouter/hunter-alpha"],
+    };
 
     saveUsageStats({
       provider: "kilocode",
@@ -27,6 +34,7 @@ describe("saveUsageStats", () => {
       connectionId: "abc12345-0000-0000-0000-000000000000",
       apiKey: "sk-test-key",
       endpoint: "/v1/chat/completions",
+      route,
       persist: true,
     });
 
@@ -40,6 +48,12 @@ describe("saveUsageStats", () => {
         reasoning_tokens: 9,
       }),
       endpoint: "/v1/chat/completions",
+      route: expect.objectContaining({
+        requestedModel: "claude-sonnet-4-6",
+        comboName: "sonnet",
+        finalModel: "kilocode/openrouter/hunter-alpha",
+        summary: expect.stringContaining("claude-sonnet-4-6"),
+      }),
     }));
     expect(appendRequestLog).toHaveBeenCalledWith(expect.objectContaining({
       provider: "kilocode",

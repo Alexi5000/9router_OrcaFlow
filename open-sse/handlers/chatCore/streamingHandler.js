@@ -54,8 +54,9 @@ export function handleStreamingResponse({ providerResponse, provider, model, sou
     providerRequest: finalBody || translatedBody || null,
     providerResponse: "[Streaming - raw response not captured]",
     response: { content: "[Streaming in progress...]", thinking: null, type: "streaming" },
-    status: "success"
-  }, { id: streamDetailId })).catch(err => {
+    status: "success",
+    route: clientRawRequest?.routing,
+  }, { id: streamDetailId, endpoint: clientRawRequest?.endpoint || null })).catch(err => {
     console.error("[RequestDetail] Failed to save streaming request:", err.message);
   });
 
@@ -85,12 +86,23 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, r
       providerRequest: finalBody || translatedBody || null,
       providerResponse: contentObj.content || "[Empty streaming response]",
       response: { content: contentObj.content || "[Empty streaming response]", thinking: contentObj.thinking || null, type: "streaming" },
-      status: "success"
-    }, { id: streamDetailId })).catch(err => {
+      status: "success",
+      route: clientRawRequest?.routing,
+    }, { id: streamDetailId, endpoint: clientRawRequest?.endpoint || null })).catch(err => {
       console.error("[RequestDetail] Failed to update streaming content:", err.message);
     });
 
-    saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, label: "STREAM USAGE" });
+    saveUsageStats({
+      provider,
+      model,
+      tokens: usage,
+      connectionId,
+      apiKey,
+      endpoint: clientRawRequest?.endpoint,
+      route: clientRawRequest?.routing,
+      label: "STREAM USAGE",
+      persist: true,
+    });
   };
 
   return { onStreamComplete, streamDetailId };

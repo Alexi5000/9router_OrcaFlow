@@ -28,6 +28,10 @@ export async function resolveModelAlias(alias) {
  * Get full model info (parse or resolve)
  */
 export async function getModelInfo(modelStr) {
+  return getModelInfoWithOptions(modelStr, {});
+}
+
+export async function getModelInfoWithOptions(modelStr, options = {}) {
   const parsed = parseModel(modelStr);
   const aliases = await getModelAliases();
 
@@ -35,8 +39,13 @@ export async function getModelInfo(modelStr) {
     const resolvedPrefixedAlias = resolveModelAliasFromMap(parsed.model, aliases);
     if (
       resolvedPrefixedAlias &&
-      parsed.providerAlias &&
-      parsed.providerAlias !== parsed.provider
+      (
+        (parsed.providerAlias && parsed.providerAlias !== parsed.provider) ||
+        (
+          options.resolveClientPrefixedAliases === true &&
+          (parsed.providerAlias === "claude" || parsed.providerAlias === "cc" || parsed.provider === "claude")
+        )
+      )
     ) {
       return resolvedPrefixedAlias;
     }
@@ -81,7 +90,7 @@ export async function getModelInfo(modelStr) {
     }
   }
 
-  return getModelInfoCore(modelStr, getModelAliases);
+  return getModelInfoCore(modelStr, getModelAliases, options);
 }
 
 /**

@@ -16,6 +16,7 @@ import { handleForcedSSEToJson } from "./chatCore/sseToJsonHandler.js";
 import { handleNonStreamingResponse } from "./chatCore/nonStreamingHandler.js";
 import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/streamingHandler.js";
 import { OPENAI_RESPONSES_SCHEMA_ERROR_CODE } from "../translator/helpers/openaiResponsesSchema.js";
+import { classifyRequestFailure } from "../../src/shared/utils/requestFailure.js";
 
 /**
  * Core chat handler - shared between SSE and Worker
@@ -27,6 +28,15 @@ import { OPENAI_RESPONSES_SCHEMA_ERROR_CODE } from "../translator/helpers/openai
 export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, sourceFormatOverride }) {
   const { provider, model } = modelInfo;
   const requestStartTime = Date.now();
+  const pendingRequestId = `${requestStartTime}-${Math.random().toString(36).slice(2, 10)}`;
+  const pendingMetadata = {
+    requestId: pendingRequestId,
+    timestamp: new Date(requestStartTime).toISOString(),
+    endpoint: clientRawRequest?.endpoint || null,
+    requestedModel: clientRawRequest?.routing?.requestedModel || body.model || model,
+    route: clientRawRequest?.routing || null,
+  };
+  const pendingEndMetadata = { requestId: pendingRequestId };
 
   const sourceFormat = sourceFormatOverride || detectFormat(body);
 
@@ -49,7 +59,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   let translatedBody = translateRequest(sourceFormat, targetFormat, model, body, stream, credentials, provider, reqLogger);
   if (!translatedBody) {
-    trackPendingRequest(model, provider, connectionId, false, true);
+    trackPendingRequest(model, provider, connectionId, false, true, pendingEndMetadata);
     return createErrorResult(HTTP_STATUS.BAD_REQUEST, `Failed to translate request for ${sourceFormat} → ${targetFormat}`);
   }
   const toolNameMap = translatedBody._toolNameMap;
@@ -58,14 +68,14 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   delete translatedBody._schemaIncompatibility;
   translatedBody.model = model;
 
-  trackPendingRequest(model, provider, connectionId, true);
+  trackPendingRequest(model, provider, connectionId, true, false, pendingMetadata);
   appendRequestLog({ model, provider, connectionId, status: "PENDING" }).catch(() => {});
 
   const msgCount = translatedBody.messages?.length || translatedBody.input?.length || translatedBody.contents?.length || translatedBody.request?.contents?.length || 0;
   log?.debug?.("REQUEST", `${provider.toUpperCase()} | ${model} | ${msgCount} msgs`);
 
   if (schemaIncompatibility) {
-    trackPendingRequest(model, provider, connectionId, false, true);
+    trackPendingRequest(model, provider, connectionId, false, true, pendingEndMetadata);
     appendRequestLog({ model, provider, connectionId, status: "SKIPPED SCHEMA" }).catch(() => {});
     saveRequestDetail(buildRequestDetail({
       provider, model, connectionId,
@@ -74,8 +84,16 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       request: extractRequestConfig(body, stream),
       providerRequest: translatedBody || null,
       response: { error: schemaIncompatibility.message, status: HTTP_STATUS.BAD_REQUEST, thinking: null },
-      status: "schema_incompatible"
-    })).catch(() => {});
+      status: "schema_incompatible",
+      route: clientRawRequest?.routing,
+      errorClass: classifyRequestFailure({
+        status: HTTP_STATUS.BAD_REQUEST,
+        message: schemaIncompatibility.message,
+        errorCode: OPENAI_RESPONSES_SCHEMA_ERROR_CODE,
+        requestScopedFallback: true,
+      }),
+      errorCode: OPENAI_RESPONSES_SCHEMA_ERROR_CODE,
+    }, { endpoint: clientRawRequest?.endpoint || null })).catch(() => {});
 
     log?.warn?.("REQUEST", `${provider.toUpperCase()} | ${model} | schema incompatible`);
     return createErrorResult(
@@ -94,10 +112,10 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   const streamController = createStreamController({
     onDisconnect: (reason) => {
-      trackPendingRequest(model, provider, connectionId, false);
+      trackPendingRequest(model, provider, connectionId, false, false, pendingEndMetadata);
       if (onDisconnect) onDisconnect(reason);
     },
-    onError: () => trackPendingRequest(model, provider, connectionId, false),
+    onError: () => trackPendingRequest(model, provider, connectionId, false, false, pendingEndMetadata),
     log, provider, model
   });
 
@@ -139,7 +157,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     finalBody = result.transformedBody;
     reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
   } catch (error) {
-    trackPendingRequest(model, provider, connectionId, false, true);
+    trackPendingRequest(model, provider, connectionId, false, true, pendingEndMetadata);
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY}` }).catch(() => {});
     saveRequestDetail(buildRequestDetail({
       provider, model, connectionId,
@@ -148,8 +166,13 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       request: extractRequestConfig(body, stream),
       providerRequest: translatedBody || null,
       response: { error: error.message || String(error), status: error.name === "AbortError" ? 499 : 502, thinking: null },
-      status: "error"
-    })).catch(() => {});
+      status: "error",
+      route: clientRawRequest?.routing,
+      errorClass: classifyRequestFailure({
+        status: error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY,
+        message: error.message || String(error),
+      }),
+    }, { endpoint: clientRawRequest?.endpoint || null })).catch(() => {});
 
     if (error.name === "AbortError") {
       streamController.handleError(error);
@@ -178,7 +201,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   // Provider returned error
   if (!providerResponse.ok) {
-    trackPendingRequest(model, provider, connectionId, false, true);
+    trackPendingRequest(model, provider, connectionId, false, true, pendingEndMetadata);
     const { statusCode, message, retryAfterMs } = await parseUpstreamError(providerResponse, provider);
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${statusCode}` }).catch(() => {});
     saveRequestDetail(buildRequestDetail({
@@ -188,8 +211,13 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       request: extractRequestConfig(body, stream),
       providerRequest: finalBody || translatedBody || null,
       response: { error: message, status: statusCode, thinking: null },
-      status: "error"
-    })).catch(() => {});
+      status: "error",
+      route: clientRawRequest?.routing,
+      errorClass: classifyRequestFailure({
+        status: statusCode,
+        message,
+      }),
+    }, { endpoint: clientRawRequest?.endpoint || null })).catch(() => {});
 
     const errMsg = formatProviderError(new Error(message), provider, model, statusCode);
     console.log(`${COLORS.red}[ERROR] ${errMsg}${COLORS.reset}`);
@@ -202,7 +230,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess };
   const appendLog = (extra) => appendRequestLog({ model, provider, connectionId, ...extra }).catch(() => {});
-  const trackDone = () => trackPendingRequest(model, provider, connectionId, false);
+  const trackDone = () => trackPendingRequest(model, provider, connectionId, false, false, pendingEndMetadata);
 
   // Provider forced streaming but client wants JSON
   if (!clientRequestedStreaming && providerRequiresStreaming) {
