@@ -40,7 +40,9 @@ export async function POST(request) {
     }
 
     if (resolved?.model) {
-      const combo = (combos || []).find((entry) => entry.name === resolved.model);
+      const combo = (combos || []).find(
+        (entry) => entry.name === resolved.model,
+      );
       if (combo) {
         return NextResponse.json({
           alias,
@@ -54,7 +56,6 @@ export async function POST(request) {
 
     // Not found
     return NextResponse.json({ error: "Alias not found" }, { status: 404 });
-
   } catch (error) {
     console.log("Model resolve error:", error);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

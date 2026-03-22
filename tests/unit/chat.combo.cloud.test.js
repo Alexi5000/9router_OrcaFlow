@@ -27,8 +27,14 @@ vi.mock("../../cloud/src/services/tokenRefresh.js", () => ({
 
 import { handleChat } from "../../cloud/src/handlers/chat.js";
 import { handleChatCore } from "../../open-sse/handlers/chatCore.js";
-import { parseApiKey, extractBearerToken } from "../../cloud/src/utils/apiKey.js";
-import { getMachineData, saveMachineData } from "../../cloud/src/services/storage.js";
+import {
+  parseApiKey,
+  extractBearerToken,
+} from "../../cloud/src/utils/apiKey.js";
+import {
+  getMachineData,
+  saveMachineData,
+} from "../../cloud/src/services/storage.js";
 
 const API_KEY = "sk-mach01-key01-ab12cd34";
 

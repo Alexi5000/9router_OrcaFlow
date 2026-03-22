@@ -2,7 +2,7 @@ import initializeApp from "./shared/services/initializeApp.js";
 
 async function startServer() {
   console.log("Starting server...");
-  
+
   try {
     await initializeApp();
     console.log("Server initialized");

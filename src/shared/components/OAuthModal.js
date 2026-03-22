@@ -10,7 +10,13 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
  * - Localhost: Auto callback via popup message
  * - Remote: Manual paste callback URL
  */
-export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, onClose }) {
+export default function OAuthModal({
+  isOpen,
+  provider,
+  providerInfo,
+  onSuccess,
+  onClose,
+}) {
   const [step, setStep] = useState("waiting"); // waiting | input | success | error
   const [authData, setAuthData] = useState(null);
   const [callbackUrl, setCallbackUrl] = useState("");
@@ -31,7 +37,8 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   useEffect(() => {
     if (typeof window !== "undefined") {
       setIsLocalhost(
-        window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+        window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1",
       );
       setPlaceholderUrl(`${window.location.origin}/callback?code=...`);
     }
@@ -40,90 +47,99 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   // Define all useCallback hooks BEFORE the useEffects that reference them
 
   // Exchange tokens
-  const exchangeTokens = useCallback(async (code, state) => {
-    if (!authData) return;
-    try {
-      const res = await fetch(`/api/oauth/${provider}/exchange`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code,
-          redirectUri: authData.redirectUri,
-          codeVerifier: authData.codeVerifier,
-          state,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      setStep("success");
-      onSuccess?.();
-    } catch (err) {
-      setError(err.message);
-      setStep("error");
-    }
-  }, [authData, provider, onSuccess]);
-
-  // Poll for device code token
-  const startPolling = useCallback(async (deviceCode, codeVerifier, interval, extraData) => {
-    pollingAbortRef.current = false;
-    setPolling(true);
-    const maxAttempts = 60;
-
-    for (let i = 0; i < maxAttempts; i++) {
-      // Check if polling should be aborted
-      if (pollingAbortRef.current) {
-        console.log("[OAuthModal] Polling aborted");
-        setPolling(false);
-        return;
-      }
-
-      await new Promise((r) => setTimeout(r, interval * 1000));
-
-      // Check again after sleep
-      if (pollingAbortRef.current) {
-        console.log("[OAuthModal] Polling aborted after sleep");
-        setPolling(false);
-        return;
-      }
-
+  const exchangeTokens = useCallback(
+    async (code, state) => {
+      if (!authData) return;
       try {
-        const res = await fetch(`/api/oauth/${provider}/poll`, {
+        const res = await fetch(`/api/oauth/${provider}/exchange`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deviceCode, codeVerifier, extraData }),
+          body: JSON.stringify({
+            code,
+            redirectUri: authData.redirectUri,
+            codeVerifier: authData.codeVerifier,
+            state,
+          }),
         });
 
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
 
-        if (data.success) {
-          pollingAbortRef.current = true; // Stop polling immediately
-          setStep("success");
-          setPolling(false);
-          onSuccess?.();
-          return;
-        }
-
-        if (data.error === "expired_token" || data.error === "access_denied") {
-          throw new Error(data.errorDescription || data.error);
-        }
-
-        if (data.error === "slow_down") {
-          interval = Math.min(interval + 5, 30);
-        }
+        setStep("success");
+        onSuccess?.();
       } catch (err) {
         setError(err.message);
         setStep("error");
-        setPolling(false);
-        return;
       }
-    }
+    },
+    [authData, provider, onSuccess],
+  );
 
-    setError("Authorization timeout");
-    setStep("error");
-    setPolling(false);
-  }, [provider, onSuccess]);
+  // Poll for device code token
+  const startPolling = useCallback(
+    async (deviceCode, codeVerifier, interval, extraData) => {
+      pollingAbortRef.current = false;
+      setPolling(true);
+      const maxAttempts = 60;
+
+      for (let i = 0; i < maxAttempts; i++) {
+        // Check if polling should be aborted
+        if (pollingAbortRef.current) {
+          console.log("[OAuthModal] Polling aborted");
+          setPolling(false);
+          return;
+        }
+
+        await new Promise((r) => setTimeout(r, interval * 1000));
+
+        // Check again after sleep
+        if (pollingAbortRef.current) {
+          console.log("[OAuthModal] Polling aborted after sleep");
+          setPolling(false);
+          return;
+        }
+
+        try {
+          const res = await fetch(`/api/oauth/${provider}/poll`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ deviceCode, codeVerifier, extraData }),
+          });
+
+          const data = await res.json();
+
+          if (data.success) {
+            pollingAbortRef.current = true; // Stop polling immediately
+            setStep("success");
+            setPolling(false);
+            onSuccess?.();
+            return;
+          }
+
+          if (
+            data.error === "expired_token" ||
+            data.error === "access_denied"
+          ) {
+            throw new Error(data.errorDescription || data.error);
+          }
+
+          if (data.error === "slow_down") {
+            interval = Math.min(interval + 5, 30);
+          }
+        } catch (err) {
+          setError(err.message);
+          setStep("error");
+          setPolling(false);
+          return;
+        }
+      }
+
+      setError("Authorization timeout");
+      setStep("error");
+      setPolling(false);
+    },
+    [provider, onSuccess],
+  );
 
   // Start OAuth flow
   const startOAuthFlow = useCallback(async () => {
@@ -132,7 +148,13 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       setError(null);
 
       // Device code flow providers
-      const deviceCodeProviders = ["github", "qwen", "kiro", "kimi-coding", "kilocode"];
+      const deviceCodeProviders = [
+        "github",
+        "qwen",
+        "kiro",
+        "kimi-coding",
+        "kilocode",
+      ];
       if (deviceCodeProviders.includes(provider)) {
         setIsDeviceCode(true);
         setStep("waiting");
@@ -144,12 +166,21 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         setDeviceData(data);
 
         // Open verification URL
-        const verifyUrl = data.verification_uri_complete || data.verification_uri;
+        const verifyUrl =
+          data.verification_uri_complete || data.verification_uri;
         if (verifyUrl) window.open(verifyUrl, "_blank");
 
         // Pass extraData for Kiro (contains _clientId, _clientSecret)
-        const extraData = provider === "kiro" ? { _clientId: data._clientId, _clientSecret: data._clientSecret } : null;
-        startPolling(data.device_code, data.codeVerifier, data.interval || 5, extraData);
+        const extraData =
+          provider === "kiro"
+            ? { _clientId: data._clientId, _clientSecret: data._clientSecret }
+            : null;
+        startPolling(
+          data.device_code,
+          data.codeVerifier,
+          data.interval || 5,
+          extraData,
+        );
         return;
       }
 
@@ -160,11 +191,15 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         redirectUri = "http://localhost:1455/auth/callback";
       } else {
         // Always use localhost with current port for OAuth callback
-        const port = window.location.port || (window.location.protocol === "https:" ? "443" : "80");
+        const port =
+          window.location.port ||
+          (window.location.protocol === "https:" ? "443" : "80");
         redirectUri = `http://localhost:${port}/callback`;
       }
 
-      const res = await fetch(`/api/oauth/${provider}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}`);
+      const res = await fetch(
+        `/api/oauth/${provider}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}`,
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
@@ -177,7 +212,11 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       } else {
         // Localhost (non-Codex): Open popup and wait for message
         setStep("waiting");
-        popupRef.current = window.open(data.authUrl, "oauth_popup", "width=600,height=700");
+        popupRef.current = window.open(
+          data.authUrl,
+          "oauth_popup",
+          "width=600,height=700",
+        );
 
         // Check if popup was blocked
         if (!popupRef.current) {
@@ -234,10 +273,12 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
     // Method 1: postMessage from popup
     const handleMessage = (event) => {
       // Allow messages from same origin or localhost (any port)
-      const isLocalhost = event.origin.includes("localhost") || event.origin.includes("127.0.0.1");
+      const isLocalhost =
+        event.origin.includes("localhost") ||
+        event.origin.includes("127.0.0.1");
       const isSameOrigin = event.origin === window.location.origin;
       if (!isLocalhost && !isSameOrigin) return;
-      
+
       if (event.data?.type === "oauth_callback") {
         handleCallback(event.data.data);
       }
@@ -298,7 +339,9 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       const errorParam = url.searchParams.get("error");
 
       if (errorParam) {
-        throw new Error(url.searchParams.get("error_description") || errorParam);
+        throw new Error(
+          url.searchParams.get("error_description") || errorParam,
+        );
       }
 
       if (!code) {
@@ -320,7 +363,12 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   if (!provider || !providerInfo) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Connect ${providerInfo.name}`} onClose={handleClose} size="lg">
+    <Modal
+      isOpen={isOpen}
+      title={`Connect ${providerInfo.name}`}
+      onClose={handleClose}
+      size="lg"
+    >
       <div className="flex flex-col gap-4">
         {/* Waiting Step (Localhost - popup mode) */}
         {step === "waiting" && !isDeviceCode && (
@@ -330,7 +378,9 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
                 progress_activity
               </span>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Waiting for Authorization</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              Waiting for Authorization
+            </h3>
             <p className="text-sm text-text-muted mb-4">
               Complete the authorization in the popup window.
             </p>
@@ -350,19 +400,25 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
               <div className="bg-sidebar p-4 rounded-lg mb-4">
                 <p className="text-xs text-text-muted mb-1">Verification URL</p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 text-sm break-all">{deviceData.verification_uri}</code>
+                  <code className="flex-1 text-sm break-all">
+                    {deviceData.verification_uri}
+                  </code>
                   <Button
                     size="sm"
                     variant="ghost"
                     icon={copied === "verify_url" ? "check" : "content_copy"}
-                    onClick={() => copy(deviceData.verification_uri, "verify_url")}
+                    onClick={() =>
+                      copy(deviceData.verification_uri, "verify_url")
+                    }
                   />
                 </div>
               </div>
               <div className="bg-primary/10 p-4 rounded-lg">
                 <p className="text-xs text-text-muted mb-1">Your Code</p>
                 <div className="flex items-center justify-center gap-2">
-                  <p className="text-2xl font-mono font-bold text-primary">{deviceData.user_code}</p>
+                  <p className="text-2xl font-mono font-bold text-primary">
+                    {deviceData.user_code}
+                  </p>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -374,7 +430,9 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
             </div>
             {polling && (
               <div className="flex items-center justify-center gap-2 text-sm text-text-muted">
-                <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                <span className="material-symbols-outlined animate-spin">
+                  progress_activity
+                </span>
                 Waiting for authorization...
               </div>
             )}
@@ -386,17 +444,29 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
           <>
             <div className="space-y-4">
               <div>
-                <p className="text-sm font-medium mb-2">Step 1: Open this URL in your browser</p>
+                <p className="text-sm font-medium mb-2">
+                  Step 1: Open this URL in your browser
+                </p>
                 <div className="flex gap-2">
-                  <Input value={authData?.authUrl || ""} readOnly className="flex-1 font-mono text-xs" />
-                  <Button variant="secondary" icon={copied === "auth_url" ? "check" : "content_copy"} onClick={() => copy(authData?.authUrl, "auth_url")}>
+                  <Input
+                    value={authData?.authUrl || ""}
+                    readOnly
+                    className="flex-1 font-mono text-xs"
+                  />
+                  <Button
+                    variant="secondary"
+                    icon={copied === "auth_url" ? "check" : "content_copy"}
+                    onClick={() => copy(authData?.authUrl, "auth_url")}
+                  >
                     Copy
                   </Button>
                 </div>
               </div>
 
               <div>
-                <p className="text-sm font-medium mb-2">Step 2: Paste the callback URL here</p>
+                <p className="text-sm font-medium mb-2">
+                  Step 2: Paste the callback URL here
+                </p>
                 <p className="text-xs text-text-muted mb-2">
                   After authorization, copy the full URL from your browser.
                 </p>
@@ -410,7 +480,11 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
             </div>
 
             <div className="flex gap-2">
-              <Button onClick={handleManualSubmit} fullWidth disabled={!callbackUrl}>
+              <Button
+                onClick={handleManualSubmit}
+                fullWidth
+                disabled={!callbackUrl}
+              >
                 Connect
               </Button>
               <Button onClick={handleClose} variant="ghost" fullWidth>
@@ -424,9 +498,13 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         {step === "success" && (
           <div className="text-center py-6">
             <div className="size-16 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <span className="material-symbols-outlined text-3xl text-green-600">check_circle</span>
+              <span className="material-symbols-outlined text-3xl text-green-600">
+                check_circle
+              </span>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Connected Successfully!</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              Connected Successfully!
+            </h3>
             <p className="text-sm text-text-muted mb-4">
               Your {providerInfo.name} account has been connected.
             </p>
@@ -440,7 +518,9 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         {step === "error" && (
           <div className="text-center py-6">
             <div className="size-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-              <span className="material-symbols-outlined text-3xl text-red-600">error</span>
+              <span className="material-symbols-outlined text-3xl text-red-600">
+                error
+              </span>
             </div>
             <h3 className="text-lg font-semibold mb-2">Connection Failed</h3>
             <p className="text-sm text-red-600 mb-4">{error}</p>

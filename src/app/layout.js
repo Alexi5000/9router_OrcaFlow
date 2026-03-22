@@ -16,7 +16,8 @@ const inter = Inter({
 
 export const metadata = {
   title: "OrcaFlow - AI Infrastructure Management",
-  description: "OrcaFlow by TechTide AI — One endpoint for all your AI providers. Based on 9Router.",
+  description:
+    "OrcaFlow by TechTide AI — One endpoint for all your AI providers. Based on 9Router.",
   icons: {
     icon: "/favicon.svg",
   },
@@ -31,7 +32,11 @@ export default function RootLayout({ children }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
@@ -40,9 +45,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>
-          <RuntimeI18nProvider>
-            {children}
-          </RuntimeI18nProvider>
+          <RuntimeI18nProvider>{children}</RuntimeI18nProvider>
         </ThemeProvider>
       </body>
     </html>

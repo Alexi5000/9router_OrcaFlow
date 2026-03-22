@@ -15,7 +15,7 @@ const useProviderStore = create((set, get) => ({
   updateProvider: (id, updates) =>
     set((state) => ({
       providers: state.providers.map((p) =>
-        p._id === id ? { ...p, ...updates } : p
+        p._id === id ? { ...p, ...updates } : p,
       ),
     })),
 
@@ -45,4 +45,3 @@ const useProviderStore = create((set, get) => ({
 }));
 
 export default useProviderStore;
-

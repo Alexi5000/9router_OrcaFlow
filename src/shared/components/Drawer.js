@@ -3,13 +3,13 @@
 import { useEffect } from "react";
 import { cn } from "@/shared/utils/cn";
 
-export default function Drawer({ 
-  isOpen, 
-  onClose, 
-  title, 
-  children, 
+export default function Drawer({
+  isOpen,
+  onClose,
+  title,
+  children,
   width = "md",
-  className 
+  className,
 }) {
   const widths = {
     sm: "w-[400px]",
@@ -47,27 +47,27 @@ export default function Drawer({
   return (
     <div className="fixed inset-0 z-50">
       {/* Overlay */}
-      <div 
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity cursor-pointer" 
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity cursor-pointer"
         onClick={onClose}
         aria-hidden="true"
       />
-      
+
       {/* Drawer panel */}
-      <div className={cn(
-        "absolute right-0 top-0 h-full bg-surface shadow-2xl flex flex-col",
-        "animate-in slide-in-from-right duration-200",
-        "border-l border-black/10 dark:border-white/10",
-        widths[width] || widths.md,
-        className
-      )}>
+      <div
+        className={cn(
+          "absolute right-0 top-0 h-full bg-surface shadow-2xl flex flex-col",
+          "animate-in slide-in-from-right duration-200",
+          "border-l border-black/10 dark:border-white/10",
+          widths[width] || widths.md,
+          className,
+        )}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-black/5 dark:border-white/5 flex-shrink-0">
           <div className="flex items-center gap-3">
             {title && (
-              <h2 className="text-lg font-semibold text-text-main">
-                {title}
-              </h2>
+              <h2 className="text-lg font-semibold text-text-main">{title}</h2>
             )}
           </div>
           <button
@@ -80,9 +80,7 @@ export default function Drawer({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {children}
-        </div>
+        <div className="flex-1 overflow-y-auto p-6">{children}</div>
       </div>
     </div>
   );

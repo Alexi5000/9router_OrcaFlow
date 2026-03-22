@@ -20,30 +20,39 @@ export async function PUT(request) {
     const { model, alias } = body;
 
     if (!model || !alias) {
-      return NextResponse.json({ error: "Model and alias required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Model and alias required" },
+        { status: 400 },
+      );
     }
 
     // Check if alias already exists for different model
     const aliases = await getModelAliases();
     const existingModel = aliases[alias];
     if (existingModel && existingModel !== model) {
-      return NextResponse.json({ 
-        error: `Alias '${alias}' already in use for model '${existingModel}'` 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: `Alias '${alias}' already in use for model '${existingModel}'`,
+        },
+        { status: 400 },
+      );
     }
 
     // Update alias
     await setModelAlias(alias, model);
 
-    return NextResponse.json({ 
-      success: true, 
-      model, 
+    return NextResponse.json({
+      success: true,
+      model,
       alias,
-      message: `Alias '${alias}' set for model '${model}'`
+      message: `Alias '${alias}' set for model '${model}'`,
     });
   } catch (error) {
     console.log("Error updating alias:", error);
-    return NextResponse.json({ error: "Failed to update alias" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update alias" },
+      { status: 500 },
+    );
   }
 }
 
@@ -67,6 +76,9 @@ export async function GET(request) {
     return NextResponse.json({ aliases });
   } catch (error) {
     console.log("Error fetching aliases:", error);
-    return NextResponse.json({ error: "Failed to fetch aliases" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch aliases" },
+      { status: 500 },
+    );
   }
 }

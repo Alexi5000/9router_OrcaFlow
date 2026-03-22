@@ -64,8 +64,8 @@ class TestRunner {
     try {
       await Promise.race([
         fn(),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Timeout")), timeout)
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout")), timeout),
         ),
       ]);
       const latency = Date.now() - start;
@@ -76,7 +76,12 @@ class TestRunner {
     } catch (error) {
       const latency = Date.now() - start;
       this.failed++;
-      this.results.push({ name, status: "FAIL", latency, error: error.message });
+      this.results.push({
+        name,
+        status: "FAIL",
+        latency,
+        error: error.message,
+      });
       log(colors.red, `  FAIL ${name} (${latency}ms)`);
       log(colors.dim, `        ${error.message}`);
       return false;
@@ -103,11 +108,12 @@ class TestRunner {
     log(colors.red, `  Failed:  ${this.failed}`);
     log(colors.yellow, `  Skipped: ${this.skipped}`);
     console.log("=".repeat(60));
-    
+
     const total = this.passed + this.failed;
-    const successRate = total > 0 ? ((this.passed / total) * 100).toFixed(1) : 0;
+    const successRate =
+      total > 0 ? ((this.passed / total) * 100).toFixed(1) : 0;
     console.log(`\n  Success Rate: ${successRate}%`);
-    
+
     return this.failed === 0;
   }
 }
@@ -146,7 +152,9 @@ async function runEdgeCaseTests(runner) {
   await runner.test("should handle special characters in prompt", async () => {
     const res = await chatCompletion({
       model: "fast",
-      messages: [{ role: "user", content: "Test with special chars: \n\t\r\"'<>&" }],
+      messages: [
+        { role: "user", content: "Test with special chars: \n\t\r\"'<>&" },
+      ],
       max_tokens: 20,
     });
     if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}`);
@@ -177,7 +185,7 @@ async function runEdgeCaseTests(runner) {
       }),
     });
     if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}`);
-    
+
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let chunks = 0;
@@ -193,16 +201,18 @@ async function runEdgeCaseTests(runner) {
   });
 
   await runner.test("should handle multiple concurrent requests", async () => {
-    const requests = Array(5).fill(null).map((_, i) =>
-      chatCompletion({
-        model: "fast",
-        messages: [{ role: "user", content: `Request ${i + 1}` }],
-        max_tokens: 10,
-      })
-    );
+    const requests = Array(5)
+      .fill(null)
+      .map((_, i) =>
+        chatCompletion({
+          model: "fast",
+          messages: [{ role: "user", content: `Request ${i + 1}` }],
+          max_tokens: 10,
+        }),
+      );
 
     const responses = await Promise.all(requests);
-    const successCount = responses.filter(r => r.status === 200).length;
+    const successCount = responses.filter((r) => r.status === 200).length;
     if (successCount === 0) throw new Error("All concurrent requests failed");
   });
 
@@ -255,7 +265,8 @@ async function runUnitTests(runner) {
         messages: [{ role: "user", content: "test" }],
         max_tokens: 10,
       });
-      if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}`);
+      if (res.status !== 200)
+        throw new Error(`Expected 200, got ${res.status}`);
       const data = await parseResponse(res);
       if (!data.model) throw new Error("No model in response");
     });
@@ -285,16 +296,18 @@ async function runUnitTests(runner) {
         // Handle streaming response format
         const jsonStr = text.split("\n")[0];
         const data = JSON.parse(jsonStr);
-        
+
         // Check for provider-specific error responses
         if (data.status && data.status !== "200" && data.msg) {
           throw new Error(`${provider} API error: ${data.msg}`);
         }
-        
+
         if (!data.choices) throw new Error("No choices in response");
       } else if (provider === "iflow" && res.status === 406) {
         // iFlow API known issue - model not supported (external provider issue)
-        throw new Error("iFlow API: Model not supported (external provider issue)");
+        throw new Error(
+          "iFlow API: Model not supported (external provider issue)",
+        );
       } else if (![400, 401, 403, 404, 429, 500, 503].includes(res.status)) {
         throw new Error(`Unexpected status: ${res.status}`);
       }
@@ -352,71 +365,91 @@ async function runE2ETests(runner) {
   });
 
   await runner.test("should handle concurrent requests", async () => {
-    const requests = Array(3).fill(null).map((_, i) =>
-      chatCompletion({
-        model: "fast",
-        messages: [{ role: "user", content: `Request ${i + 1}` }],
-        max_tokens: 10,
-      })
-    );
+    const requests = Array(3)
+      .fill(null)
+      .map((_, i) =>
+        chatCompletion({
+          model: "fast",
+          messages: [{ role: "user", content: `Request ${i + 1}` }],
+          max_tokens: 10,
+        }),
+      );
 
     const start = Date.now();
     const responses = await Promise.all(requests);
     const totalTime = Date.now() - start;
 
-    const successCount = responses.filter(r => r.status === 200).length;
+    const successCount = responses.filter((r) => r.status === 200).length;
     if (successCount === 0) throw new Error("All requests failed");
     console.log(`    ${successCount}/3 succeeded in ${totalTime}ms`);
   });
 
-  await runner.test("should measure all combo latencies", async () => {
-    const combos = ["opus", "sonnet", "fast", "build", "reason"];
-    const results = [];
+  await runner.test(
+    "should measure all combo latencies",
+    async () => {
+      const combos = ["opus", "sonnet", "fast", "build", "reason"];
+      const results = [];
 
-    for (const combo of combos) {
-      const start = Date.now();
-      const res = await chatCompletion({
-        model: combo,
-        messages: [{ role: "user", content: "Say 'OK'" }],
-        max_tokens: 5,
+      for (const combo of combos) {
+        const start = Date.now();
+        const res = await chatCompletion({
+          model: combo,
+          messages: [{ role: "user", content: "Say 'OK'" }],
+          max_tokens: 5,
+        });
+        const latency = Date.now() - start;
+        const data = res.ok ? await parseResponse(res) : null;
+        results.push({
+          combo,
+          status: res.status,
+          latency,
+          model: data?.model || "N/A",
+        });
+      }
+
+      console.log("\n    Combo Latencies:");
+      results.forEach((r) => {
+        const status = r.status === 200 ? "OK" : "FAIL";
+        console.log(
+          `      ${status} ${r.combo.padEnd(8)} -> ${r.model.padEnd(30)} (${r.latency}ms)`,
+        );
       });
-      const latency = Date.now() - start;
-      const data = res.ok ? await parseResponse(res) : null;
-      results.push({ combo, status: res.status, latency, model: data?.model || "N/A" });
-    }
 
-    console.log("\n    Combo Latencies:");
-    results.forEach(r => {
-      const status = r.status === 200 ? "OK" : "FAIL";
-      console.log(`      ${status} ${r.combo.padEnd(8)} -> ${r.model.padEnd(30)} (${r.latency}ms)`);
-    });
-
-    const successCount = results.filter(r => r.status === 200).length;
-    if (successCount === 0) throw new Error("All combos failed");
-  }, 120000);
+      const successCount = results.filter((r) => r.status === 200).length;
+      if (successCount === 0) throw new Error("All combos failed");
+    },
+    120000,
+  );
 
   runner.section("E2E Tests - Response Format");
 
-  await runner.test("should return valid OpenAI-compatible response", async () => {
-    const res = await chatCompletion({
-      model: "fast",
-      messages: [{ role: "user", content: "test" }],
-      max_tokens: 10,
-    });
-    if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}`);
-    
-    const data = await parseResponse(res);
-    
-    if (!data.id) throw new Error("Missing id");
-    if (data.object !== "chat.completion") throw new Error("Wrong object type");
-    if (!data.created) throw new Error("Missing created");
-    if (!data.model) throw new Error("Missing model");
-    if (!data.choices || !Array.isArray(data.choices)) throw new Error("Missing choices");
-    if (!data.choices[0].message) throw new Error("Missing message");
-    if (data.choices[0].message.role !== "assistant") throw new Error("Wrong role");
-    if (!data.choices[0].message.content) throw new Error("Missing content");
-    if (!data.usage) throw new Error("Missing usage");
-  });
+  await runner.test(
+    "should return valid OpenAI-compatible response",
+    async () => {
+      const res = await chatCompletion({
+        model: "fast",
+        messages: [{ role: "user", content: "test" }],
+        max_tokens: 10,
+      });
+      if (res.status !== 200)
+        throw new Error(`Expected 200, got ${res.status}`);
+
+      const data = await parseResponse(res);
+
+      if (!data.id) throw new Error("Missing id");
+      if (data.object !== "chat.completion")
+        throw new Error("Wrong object type");
+      if (!data.created) throw new Error("Missing created");
+      if (!data.model) throw new Error("Missing model");
+      if (!data.choices || !Array.isArray(data.choices))
+        throw new Error("Missing choices");
+      if (!data.choices[0].message) throw new Error("Missing message");
+      if (data.choices[0].message.role !== "assistant")
+        throw new Error("Wrong role");
+      if (!data.choices[0].message.content) throw new Error("Missing content");
+      if (!data.usage) throw new Error("Missing usage");
+    },
+  );
 
   await runner.test("should include usage statistics", async () => {
     const res = await chatCompletion({
@@ -425,13 +458,17 @@ async function runE2ETests(runner) {
       max_tokens: 10,
     });
     if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}`);
-    
+
     const data = await parseResponse(res);
-    
+
     if (!data.usage.prompt_tokens) throw new Error("Missing prompt_tokens");
-    if (!data.usage.completion_tokens) throw new Error("Missing completion_tokens");
+    if (!data.usage.completion_tokens)
+      throw new Error("Missing completion_tokens");
     if (!data.usage.total_tokens) throw new Error("Missing total_tokens");
-    if (data.usage.total_tokens !== data.usage.prompt_tokens + data.usage.completion_tokens) {
+    if (
+      data.usage.total_tokens !==
+      data.usage.prompt_tokens + data.usage.completion_tokens
+    ) {
       throw new Error("Token count mismatch");
     }
   });

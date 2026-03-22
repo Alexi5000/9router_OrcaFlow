@@ -9,7 +9,8 @@ import Header from "../Header";
 function getToastStyle(type) {
   if (type === "success") {
     return {
-      wrapper: "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400",
+      wrapper:
+        "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400",
       icon: "check_circle",
     };
   }
@@ -21,12 +22,14 @@ function getToastStyle(type) {
   }
   if (type === "warning") {
     return {
-      wrapper: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+      wrapper:
+        "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
       icon: "warning",
     };
   }
   return {
-    wrapper: "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    wrapper:
+      "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400",
     icon: "info",
   };
 }
@@ -35,7 +38,9 @@ export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
   const notifications = useNotificationStore((state) => state.notifications);
-  const removeNotification = useNotificationStore((state) => state.removeNotification);
+  const removeNotification = useNotificationStore(
+    (state) => state.removeNotification,
+  );
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-bg">
@@ -48,10 +53,16 @@ export default function DashboardLayout({ children }) {
               className={`rounded-lg border px-3 py-2 shadow-lg backdrop-blur-sm ${style.wrapper}`}
             >
               <div className="flex items-start gap-2">
-                <span className="material-symbols-outlined text-[18px] leading-5">{style.icon}</span>
+                <span className="material-symbols-outlined text-[18px] leading-5">
+                  {style.icon}
+                </span>
                 <div className="min-w-0 flex-1">
-                  {n.title ? <p className="text-xs font-semibold mb-0.5">{n.title}</p> : null}
-                  <p className="text-xs whitespace-pre-wrap break-words">{n.message}</p>
+                  {n.title ? (
+                    <p className="text-xs font-semibold mb-0.5">{n.title}</p>
+                  ) : null}
+                  <p className="text-xs whitespace-pre-wrap break-words">
+                    {n.message}
+                  </p>
                 </div>
                 {n.dismissible ? (
                   <button
@@ -60,7 +71,9 @@ export default function DashboardLayout({ children }) {
                     className="text-current/70 hover:text-current"
                     aria-label="Dismiss notification"
                   >
-                    <span className="material-symbols-outlined text-[16px]">close</span>
+                    <span className="material-symbols-outlined text-[16px]">
+                      close
+                    </span>
                   </button>
                 ) : null}
               </div>

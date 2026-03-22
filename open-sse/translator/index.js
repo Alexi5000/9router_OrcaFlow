@@ -1,6 +1,9 @@
 import { createRequire } from "module";
 import { FORMATS } from "./formats.js";
-import { ensureToolCallIds, fixMissingToolResponses } from "./helpers/toolCallHelper.js";
+import {
+  ensureToolCallIds,
+  fixMissingToolResponses,
+} from "./helpers/toolCallHelper.js";
 import { prepareClaudeRequest } from "./helpers/claudeHelper.js";
 import { filterToOpenAIFormat } from "./helpers/openaiHelper.js";
 import { sanitizeOpenAIResponsesRequestBody } from "./helpers/openaiResponsesSchema.js";
@@ -30,7 +33,7 @@ export function register(from, to, requestFn, responseFn) {
 function ensureInitialized() {
   if (initialized) return;
   initialized = true;
-  
+
   // Request translators - sync require pattern for bundler
   require("./request/claude-to-openai.js");
   require("./request/openai-to-claude.js");
@@ -40,7 +43,7 @@ function ensureInitialized() {
   require("./request/openai-responses.js");
   require("./request/openai-to-kiro.js");
   require("./request/openai-to-cursor.js");
-  
+
   // Response translators
   require("./response/claude-to-openai.js");
   require("./response/openai-to-claude.js");
@@ -52,7 +55,16 @@ function ensureInitialized() {
 }
 
 // Translate request: source -> openai -> target
-export function translateRequest(sourceFormat, targetFormat, model, body, stream = true, credentials = null, provider = null, reqLogger = null) {
+export function translateRequest(
+  sourceFormat,
+  targetFormat,
+  model,
+  body,
+  stream = true,
+  credentials = null,
+  provider = null,
+  reqLogger = null,
+) {
   ensureInitialized();
   let result = body;
 
@@ -61,7 +73,7 @@ export function translateRequest(sourceFormat, targetFormat, model, body, stream
 
   // Always ensure tool_calls have id (some providers require it)
   ensureToolCallIds(result);
-  
+
   // Fix missing tool responses (insert empty tool_result if needed)
   fixMissingToolResponses(result);
 
@@ -79,7 +91,9 @@ export function translateRequest(sourceFormat, targetFormat, model, body, stream
 
     // Step 2: openai -> target (if target is not openai)
     if (targetFormat !== FORMATS.OPENAI) {
-      const fromOpenAI = requestRegistry.get(`${FORMATS.OPENAI}:${targetFormat}`);
+      const fromOpenAI = requestRegistry.get(
+        `${FORMATS.OPENAI}:${targetFormat}`,
+      );
       if (fromOpenAI) {
         result = fromOpenAI(model, result, stream, credentials);
       }
@@ -131,13 +145,17 @@ export function translateResponse(targetFormat, sourceFormat, chunk, state) {
 
   // Step 2: openai -> source (if source is not openai)
   if (sourceFormat !== FORMATS.OPENAI) {
-    const fromOpenAI = responseRegistry.get(`${FORMATS.OPENAI}:${sourceFormat}`);
+    const fromOpenAI = responseRegistry.get(
+      `${FORMATS.OPENAI}:${sourceFormat}`,
+    );
     if (fromOpenAI) {
       const finalResults = [];
       for (const r of results) {
         const converted = fromOpenAI(r, state);
         if (converted) {
-          finalResults.push(...(Array.isArray(converted) ? converted : [converted]));
+          finalResults.push(
+            ...(Array.isArray(converted) ? converted : [converted]),
+          );
         }
       }
       results = finalResults;
@@ -145,7 +163,11 @@ export function translateResponse(targetFormat, sourceFormat, chunk, state) {
   }
 
   // Attach OpenAI intermediate results for logging
-  if (openaiResults && sourceFormat !== FORMATS.OPENAI && targetFormat !== FORMATS.OPENAI) {
+  if (
+    openaiResults &&
+    sourceFormat !== FORMATS.OPENAI &&
+    targetFormat !== FORMATS.OPENAI
+  ) {
     results._openaiIntermediate = openaiResults;
   }
 
@@ -171,7 +193,7 @@ export function initState(sourceFormat) {
     finishReason: null,
     finishReasonSent: false,
     usage: null,
-    contentBlockIndex: -1
+    contentBlockIndex: -1,
   };
 
   // Add openai-responses specific fields
@@ -197,7 +219,7 @@ export function initState(sourceFormat) {
       funcCallIds: {},
       funcArgsDone: {},
       funcItemDone: {},
-      completedSent: false
+      completedSent: false,
     };
   }
 

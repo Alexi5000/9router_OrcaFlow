@@ -10,7 +10,11 @@ export default function ProfilePage() {
   const { theme, setTheme, isDark } = useTheme();
   const [settings, setSettings] = useState({ fallbackStrategy: "fill-first" });
   const [loading, setLoading] = useState(true);
-  const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
+  const [passwords, setPasswords] = useState({
+    current: "",
+    new: "",
+    confirm: "",
+  });
   const [passStatus, setPassStatus] = useState({ type: "", message: "" });
   const [passLoading, setPassLoading] = useState(false);
   const [dbLoading, setDbLoading] = useState(false);
@@ -64,7 +68,10 @@ export default function ProfilePage() {
         setSettings((prev) => ({ ...prev, ...data }));
         setProxyStatus({ type: "success", message: "Proxy settings applied" });
       } else {
-        setProxyStatus({ type: "error", message: data.error || "Failed to update proxy settings" });
+        setProxyStatus({
+          type: "error",
+          message: data.error || "Failed to update proxy settings",
+        });
       }
     } catch (err) {
       setProxyStatus({ type: "error", message: "An error occurred" });
@@ -78,7 +85,10 @@ export default function ProfilePage() {
 
     const proxyUrl = (proxyForm.outboundProxyUrl || "").trim();
     if (!proxyUrl) {
-      setProxyStatus({ type: "error", message: "Please enter a Proxy URL to test" });
+      setProxyStatus({
+        type: "error",
+        message: "Please enter a Proxy URL to test",
+      });
       return;
     }
 
@@ -125,13 +135,19 @@ export default function ProfilePage() {
       const data = await res.json();
       if (res.ok) {
         setSettings((prev) => ({ ...prev, ...data }));
-        setProxyForm((prev) => ({ ...prev, outboundProxyEnabled: data?.outboundProxyEnabled === true }));
+        setProxyForm((prev) => ({
+          ...prev,
+          outboundProxyEnabled: data?.outboundProxyEnabled === true,
+        }));
         setProxyStatus({
           type: "success",
           message: outboundProxyEnabled ? "Proxy enabled" : "Proxy disabled",
         });
       } else {
-        setProxyStatus({ type: "error", message: data.error || "Failed to update proxy settings" });
+        setProxyStatus({
+          type: "error",
+          message: data.error || "Failed to update proxy settings",
+        });
       }
     } catch (err) {
       setProxyStatus({ type: "error", message: "An error occurred" });
@@ -163,10 +179,16 @@ export default function ProfilePage() {
       const data = await res.json();
 
       if (res.ok) {
-        setPassStatus({ type: "success", message: "Password updated successfully" });
+        setPassStatus({
+          type: "success",
+          message: "Password updated successfully",
+        });
         setPasswords({ current: "", new: "", confirm: "" });
       } else {
-        setPassStatus({ type: "error", message: data.error || "Failed to update password" });
+        setPassStatus({
+          type: "error",
+          message: data.error || "Failed to update password",
+        });
       }
     } catch (err) {
       setPassStatus({ type: "error", message: "An error occurred" });
@@ -183,7 +205,7 @@ export default function ProfilePage() {
         body: JSON.stringify({ fallbackStrategy: strategy }),
       });
       if (res.ok) {
-        setSettings(prev => ({ ...prev, fallbackStrategy: strategy }));
+        setSettings((prev) => ({ ...prev, fallbackStrategy: strategy }));
       }
     } catch (err) {
       console.error("Failed to update settings:", err);
@@ -201,7 +223,7 @@ export default function ProfilePage() {
         body: JSON.stringify({ stickyRoundRobinLimit: numLimit }),
       });
       if (res.ok) {
-        setSettings(prev => ({ ...prev, stickyRoundRobinLimit: numLimit }));
+        setSettings((prev) => ({ ...prev, stickyRoundRobinLimit: numLimit }));
       }
     } catch (err) {
       console.error("Failed to update sticky limit:", err);
@@ -216,7 +238,7 @@ export default function ProfilePage() {
         body: JSON.stringify({ requireLogin }),
       });
       if (res.ok) {
-        setSettings(prev => ({ ...prev, requireLogin }));
+        setSettings((prev) => ({ ...prev, requireLogin }));
       }
     } catch (err) {
       console.error("Failed to update require login:", err);
@@ -231,7 +253,7 @@ export default function ProfilePage() {
         body: JSON.stringify({ observabilityEnabled: enabled }),
       });
       if (res.ok) {
-        setSettings(prev => ({ ...prev, observabilityEnabled: enabled }));
+        setSettings((prev) => ({ ...prev, observabilityEnabled: enabled }));
       }
     } catch (err) {
       console.error("Failed to update observabilityEnabled:", err);
@@ -274,7 +296,10 @@ export default function ProfilePage() {
 
       setDbStatus({ type: "success", message: "Database backup downloaded" });
     } catch (err) {
-      setDbStatus({ type: "error", message: err.message || "Failed to export database" });
+      setDbStatus({
+        type: "error",
+        message: err.message || "Failed to export database",
+      });
     } finally {
       setDbLoading(false);
     }
@@ -303,9 +328,15 @@ export default function ProfilePage() {
       }
 
       await reloadSettings();
-      setDbStatus({ type: "success", message: "Database imported successfully" });
+      setDbStatus({
+        type: "success",
+        message: "Database imported successfully",
+      });
     } catch (err) {
-      setDbStatus({ type: "error", message: err.message || "Invalid backup file" });
+      setDbStatus({
+        type: "error",
+        message: err.message || "Invalid backup file",
+      });
     } finally {
       if (importFileRef.current) {
         importFileRef.current.value = "";
@@ -324,7 +355,9 @@ export default function ProfilePage() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <div className="size-12 rounded-lg bg-green-500/10 text-green-500 flex items-center justify-center">
-                <span className="material-symbols-outlined text-2xl">computer</span>
+                <span className="material-symbols-outlined text-2xl">
+                  computer
+                </span>
               </div>
               <div>
                 <h2 className="text-xl font-semibold">Local Mode</h2>
@@ -341,11 +374,15 @@ export default function ProfilePage() {
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all",
                     theme === option
                       ? "bg-primary text-white shadow-sm cyberpunk:text-black"
-                      : "text-text-muted hover:text-text-main hover:bg-black/10 dark:hover:bg-white/10 cyberpunk:hover:bg-white/5"
+                      : "text-text-muted hover:text-text-main hover:bg-black/10 dark:hover:bg-white/10 cyberpunk:hover:bg-white/5",
                   )}
                 >
                   <span className="material-symbols-outlined text-[18px]">
-                    {option === "light" ? "light_mode" : option === "dark" ? "dark_mode" : "contrast"}
+                    {option === "light"
+                      ? "light_mode"
+                      : option === "dark"
+                        ? "dark_mode"
+                        : "contrast"}
                   </span>
                   <span className="capitalize text-sm">{option}</span>
                 </button>
@@ -356,7 +393,9 @@ export default function ProfilePage() {
             <div className="flex items-center justify-between p-3 rounded-lg bg-bg border border-border">
               <div>
                 <p className="font-medium">Database Location</p>
-                <p className="text-sm text-text-muted font-mono">~/.9router/db.json</p>
+                <p className="text-sm text-text-muted font-mono">
+                  ~/.9router/db.json
+                </p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -385,7 +424,9 @@ export default function ProfilePage() {
               />
             </div>
             {dbStatus.message && (
-              <p className={`text-sm ${dbStatus.type === "error" ? "text-red-500" : "text-green-600 dark:text-green-400"}`}>
+              <p
+                className={`text-sm ${dbStatus.type === "error" ? "text-red-500" : "text-green-600 dark:text-green-400"}`}
+              >
                 {dbStatus.message}
               </p>
             )}
@@ -396,7 +437,9 @@ export default function ProfilePage() {
         <Card>
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 rounded-lg bg-primary/10 text-primary">
-              <span className="material-symbols-outlined text-[20px]">shield</span>
+              <span className="material-symbols-outlined text-[20px]">
+                shield
+              </span>
             </div>
             <h3 className="text-lg font-semibold">Security</h3>
           </div>
@@ -405,7 +448,8 @@ export default function ProfilePage() {
               <div>
                 <p className="font-medium">Require login</p>
                 <p className="text-sm text-text-muted">
-                  When ON, dashboard requires password. When OFF, access without login.
+                  When ON, dashboard requires password. When OFF, access without
+                  login.
                 </p>
               </div>
               <Toggle
@@ -415,15 +459,22 @@ export default function ProfilePage() {
               />
             </div>
             {settings.requireLogin === true && (
-              <form onSubmit={handlePasswordChange} className="flex flex-col gap-4 pt-4 border-t border-border/50">
+              <form
+                onSubmit={handlePasswordChange}
+                className="flex flex-col gap-4 pt-4 border-t border-border/50"
+              >
                 {settings.hasPassword && (
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium">Current Password</label>
+                    <label className="text-sm font-medium">
+                      Current Password
+                    </label>
                     <Input
                       type="password"
                       placeholder="Enter current password"
                       value={passwords.current}
-                      onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
+                      onChange={(e) =>
+                        setPasswords({ ...passwords, current: e.target.value })
+                      }
                       required
                     />
                   </div>
@@ -442,24 +493,32 @@ export default function ProfilePage() {
                       type="password"
                       placeholder="Enter new password"
                       value={passwords.new}
-                      onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
+                      onChange={(e) =>
+                        setPasswords({ ...passwords, new: e.target.value })
+                      }
                       required
                     />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium">Confirm New Password</label>
+                    <label className="text-sm font-medium">
+                      Confirm New Password
+                    </label>
                     <Input
                       type="password"
                       placeholder="Confirm new password"
                       value={passwords.confirm}
-                      onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
+                      onChange={(e) =>
+                        setPasswords({ ...passwords, confirm: e.target.value })
+                      }
                       required
                     />
                   </div>
                 </div>
 
                 {passStatus.message && (
-                  <p className={`text-sm ${passStatus.type === "error" ? "text-red-500" : "text-green-500"}`}>
+                  <p
+                    className={`text-sm ${passStatus.type === "error" ? "text-red-500" : "text-green-500"}`}
+                  >
                     {passStatus.message}
                   </p>
                 )}
@@ -478,7 +537,9 @@ export default function ProfilePage() {
         <Card>
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
-              <span className="material-symbols-outlined text-[20px]">route</span>
+              <span className="material-symbols-outlined text-[20px]">
+                route
+              </span>
             </div>
             <h3 className="text-lg font-semibold">Routing Strategy</h3>
           </div>
@@ -492,7 +553,13 @@ export default function ProfilePage() {
               </div>
               <Toggle
                 checked={settings.fallbackStrategy === "round-robin"}
-                onChange={() => updateFallbackStrategy(settings.fallbackStrategy === "round-robin" ? "fill-first" : "round-robin")}
+                onChange={() =>
+                  updateFallbackStrategy(
+                    settings.fallbackStrategy === "round-robin"
+                      ? "fill-first"
+                      : "round-robin",
+                  )
+                }
                 disabled={loading}
               />
             </div>
@@ -530,7 +597,9 @@ export default function ProfilePage() {
         <Card>
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500">
-              <span className="material-symbols-outlined text-[20px]">wifi</span>
+              <span className="material-symbols-outlined text-[20px]">
+                wifi
+              </span>
             </div>
             <h3 className="text-lg font-semibold">Network</h3>
           </div>
@@ -539,26 +608,42 @@ export default function ProfilePage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium">Outbound Proxy</p>
-                <p className="text-sm text-text-muted">Enable proxy for OAuth + provider outbound requests.</p>
+                <p className="text-sm text-text-muted">
+                  Enable proxy for OAuth + provider outbound requests.
+                </p>
               </div>
               <Toggle
                 checked={settings.outboundProxyEnabled === true}
-                onChange={() => updateOutboundProxyEnabled(!(settings.outboundProxyEnabled === true))}
+                onChange={() =>
+                  updateOutboundProxyEnabled(
+                    !(settings.outboundProxyEnabled === true),
+                  )
+                }
                 disabled={loading || proxyLoading}
               />
             </div>
 
             {settings.outboundProxyEnabled === true && (
-              <form onSubmit={updateOutboundProxy} className="flex flex-col gap-4 pt-2 border-t border-border/50">
+              <form
+                onSubmit={updateOutboundProxy}
+                className="flex flex-col gap-4 pt-2 border-t border-border/50"
+              >
                 <div className="flex flex-col gap-2">
                   <label className="font-medium">Proxy URL</label>
                   <Input
                     placeholder="http://127.0.0.1:7897"
                     value={proxyForm.outboundProxyUrl}
-                    onChange={(e) => setProxyForm((prev) => ({ ...prev, outboundProxyUrl: e.target.value }))}
+                    onChange={(e) =>
+                      setProxyForm((prev) => ({
+                        ...prev,
+                        outboundProxyUrl: e.target.value,
+                      }))
+                    }
                     disabled={loading || proxyLoading}
                   />
-                  <p className="text-sm text-text-muted">Leave empty to inherit existing env proxy (if any).</p>
+                  <p className="text-sm text-text-muted">
+                    Leave empty to inherit existing env proxy (if any).
+                  </p>
                 </div>
 
                 <div className="flex flex-col gap-2 pt-2 border-t border-border/50">
@@ -566,10 +651,17 @@ export default function ProfilePage() {
                   <Input
                     placeholder="localhost,127.0.0.1"
                     value={proxyForm.outboundNoProxy}
-                    onChange={(e) => setProxyForm((prev) => ({ ...prev, outboundNoProxy: e.target.value }))}
+                    onChange={(e) =>
+                      setProxyForm((prev) => ({
+                        ...prev,
+                        outboundNoProxy: e.target.value,
+                      }))
+                    }
                     disabled={loading || proxyLoading}
                   />
-                  <p className="text-sm text-text-muted">Comma-separated hostnames/domains to bypass the proxy.</p>
+                  <p className="text-sm text-text-muted">
+                    Comma-separated hostnames/domains to bypass the proxy.
+                  </p>
                 </div>
 
                 <div className="pt-2 border-t border-border/50 flex items-center gap-2">
@@ -582,7 +674,11 @@ export default function ProfilePage() {
                   >
                     Test proxy URL
                   </Button>
-                  <Button type="submit" variant="primary" loading={proxyLoading}>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    loading={proxyLoading}
+                  >
                     Apply
                   </Button>
                 </div>
@@ -590,7 +686,9 @@ export default function ProfilePage() {
             )}
 
             {proxyStatus.message && (
-              <p className={`text-sm ${proxyStatus.type === "error" ? "text-red-500" : "text-green-500"} pt-2 border-t border-border/50`}>
+              <p
+                className={`text-sm ${proxyStatus.type === "error" ? "text-red-500" : "text-green-500"} pt-2 border-t border-border/50`}
+              >
                 {proxyStatus.message}
               </p>
             )}
@@ -601,7 +699,9 @@ export default function ProfilePage() {
         <Card>
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
-              <span className="material-symbols-outlined text-[20px]">monitoring</span>
+              <span className="material-symbols-outlined text-[20px]">
+                monitoring
+              </span>
             </div>
             <h3 className="text-lg font-semibold">Observability</h3>
           </div>
@@ -622,7 +722,9 @@ export default function ProfilePage() {
 
         {/* App Info */}
         <div className="text-center text-sm text-text-muted py-4">
-          <p>{APP_CONFIG.name} v{APP_CONFIG.version}</p>
+          <p>
+            {APP_CONFIG.name} v{APP_CONFIG.version}
+          </p>
           <p className="mt-1">Local Mode - All data stored on your machine</p>
         </div>
       </div>

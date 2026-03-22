@@ -4,11 +4,11 @@ import { connect } from "cloudflare:sockets";
 export async function handleForwardRaw(request) {
   try {
     const { targetUrl, headers = {}, body } = await request.json();
-    
+
     if (!targetUrl) {
       return new Response(JSON.stringify({ error: "targetUrl is required" }), {
         status: 400,
-        headers: { "Content-Type": "application/json" }
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -18,17 +18,22 @@ export async function handleForwardRaw(request) {
     const path = url.pathname + url.search;
     const isHttps = url.protocol === "https:";
 
-    console.log("[FORWARD_RAW] Connecting to:", host, port, isHttps ? "(TLS)" : "");
+    console.log(
+      "[FORWARD_RAW] Connecting to:",
+      host,
+      port,
+      isHttps ? "(TLS)" : "",
+    );
 
     // Connect to target server
     let secureSocket;
     if (isHttps) {
       // For HTTPS, connect directly with TLS enabled
       console.log("[FORWARD_RAW] Creating TLS socket...");
-      secureSocket = connect({ 
-        hostname: host, 
+      secureSocket = connect({
+        hostname: host,
         port: parseInt(port),
-        secureTransport: "on"
+        secureTransport: "on",
       });
       console.log("[FORWARD_RAW] TLS socket created");
     } else {
@@ -37,7 +42,7 @@ export async function handleForwardRaw(request) {
 
     console.log("[FORWARD_RAW] Socket object:", secureSocket);
     console.log("[FORWARD_RAW] Socket opened:", secureSocket.opened);
-    
+
     // Wait for socket to be ready
     try {
       console.log("[FORWARD_RAW] Waiting for socket to open...");
@@ -56,11 +61,11 @@ export async function handleForwardRaw(request) {
     // Build raw HTTP request
     const bodyStr = JSON.stringify(body);
     const requestHeaders = {
-      "Host": host,
+      Host: host,
       "Content-Type": "application/json",
       "Content-Length": new TextEncoder().encode(bodyStr).length.toString(),
-      "Connection": "close",
-      ...headers
+      Connection: "close",
+      ...headers,
     };
 
     // Build HTTP request string
@@ -70,7 +75,10 @@ export async function handleForwardRaw(request) {
     }
     httpRequest += `\r\n${bodyStr}`;
 
-    console.log("[FORWARD_RAW] Sending request:", httpRequest.substring(0, 300));
+    console.log(
+      "[FORWARD_RAW] Sending request:",
+      httpRequest.substring(0, 300),
+    );
     console.log("[FORWARD_RAW] Full request length:", httpRequest.length);
 
     // Send request
@@ -90,18 +98,23 @@ export async function handleForwardRaw(request) {
     let responseData = new Uint8Array(0);
     let attempts = 0;
     const maxAttempts = 100; // 10 seconds max
-    
+
     while (attempts < maxAttempts) {
       console.log("[FORWARD_RAW] Reading attempt:", attempts);
       const { done, value } = await reader.read();
-      console.log("[FORWARD_RAW] Read result - done:", done, "value length:", value?.length);
+      console.log(
+        "[FORWARD_RAW] Read result - done:",
+        done,
+        "value length:",
+        value?.length,
+      );
       if (done) break;
       if (value) {
         const newData = new Uint8Array(responseData.length + value.length);
         newData.set(responseData);
         newData.set(value, responseData.length);
         responseData = newData;
-        
+
         // Check if we have complete response (has headers end marker)
         const text = new TextDecoder().decode(responseData);
         if (text.includes("\r\n\r\n")) {
@@ -121,11 +134,17 @@ export async function handleForwardRaw(request) {
       }
       attempts++;
     }
-    
-    console.log("[FORWARD_RAW] Read loop finished, total bytes:", responseData.length);
+
+    console.log(
+      "[FORWARD_RAW] Read loop finished, total bytes:",
+      responseData.length,
+    );
 
     const responseText = new TextDecoder().decode(responseData);
-    console.log("[FORWARD_RAW] Response received:", responseText.substring(0, 500));
+    console.log(
+      "[FORWARD_RAW] Response received:",
+      responseText.substring(0, 500),
+    );
 
     // Parse HTTP response
     const headerEndIndex = responseText.indexOf("\r\n\r\n");
@@ -158,16 +177,14 @@ export async function handleForwardRaw(request) {
       status,
       headers: {
         "Content-Type": responseHeaders["content-type"] || "application/json",
-        "Access-Control-Allow-Origin": "*"
-      }
+        "Access-Control-Allow-Origin": "*",
+      },
     });
-
   } catch (error) {
     console.error("[FORWARD_RAW] Error:", error.message, error.stack);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { "Content-Type": "application/json" }
+      headers: { "Content-Type": "application/json" },
     });
   }
 }
-

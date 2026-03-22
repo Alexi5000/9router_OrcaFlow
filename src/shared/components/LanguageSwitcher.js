@@ -16,9 +16,9 @@ function getLocaleFromCookie() {
 // Locale display names - will be translated by runtime i18n
 const getLocaleName = (locale) => {
   const names = {
-    "en": "English",
-    "vi": "Tiếng Việt",
-    "zh-CN": "简体中文"
+    en: "English",
+    vi: "Tiếng Việt",
+    "zh-CN": "简体中文",
   };
   return names[locale] || locale;
 };
@@ -55,7 +55,7 @@ export default function LanguageSwitcher({ className = "" }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locale: nextLocale }),
       });
-      
+
       // Reload translations without full page reload
       await reloadTranslations();
       setLocale(nextLocale);
@@ -85,7 +85,10 @@ export default function LanguageSwitcher({ className = "" }) {
 
       {/* Dropdown menu - use data attribute to prevent i18n processing */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-surface border border-black/10 dark:border-white/10 rounded-lg shadow-lg overflow-hidden z-50" data-i18n-skip="true">
+        <div
+          className="absolute right-0 mt-2 w-48 bg-surface border border-black/10 dark:border-white/10 rounded-lg shadow-lg overflow-hidden z-50"
+          data-i18n-skip="true"
+        >
           {LOCALES.map((item) => {
             const active = locale === item;
             return (
@@ -101,7 +104,9 @@ export default function LanguageSwitcher({ className = "" }) {
               >
                 <span>{getLocaleName(item)}</span>
                 {active && (
-                  <span className="material-symbols-outlined text-base">check</span>
+                  <span className="material-symbols-outlined text-base">
+                    check
+                  </span>
                 )}
               </button>
             );

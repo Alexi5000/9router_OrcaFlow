@@ -1,5 +1,7 @@
 function cleanString(value) {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : null;
 }
 
 function uniqueStrings(values = []) {
@@ -31,26 +33,41 @@ function sanitizeAttempts(attempts = []) {
       errorClass: cleanString(attempt.errorClass),
       errorCode: cleanString(attempt.errorCode),
       message: cleanString(attempt.message),
-      statusCode: Number.isFinite(Number(attempt.statusCode)) ? Number(attempt.statusCode) : null,
+      statusCode: Number.isFinite(Number(attempt.statusCode))
+        ? Number(attempt.statusCode)
+        : null,
       timestamp: cleanString(attempt.timestamp),
     }));
 }
 
 export function normalizeRequestRoute(route = {}, fallback = {}) {
-  const requestedModel = cleanString(route.requestedModel) || cleanString(fallback.requestedModel);
-  const comboName = cleanString(route.comboName) || cleanString(fallback.comboName);
-  const tierName = cleanString(route.tierName) || cleanString(fallback.tierName);
-  const requestedAlias = cleanString(route.requestedAlias) || cleanString(fallback.requestedAlias);
-  const selectedModel = cleanString(route.selectedModel) || cleanString(fallback.selectedModel);
-  const resolvedProvider = cleanString(route.resolvedProvider) || cleanString(fallback.resolvedProvider);
-  const resolvedModel = cleanString(route.resolvedModel) || cleanString(fallback.resolvedModel);
-  const finalModel = cleanString(route.finalModel)
-    || cleanString(fallback.finalModel)
-    || (resolvedProvider && resolvedModel ? `${resolvedProvider}/${resolvedModel}` : null);
+  const requestedModel =
+    cleanString(route.requestedModel) || cleanString(fallback.requestedModel);
+  const comboName =
+    cleanString(route.comboName) || cleanString(fallback.comboName);
+  const tierName =
+    cleanString(route.tierName) || cleanString(fallback.tierName);
+  const requestedAlias =
+    cleanString(route.requestedAlias) || cleanString(fallback.requestedAlias);
+  const selectedModel =
+    cleanString(route.selectedModel) || cleanString(fallback.selectedModel);
+  const resolvedProvider =
+    cleanString(route.resolvedProvider) ||
+    cleanString(fallback.resolvedProvider);
+  const resolvedModel =
+    cleanString(route.resolvedModel) || cleanString(fallback.resolvedModel);
+  const finalModel =
+    cleanString(route.finalModel) ||
+    cleanString(fallback.finalModel) ||
+    (resolvedProvider && resolvedModel
+      ? `${resolvedProvider}/${resolvedModel}`
+      : null);
 
   const attemptedModels = uniqueStrings([
     ...(Array.isArray(route.attemptedModels) ? route.attemptedModels : []),
-    ...(Array.isArray(fallback.attemptedModels) ? fallback.attemptedModels : []),
+    ...(Array.isArray(fallback.attemptedModels)
+      ? fallback.attemptedModels
+      : []),
   ]);
   const attempts = sanitizeAttempts([
     ...(Array.isArray(route.attempts) ? route.attempts : []),
@@ -75,9 +92,16 @@ export function normalizeRequestRoute(route = {}, fallback = {}) {
     finalModel,
     attemptedModels,
     attempts,
-    routeType: cleanString(route.routeType) || cleanString(fallback.routeType) || (comboName ? "combo" : "single"),
-    terminalErrorClass: cleanString(route.terminalErrorClass) || cleanString(fallback.terminalErrorClass),
-    terminalErrorCode: cleanString(route.terminalErrorCode) || cleanString(fallback.terminalErrorCode),
+    routeType:
+      cleanString(route.routeType) ||
+      cleanString(fallback.routeType) ||
+      (comboName ? "combo" : "single"),
+    terminalErrorClass:
+      cleanString(route.terminalErrorClass) ||
+      cleanString(fallback.terminalErrorClass),
+    terminalErrorCode:
+      cleanString(route.terminalErrorCode) ||
+      cleanString(fallback.terminalErrorCode),
     chain,
   };
 

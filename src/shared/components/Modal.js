@@ -64,7 +64,7 @@ export default function Modal({
           "rounded-xl shadow-2xl",
           "animate-in fade-in zoom-in-95 duration-200",
           sizes[size],
-          className
+          className,
         )}
       >
         {/* Header */}
@@ -87,14 +87,18 @@ export default function Modal({
                 onClick={onClose}
                 className="p-1.5 rounded-lg text-text-muted hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               >
-                <span className="material-symbols-outlined text-[20px]">close</span>
+                <span className="material-symbols-outlined text-[20px]">
+                  close
+                </span>
               </button>
             )}
           </div>
         )}
 
         {/* Body */}
-        <div className="p-6 max-h-[calc(80vh-140px)] overflow-y-auto">{children}</div>
+        <div className="p-6 max-h-[calc(80vh-140px)] overflow-y-auto">
+          {children}
+        </div>
 
         {/* Footer */}
         {footer && (
@@ -140,4 +144,3 @@ export function ConfirmModal({
     </Modal>
   );
 }
-

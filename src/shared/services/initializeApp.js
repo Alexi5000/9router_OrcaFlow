@@ -1,7 +1,21 @@
-import { cleanupProviderConnections, getSettings, updateSettings, getApiKeys } from "@/lib/localDb";
+import {
+  cleanupProviderConnections,
+  getSettings,
+  updateSettings,
+  getApiKeys,
+} from "@/lib/localDb";
 import { enableTunnel } from "@/lib/tunnel/tunnelManager";
-import { killCloudflared, isCloudflaredRunning, ensureCloudflared } from "@/lib/tunnel/cloudflared";
-import { getMitmStatus, startMitm, loadEncryptedPassword, initDbHooks } from "@/mitm/manager";
+import {
+  killCloudflared,
+  isCloudflaredRunning,
+  ensureCloudflared,
+} from "@/lib/tunnel/cloudflared";
+import {
+  getMitmStatus,
+  startMitm,
+  loadEncryptedPassword,
+  initDbHooks,
+} from "@/mitm/manager";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync } from "fs";
@@ -20,14 +34,18 @@ import os from "os";
       if (existsSync(candidate)) {
         process.env.MITM_SERVER_PATH = candidate;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // 2. Inject DB functions so manager.js (CJS) can save/load settings
   //    without dynamic import issues inside webpack bundles
   try {
     initDbHooks(getSettings, updateSettings);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 })();
 
 // Multiple modules register SIGINT/SIGTERM handlers legitimately
@@ -105,13 +123,15 @@ async function autoStartMitm() {
 
     const password = await loadEncryptedPassword();
     if (!password && process.platform !== "win32") {
-      console.log("[InitApp] MITM was enabled but no saved password found, skipping auto-start");
+      console.log(
+        "[InitApp] MITM was enabled but no saved password found, skipping auto-start",
+      );
       return;
     }
 
     // Need an active API key
     const keys = await getApiKeys();
-    const activeKey = keys.find(k => k.isActive !== false);
+    const activeKey = keys.find((k) => k.isActive !== false);
     if (!activeKey) {
       console.log("[InitApp] MITM auto-start skipped: no active API key");
       return;
@@ -187,15 +207,19 @@ function startNetworkMonitor() {
       if (tunnelRestartInProgress) return;
       if (now - lastTunnelRestartAt < NETWORK_RESTART_COOLDOWN_MS) return;
 
-      const reason = wasSleep && networkChanged ? "sleep/wake + network change"
-        : wasSleep ? "sleep/wake" : "network change";
+      const reason =
+        wasSleep && networkChanged
+          ? "sleep/wake + network change"
+          : wasSleep
+            ? "sleep/wake"
+            : "network change";
       console.log(`[NetworkMonitor] ${reason} detected, restarting tunnel...`);
 
       tunnelRestartInProgress = true;
       lastTunnelRestartAt = now;
       try {
         killCloudflared();
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 2000));
         await enableTunnel();
         console.log("[NetworkMonitor] Tunnel restarted");
         lastNetworkFingerprint = getNetworkFingerprint();

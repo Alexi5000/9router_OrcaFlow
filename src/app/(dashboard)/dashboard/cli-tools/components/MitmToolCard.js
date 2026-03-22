@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, Button, Badge, Input, ModelSelectModal } from "@/shared/components";
+import {
+  Card,
+  Button,
+  Badge,
+  Input,
+  ModelSelectModal,
+} from "@/shared/components";
 import Image from "next/image";
 
 /**
@@ -35,38 +41,52 @@ export default function MitmToolCard({
   const [modalOpen, setModalOpen] = useState(false);
   const [currentEditingAlias, setCurrentEditingAlias] = useState(null);
 
-  const isWindows = typeof navigator !== "undefined" && navigator.userAgent?.includes("Windows");
+  const isWindows =
+    typeof navigator !== "undefined" &&
+    navigator.userAgent?.includes("Windows");
 
-  useEffect(() => {
-    if (isExpanded) loadSavedMappings();
-  }, [isExpanded]);
-
-  const loadSavedMappings = async () => {
+  const loadSavedMappings = useCallback(async () => {
     try {
-      const res = await fetch(`/api/cli-tools/antigravity-mitm/alias?tool=${tool.id}`);
+      const res = await fetch(
+        `/api/cli-tools/antigravity-mitm/alias?tool=${tool.id}`,
+      );
       if (res.ok) {
         const data = await res.json();
-        if (Object.keys(data.aliases || {}).length > 0) setModelMappings(data.aliases);
+        if (Object.keys(data.aliases || {}).length > 0)
+          setModelMappings(data.aliases);
       }
-    } catch { /* ignore */ }
-  };
-
-  const saveMappings = useCallback(async (mappings) => {
-    try {
-      await fetch("/api/cli-tools/antigravity-mitm/alias", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tool: tool.id, mappings }),
-      });
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [tool.id]);
+
+  useEffect(() => {
+    if (isExpanded) {
+      void loadSavedMappings();
+    }
+  }, [isExpanded, loadSavedMappings]);
+
+  const saveMappings = useCallback(
+    async (mappings) => {
+      try {
+        await fetch("/api/cli-tools/antigravity-mitm/alias", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tool: tool.id, mappings }),
+        });
+      } catch {
+        /* ignore */
+      }
+    },
+    [tool.id],
+  );
 
   const handleMappingBlur = (alias, value) => {
     saveMappings({ ...modelMappings, [alias]: value });
   };
 
   const handleModelMappingChange = (alias, value) => {
-    setModelMappings(prev => ({ ...prev, [alias]: value }));
+    setModelMappings((prev) => ({ ...prev, [alias]: value }));
   };
 
   const openModelSelector = (alias) => {
@@ -140,7 +160,10 @@ export default function MitmToolCard({
   return (
     <>
       <Card padding="xs" className="overflow-hidden">
-        <div className="flex items-center justify-between hover:cursor-pointer" onClick={onToggle}>
+        <div
+          className="flex items-center justify-between hover:cursor-pointer"
+          onClick={onToggle}
+        >
           <div className="flex items-center gap-3">
             <div className="size-8 flex items-center justify-center shrink-0">
               <Image
@@ -150,24 +173,36 @@ export default function MitmToolCard({
                 height={32}
                 className="size-8 object-contain rounded-lg"
                 sizes="32px"
-                onError={(e) => { e.target.style.display = "none"; }}
+                onError={(e) => {
+                  e.target.style.display = "none";
+                }}
               />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="font-medium text-sm">{tool.name}</h3>
                 {!serverRunning ? (
-                  <Badge variant="default" size="sm">Server off</Badge>
+                  <Badge variant="default" size="sm">
+                    Server off
+                  </Badge>
                 ) : dnsActive ? (
-                  <Badge variant="success" size="sm">Active</Badge>
+                  <Badge variant="success" size="sm">
+                    Active
+                  </Badge>
                 ) : (
-                  <Badge variant="warning" size="sm">DNS off</Badge>
+                  <Badge variant="warning" size="sm">
+                    DNS off
+                  </Badge>
                 )}
               </div>
-              <p className="text-xs text-text-muted">Intercept {tool.name} requests via MITM proxy</p>
+              <p className="text-xs text-text-muted">
+                Intercept {tool.name} requests via MITM proxy
+              </p>
             </div>
           </div>
-          <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>
+          <span
+            className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}
+          >
             expand_more
           </span>
         </div>
@@ -176,7 +211,10 @@ export default function MitmToolCard({
           <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
             {/* Info */}
             <div className="flex flex-col gap-0.5 text-[11px] text-text-muted px-1">
-              <p>Toggle DNS to redirect {tool.name} traffic through 9Router via MITM.</p>
+              <p>
+                Toggle DNS to redirect {tool.name} traffic through 9Router via
+                MITM.
+              </p>
               {!dnsActive && (
                 <p className="text-amber-600 text-[10px] mt-1">
                   ⚠️ Enable DNS to edit model mappings
@@ -185,8 +223,12 @@ export default function MitmToolCard({
             </div>
 
             {message && (
-              <div className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs ${message.type === "success" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"}`}>
-                <span className="material-symbols-outlined text-[14px]">{message.type === "success" ? "check_circle" : "error"}</span>
+              <div
+                className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs ${message.type === "success" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"}`}
+              >
+                <span className="material-symbols-outlined text-[14px]">
+                  {message.type === "success" ? "check_circle" : "error"}
+                </span>
                 <span>{message.text}</span>
               </div>
             )}
@@ -196,13 +238,21 @@ export default function MitmToolCard({
               <div className="flex flex-col gap-2">
                 {tool.defaultModels.map((model) => (
                   <div key={model.alias} className="flex items-center gap-2">
-                    <span className="w-36 shrink-0 text-xs font-semibold text-text-main text-right">{model.name}</span>
-                    <span className="material-symbols-outlined text-text-muted text-[14px]">arrow_forward</span>
+                    <span className="w-36 shrink-0 text-xs font-semibold text-text-main text-right">
+                      {model.name}
+                    </span>
+                    <span className="material-symbols-outlined text-text-muted text-[14px]">
+                      arrow_forward
+                    </span>
                     <input
                       type="text"
                       value={modelMappings[model.alias] || ""}
-                      onChange={(e) => handleModelMappingChange(model.alias, e.target.value)}
-                      onBlur={(e) => handleMappingBlur(model.alias, e.target.value)}
+                      onChange={(e) =>
+                        handleModelMappingChange(model.alias, e.target.value)
+                      }
+                      onBlur={(e) =>
+                        handleMappingBlur(model.alias, e.target.value)
+                      }
                       placeholder="provider/model-id"
                       disabled={!dnsActive}
                       className={`flex-1 px-2 py-1.5 bg-surface rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 ${!dnsActive ? "opacity-50 cursor-not-allowed" : ""}`}
@@ -223,7 +273,9 @@ export default function MitmToolCard({
                         className="p-1 text-text-muted hover:text-red-500 rounded transition-colors"
                         title="Clear"
                       >
-                        <span className="material-symbols-outlined text-[14px]">close</span>
+                        <span className="material-symbols-outlined text-[14px]">
+                          close
+                        </span>
                       </button>
                     )}
                   </div>
@@ -232,7 +284,9 @@ export default function MitmToolCard({
             )}
 
             {tool.defaultModels?.length === 0 && (
-              <p className="text-xs text-text-muted px-1">Model mappings will be available soon.</p>
+              <p className="text-xs text-text-muted px-1">
+                Model mappings will be available soon.
+              </p>
             )}
 
             {/* Start / Stop DNS button */}
@@ -243,7 +297,9 @@ export default function MitmToolCard({
                   disabled={!serverRunning || loading}
                   className="px-4 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500 font-medium text-xs flex items-center gap-1.5 hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span className="material-symbols-outlined text-[16px]">stop_circle</span>
+                  <span className="material-symbols-outlined text-[16px]">
+                    stop_circle
+                  </span>
                   Stop DNS
                 </button>
               ) : (
@@ -254,7 +310,9 @@ export default function MitmToolCard({
                   loading={loading}
                   disabled={!serverRunning || loading}
                 >
-                  <span className="material-symbols-outlined text-[14px] mr-1">play_circle</span>
+                  <span className="material-symbols-outlined text-[14px] mr-1">
+                    play_circle
+                  </span>
                   Start DNS
                 </Button>
               )}
@@ -267,29 +325,53 @@ export default function MitmToolCard({
       {showPasswordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-surface border border-border rounded-xl p-6 w-full max-w-sm flex flex-col gap-4 shadow-xl">
-            <h3 className="font-semibold text-text-main">Sudo Password Required</h3>
+            <h3 className="font-semibold text-text-main">
+              Sudo Password Required
+            </h3>
             <div className="flex items-start gap-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-              <span className="material-symbols-outlined text-yellow-500 text-[20px]">warning</span>
-              <p className="text-xs text-text-muted">Required to modify /etc/hosts and flush DNS cache</p>
+              <span className="material-symbols-outlined text-yellow-500 text-[20px]">
+                warning
+              </span>
+              <p className="text-xs text-text-muted">
+                Required to modify /etc/hosts and flush DNS cache
+              </p>
             </div>
             <Input
               type="password"
               placeholder="Enter sudo password"
               value={sudoPassword}
               onChange={(e) => setSudoPassword(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !loading) handleConfirmPassword(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !loading) handleConfirmPassword();
+              }}
             />
             {message && (
               <div className="flex items-center gap-2 px-2 py-1.5 rounded text-xs bg-red-500/10 text-red-600">
-                <span className="material-symbols-outlined text-[14px]">error</span>
+                <span className="material-symbols-outlined text-[14px]">
+                  error
+                </span>
                 <span>{message.text}</span>
               </div>
             )}
             <div className="flex items-center justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => { setShowPasswordModal(false); setSudoPassword(""); setMessage(null); }} disabled={loading}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setSudoPassword("");
+                  setMessage(null);
+                }}
+                disabled={loading}
+              >
                 Cancel
               </Button>
-              <Button variant="primary" size="sm" onClick={handleConfirmPassword} loading={loading}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleConfirmPassword}
+                loading={loading}
+              >
                 Confirm
               </Button>
             </div>
@@ -302,7 +384,9 @@ export default function MitmToolCard({
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         onSelect={handleModelSelect}
-        selectedModel={currentEditingAlias ? modelMappings[currentEditingAlias] : null}
+        selectedModel={
+          currentEditingAlias ? modelMappings[currentEditingAlias] : null
+        }
         activeProviders={activeProviders}
         modelAliases={modelAliases}
         title={`Select model for ${currentEditingAlias}`}

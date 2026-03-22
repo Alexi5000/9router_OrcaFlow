@@ -16,15 +16,17 @@ export async function getMachineData(machineId, env) {
     return cached.data;
   }
 
-  const row = await env.DB.prepare("SELECT data FROM machines WHERE machineId = ?")
+  const row = await env.DB.prepare(
+    "SELECT data FROM machines WHERE machineId = ?",
+  )
     .bind(machineId)
     .first();
-  
+
   if (!row) {
     log.debug("STORAGE", `Not found: ${machineId}`);
     return null;
   }
-  
+
   const data = JSON.parse(row.data);
   requestCache.set(machineId, { data, timestamp: Date.now() });
   log.debug("STORAGE", `Retrieved: ${machineId}`);
@@ -40,16 +42,18 @@ export async function getMachineData(machineId, env) {
 export async function saveMachineData(machineId, data, env) {
   const now = new Date().toISOString();
   data.updatedAt = now;
-  
+
   // Upsert to D1
-  await env.DB.prepare(`
+  await env.DB.prepare(
+    `
     INSERT INTO machines (machineId, data, updatedAt) 
     VALUES (?, ?, ?)
     ON CONFLICT(machineId) DO UPDATE SET data = ?, updatedAt = ?
-  `)
+  `,
+  )
     .bind(machineId, JSON.stringify(data), now, JSON.stringify(data), now)
     .run();
-  
+
   // Update cache after save
   requestCache.set(machineId, { data, timestamp: Date.now() });
   log.debug("STORAGE", `Saved: ${machineId}`);
@@ -64,7 +68,7 @@ export async function deleteMachineData(machineId, env) {
   await env.DB.prepare("DELETE FROM machines WHERE machineId = ?")
     .bind(machineId)
     .run();
-  
+
   // Clear cache after delete
   requestCache.delete(machineId);
   log.debug("STORAGE", `Deleted: ${machineId}`);
@@ -77,12 +81,17 @@ export async function deleteMachineData(machineId, env) {
  * @param {Object} updates
  * @param {Object} env
  */
-export async function updateMachineProvider(machineId, connectionId, updates, env) {
+export async function updateMachineProvider(
+  machineId,
+  connectionId,
+  updates,
+  env,
+) {
   const data = await getMachineData(machineId, env);
   if (!data?.providers?.[connectionId]) return;
-  
+
   Object.assign(data.providers[connectionId], updates);
   data.providers[connectionId].updatedAt = new Date().toISOString();
-  
+
   await saveMachineData(machineId, data, env);
 }

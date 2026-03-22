@@ -3,7 +3,7 @@
 ## Supported Versions
 
 | Version | Supported |
-|---------|-----------|
+| ------- | --------- |
 | Latest  | Yes       |
 
 ## Reporting a Vulnerability
@@ -15,6 +15,7 @@ If you discover a security vulnerability in OrcaFlow, please report it responsib
 Instead, please email: **security@techtide.ai**
 
 Include:
+
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact

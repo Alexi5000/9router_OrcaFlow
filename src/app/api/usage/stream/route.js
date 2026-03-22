@@ -13,11 +13,16 @@ export async function GET(request) {
   }
 
   const encoder = new TextEncoder();
-  const state = { closed: false, keepalive: null, send: null, sendPending: null, cachedStats: null };
+  const state = {
+    closed: false,
+    keepalive: null,
+    send: null,
+    sendPending: null,
+    cachedStats: null,
+  };
 
   const stream = new ReadableStream({
     async start(controller) {
-
       // Shared teardown — idempotent, safe to call from any error path.
       // Closes the controller so the browser receives a proper EOF and
       // EventSource fires onerror → our reconnect backoff loop kicks in.
@@ -31,9 +36,16 @@ export async function GET(request) {
           state.keepalive = null;
         }
         if (reason) {
-          console.error("[SSE] stream error — closing:", reason?.message ?? reason);
+          console.error(
+            "[SSE] stream error — closing:",
+            reason?.message ?? reason,
+          );
         }
-        try { controller.close(); } catch { /* already closed by the runtime */ }
+        try {
+          controller.close();
+        } catch {
+          /* already closed by the runtime */
+        }
       }
 
       // Full stats refresh (heavy) + immediate lightweight push
@@ -42,7 +54,12 @@ export async function GET(request) {
         try {
           // Push lightweight update immediately so UI reflects changes fast
           if (state.cachedStats) {
-            const { activeRequests, recentRequests, errorProvider, pendingRequestCount } = await getActiveRequests();
+            const {
+              activeRequests,
+              recentRequests,
+              errorProvider,
+              pendingRequestCount,
+            } = await getActiveRequests();
             const quickStats = {
               ...state.cachedStats,
               kind: "pending",
@@ -51,12 +68,18 @@ export async function GET(request) {
               errorProvider,
               pendingRequestCount,
             };
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(quickStats)}\n\n`));
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(quickStats)}\n\n`),
+            );
           }
           // Then do full recalc and update cache
           const stats = await getUsageStats(period);
           state.cachedStats = stats;
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ ...stats, kind: "full" })}\n\n`));
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ ...stats, kind: "full" })}\n\n`,
+            ),
+          );
         } catch (err) {
           teardown(err);
         }
@@ -66,7 +89,12 @@ export async function GET(request) {
       state.sendPending = async () => {
         if (state.closed || !state.cachedStats) return;
         try {
-          const { activeRequests, recentRequests, errorProvider, pendingRequestCount } = await getActiveRequests();
+          const {
+            activeRequests,
+            recentRequests,
+            errorProvider,
+            pendingRequestCount,
+          } = await getActiveRequests();
           const stats = {
             ...state.cachedStats,
             kind: "pending",
@@ -75,7 +103,9 @@ export async function GET(request) {
             errorProvider,
             pendingRequestCount,
           };
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(stats)}\n\n`));
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(stats)}\n\n`),
+          );
         } catch (err) {
           teardown(err);
         }
@@ -87,7 +117,9 @@ export async function GET(request) {
 
       if (state.closed) return; // initial send failed — teardown already ran
 
-      console.log(`[SSE] Client connected | update-listeners=${statsEmitter.listenerCount("update") + 1}`);
+      console.log(
+        `[SSE] Client connected | update-listeners=${statsEmitter.listenerCount("update") + 1}`,
+      );
 
       statsEmitter.on("update", state.send);
       statsEmitter.on("pending", state.sendPending);
@@ -118,7 +150,9 @@ export async function GET(request) {
         clearInterval(state.keepalive);
         state.keepalive = null;
       }
-      console.log(`[SSE] Client disconnected | update-listeners=${statsEmitter.listenerCount("update")}`);
+      console.log(
+        `[SSE] Client disconnected | update-listeners=${statsEmitter.listenerCount("update")}`,
+      );
     },
   });
 

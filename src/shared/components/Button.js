@@ -3,10 +3,14 @@
 import { cn } from "@/shared/utils/cn";
 
 const variants = {
-  primary: "bg-gradient-to-b from-primary to-primary-hover text-white shadow-sm",
-  secondary: "bg-white dark:bg-white/10 border border-black/10 dark:border-white/10 text-text-main hover:bg-black/5 dark:hover:bg-white/5",
-  outline: "border border-black/15 dark:border-white/15 text-text-main hover:bg-black/5",
-  ghost: "text-text-muted hover:bg-black/5 dark:hover:bg-white/5 hover:text-text-main",
+  primary:
+    "bg-gradient-to-b from-primary to-primary-hover text-white shadow-sm",
+  secondary:
+    "bg-white dark:bg-white/10 border border-black/10 dark:border-white/10 text-text-main hover:bg-black/5 dark:hover:bg-white/5",
+  outline:
+    "border border-black/15 dark:border-white/15 text-text-main hover:bg-black/5",
+  ghost:
+    "text-text-muted hover:bg-black/5 dark:hover:bg-white/5 hover:text-text-main",
   danger: "bg-red-500 text-white hover:bg-red-600 shadow-sm",
 };
 
@@ -36,21 +40,24 @@ export default function Button({
         variants[variant],
         sizes[size],
         fullWidth && "w-full",
-        className
+        className,
       )}
       disabled={disabled || loading}
       {...props}
     >
       {loading ? (
-        <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+        <span className="material-symbols-outlined animate-spin text-[18px]">
+          progress_activity
+        </span>
       ) : icon ? (
         <span className="material-symbols-outlined text-[18px]">{icon}</span>
       ) : null}
       {children}
       {iconRight && !loading && (
-        <span className="material-symbols-outlined text-[18px]">{iconRight}</span>
+        <span className="material-symbols-outlined text-[18px]">
+          {iconRight}
+        </span>
       )}
     </button>
   );
 }
-

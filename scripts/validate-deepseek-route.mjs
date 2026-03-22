@@ -20,7 +20,10 @@ function assert(condition, message) {
 async function getJson(url, init) {
   const response = await fetch(url, init);
   const payload = await response.json().catch(() => null);
-  assert(response.ok, `Request failed for ${url}: ${response.status} ${JSON.stringify(payload)}`);
+  assert(
+    response.ok,
+    `Request failed for ${url}: ${response.status} ${JSON.stringify(payload)}`,
+  );
   return payload;
 }
 
@@ -51,10 +54,14 @@ async function verifyRuntime() {
   const version = await getJson(`${BASE_URL}/api/version`);
   const pm2Apps = await getPm2Apps();
   const routerApp = pm2Apps.find((app) => app.name === "9router") || null;
-  const watchdogApp = pm2Apps.find((app) => app.name === "9router-watchdog") || null;
+  const watchdogApp =
+    pm2Apps.find((app) => app.name === "9router-watchdog") || null;
 
   assert(version.currentVersion, "Missing currentVersion from /api/version");
-  assert(routerApp?.pm2_env?.status === "online", "PM2 9router app is not online");
+  assert(
+    routerApp?.pm2_env?.status === "online",
+    "PM2 9router app is not online",
+  );
   assert(Boolean(watchdogApp), "PM2 9router-watchdog app is not registered");
 
   return {
@@ -82,7 +89,10 @@ async function verifyNonStreaming() {
   });
 
   const content = payload?.choices?.[0]?.message?.content || "";
-  assert(String(content).includes("DEEPSEEK_SYNC_OK"), "Non-streaming DeepSeek response did not contain the expected marker");
+  assert(
+    String(content).includes("DEEPSEEK_SYNC_OK"),
+    "Non-streaming DeepSeek response did not contain the expected marker",
+  );
 
   return {
     requestedModel: "deepseek-chat",
@@ -96,10 +106,13 @@ async function watchUsageStream(matchers = []) {
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${BASE_URL}/api/usage/stream?period=${STREAM_PERIOD}`, {
-      headers: { Accept: "text/event-stream" },
-      signal: controller.signal,
-    });
+    const response = await fetch(
+      `${BASE_URL}/api/usage/stream?period=${STREAM_PERIOD}`,
+      {
+        headers: { Accept: "text/event-stream" },
+        signal: controller.signal,
+      },
+    );
     assert(response.ok, `Usage stream request failed: ${response.status}`);
     assert(response.body, "Usage stream did not return a readable body");
 
@@ -140,7 +153,9 @@ async function watchUsageStream(matchers = []) {
       }
     }
 
-    throw new Error("Usage stream ended before the expected DeepSeek event was observed");
+    throw new Error(
+      "Usage stream ended before the expected DeepSeek event was observed",
+    );
   } finally {
     clearTimeout(timeout);
   }
@@ -148,14 +163,24 @@ async function watchUsageStream(matchers = []) {
 
 async function verifyStreaming() {
   const streamWatcher = watchUsageStream([
-    (payload) => Array.isArray(payload?.activeRequests) && payload.activeRequests.some((entry) => {
-      const route = String(entry.routeSummary || "");
-      return route.includes("deepseek-code") || route.includes("deepseek/deepseek-chat");
-    }),
-    (payload) => Array.isArray(payload?.recentRequests) && payload.recentRequests.some((entry) => {
-      const route = String(entry.routeSummary || "");
-      return route.includes("deepseek-code") || route.includes("deepseek/deepseek-chat");
-    }),
+    (payload) =>
+      Array.isArray(payload?.activeRequests) &&
+      payload.activeRequests.some((entry) => {
+        const route = String(entry.routeSummary || "");
+        return (
+          route.includes("deepseek-code") ||
+          route.includes("deepseek/deepseek-chat")
+        );
+      }),
+    (payload) =>
+      Array.isArray(payload?.recentRequests) &&
+      payload.recentRequests.some((entry) => {
+        const route = String(entry.routeSummary || "");
+        return (
+          route.includes("deepseek-code") ||
+          route.includes("deepseek/deepseek-chat")
+        );
+      }),
   ]);
 
   await sleep(500);
@@ -170,14 +195,18 @@ async function verifyStreaming() {
       messages: [
         {
           role: "user",
-          content: "Output a numbered list of 12 short coding concepts, one per line, prefixed with DS.",
+          content:
+            "Output a numbered list of 12 short coding concepts, one per line, prefixed with DS.",
         },
       ],
     }),
   });
 
   assert(response.ok, `Streaming DeepSeek request failed: ${response.status}`);
-  assert(response.body, "Streaming DeepSeek request did not return a readable body");
+  assert(
+    response.body,
+    "Streaming DeepSeek request did not return a readable body",
+  );
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -193,16 +222,24 @@ async function verifyStreaming() {
     if (text.includes("[DONE]")) sawDone = true;
   }
 
-  assert(chunkCount > 0, "Streaming DeepSeek request did not yield any SSE data chunks");
+  assert(
+    chunkCount > 0,
+    "Streaming DeepSeek request did not yield any SSE data chunks",
+  );
 
   const streamPayload = await streamWatcher;
-  const details = await getJson(`${BASE_URL}/api/usage/request-details?page=1&pageSize=10`);
+  const details = await getJson(
+    `${BASE_URL}/api/usage/request-details?page=1&pageSize=10`,
+  );
   const match = (details.details || []).find((entry) => {
     const route = String(entry.routeSummary || "");
     return route.includes("deepseek-code");
   });
 
-  assert(Boolean(match), "Did not find a recorded request-detail entry for deepseek-code");
+  assert(
+    Boolean(match),
+    "Did not find a recorded request-detail entry for deepseek-code",
+  );
 
   return {
     requestedModel: "deepseek-code",
@@ -220,18 +257,30 @@ async function main() {
   const sync = await verifyNonStreaming();
   const streaming = await verifyStreaming();
 
-  console.log(JSON.stringify({
-    ok: true,
-    runtime,
-    sync,
-    streaming,
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        runtime,
+        sync,
+        streaming,
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 main().catch((error) => {
-  console.error(JSON.stringify({
-    ok: false,
-    error: error.message || String(error),
-  }, null, 2));
+  console.error(
+    JSON.stringify(
+      {
+        ok: false,
+        error: error.message || String(error),
+      },
+      null,
+      2,
+    ),
+  );
   process.exit(1);
 });

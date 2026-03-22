@@ -1,4 +1,7 @@
-import { PROVIDER_MODELS, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
+import {
+  PROVIDER_MODELS,
+  PROVIDER_ID_TO_ALIAS,
+} from "@/shared/constants/models";
 import { getProviderAlias } from "@/shared/constants/providers";
 import { getProviderConnections, getCombos } from "@/lib/localDb";
 
@@ -26,7 +29,7 @@ export async function GET() {
     try {
       connections = await getProviderConnections();
       // Filter to only active connections
-      connections = connections.filter(c => c.isActive !== false);
+      connections = connections.filter((c) => c.isActive !== false);
     } catch (e) {
       // If database not available, return all models
       console.log("Could not fetch providers, returning all models");
@@ -94,12 +97,13 @@ export async function GET() {
         // If explicit selection exists, expose exactly those model IDs (including non-static IDs).
         const rawModelIds = hasExplicitEnabledModels
           ? Array.from(
-            new Set(
-              enabledModels.filter(
-                (modelId) => typeof modelId === "string" && modelId.trim() !== "",
+              new Set(
+                enabledModels.filter(
+                  (modelId) =>
+                    typeof modelId === "string" && modelId.trim() !== "",
+                ),
               ),
-            ),
-          )
+            )
           : providerModels.map((model) => model.id);
 
         const modelIds = rawModelIds
@@ -115,7 +119,9 @@ export async function GET() {
             }
             return modelId;
           })
-          .filter((modelId) => typeof modelId === "string" && modelId.trim() !== "");
+          .filter(
+            (modelId) => typeof modelId === "string" && modelId.trim() !== "",
+          );
 
         for (const modelId of modelIds) {
           models.push({
@@ -131,19 +137,22 @@ export async function GET() {
       }
     }
 
-    return Response.json({
-      object: "list",
-      data: models,
-    }, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
+    return Response.json(
+      {
+        object: "list",
+        data: models,
       },
-    });
+      {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+        },
+      },
+    );
   } catch (error) {
     console.log("Error fetching models:", error);
     return Response.json(
       { error: { message: error.message, type: "server_error" } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

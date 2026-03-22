@@ -1,9 +1,15 @@
 import crypto from "crypto";
 import { loadState, saveState, clearState } from "./state.js";
-import { spawnCloudflared, killCloudflared, isCloudflaredRunning, setUnexpectedExitHandler } from "./cloudflared.js";
+import {
+  spawnCloudflared,
+  killCloudflared,
+  isCloudflaredRunning,
+  setUnexpectedExitHandler,
+} from "./cloudflared.js";
 import { getSettings, updateSettings } from "@/lib/localDb";
 
-const TUNNEL_WORKER_URL = process.env.TUNNEL_WORKER_URL || "https://tunnel.9router.com";
+const TUNNEL_WORKER_URL =
+  process.env.TUNNEL_WORKER_URL || "https://tunnel.9router.com";
 const MACHINE_ID_SALT = "9router-tunnel-salt";
 const API_KEY_SECRET = "9router-tunnel-api-key-secret";
 const SHORT_ID_LENGTH = 6;
@@ -15,7 +21,9 @@ let isReconnecting = false;
 function generateShortId() {
   let result = "";
   for (let i = 0; i < SHORT_ID_LENGTH; i++) {
-    result += SHORT_ID_CHARS.charAt(Math.floor(Math.random() * SHORT_ID_CHARS.length));
+    result += SHORT_ID_CHARS.charAt(
+      Math.floor(Math.random() * SHORT_ID_CHARS.length),
+    );
   }
   return result;
 }
@@ -24,7 +32,11 @@ function getMachineId() {
   try {
     const { machineIdSync } = require("node-machine-id");
     const raw = machineIdSync();
-    return crypto.createHash("sha256").update(raw + MACHINE_ID_SALT).digest("hex").substring(0, 16);
+    return crypto
+      .createHash("sha256")
+      .update(raw + MACHINE_ID_SALT)
+      .digest("hex")
+      .substring(0, 16);
   } catch (e) {
     return crypto.randomUUID().replace(/-/g, "").substring(0, 16);
   }
@@ -36,7 +48,11 @@ function generateApiKey(machineId) {
   for (let i = 0; i < 6; i++) {
     keyId += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  const crc = crypto.createHmac("sha256", API_KEY_SECRET).update(machineId + keyId).digest("hex").slice(0, 8);
+  const crc = crypto
+    .createHmac("sha256", API_KEY_SECRET)
+    .update(machineId + keyId)
+    .digest("hex")
+    .slice(0, 8);
   return `sk-${machineId}-${keyId}-${crc}`;
 }
 
@@ -44,7 +60,7 @@ async function workerFetch(reqPath, options = {}) {
   const url = `${TUNNEL_WORKER_URL}${reqPath}`;
   const res = await fetch(url, {
     ...options,
-    headers: { "Content-Type": "application/json", ...options.headers }
+    headers: { "Content-Type": "application/json", ...options.headers },
   });
   return res.json();
 }
@@ -52,7 +68,12 @@ async function workerFetch(reqPath, options = {}) {
 export async function enableTunnel() {
   const existing = loadState();
   if (existing && existing.tunnelUrl && isCloudflaredRunning()) {
-    return { success: true, tunnelUrl: existing.tunnelUrl, shortId: existing.shortId, alreadyRunning: true };
+    return {
+      success: true,
+      tunnelUrl: existing.tunnelUrl,
+      shortId: existing.shortId,
+      alreadyRunning: true,
+    };
   }
 
   killCloudflared();
@@ -63,12 +84,12 @@ export async function enableTunnel() {
 
   await workerFetch("/api/session/create", {
     method: "POST",
-    body: JSON.stringify({ apiKey, shortId })
+    body: JSON.stringify({ apiKey, shortId }),
   });
 
   const tunnelResult = await workerFetch("/api/tunnel/create", {
     method: "POST",
-    body: JSON.stringify({ apiKey })
+    body: JSON.stringify({ apiKey }),
   });
 
   if (tunnelResult.error) {
@@ -93,8 +114,11 @@ async function scheduleReconnect(attempt) {
   if (isReconnecting) return;
   isReconnecting = true;
 
-  const delay = RECONNECT_DELAYS_MS[Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)];
-  console.log(`[Tunnel] Unexpected exit detected, reconnecting in ${delay / 1000}s (attempt ${attempt + 1})...`);
+  const delay =
+    RECONNECT_DELAYS_MS[Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)];
+  console.log(
+    `[Tunnel] Unexpected exit detected, reconnecting in ${delay / 1000}s (attempt ${attempt + 1})...`,
+  );
 
   await new Promise((r) => setTimeout(r, delay));
 
@@ -109,7 +133,10 @@ async function scheduleReconnect(attempt) {
     console.log("[Tunnel] Reconnected successfully");
     isReconnecting = false;
   } catch (err) {
-    console.log(`[Tunnel] Reconnect attempt ${attempt + 1} failed:`, err.message);
+    console.log(
+      `[Tunnel] Reconnect attempt ${attempt + 1} failed:`,
+      err.message,
+    );
     isReconnecting = false;
     const nextAttempt = attempt + 1;
     if (nextAttempt < RECONNECT_DELAYS_MS.length) {
@@ -129,13 +156,20 @@ export async function disableTunnel() {
     try {
       await workerFetch("/api/tunnel/delete", {
         method: "DELETE",
-        body: JSON.stringify({ apiKey: state.apiKey })
+        body: JSON.stringify({ apiKey: state.apiKey }),
       });
-    } catch (e) { /* ignore worker errors on disable */ }
+    } catch (e) {
+      /* ignore worker errors on disable */
+    }
   }
 
   if (state) {
-    saveState({ shortId: state.shortId, apiKey: state.apiKey, machineId: state.machineId, tunnelUrl: null });
+    saveState({
+      shortId: state.shortId,
+      apiKey: state.apiKey,
+      machineId: state.machineId,
+      tunnelUrl: null,
+    });
   }
 
   await updateSettings({ tunnelEnabled: false, tunnelUrl: "" });
@@ -152,6 +186,6 @@ export async function getTunnelStatus() {
     enabled: settings.tunnelEnabled === true && running,
     tunnelUrl: state?.tunnelUrl || "",
     shortId: state?.shortId || "",
-    running
+    running,
   };
 }

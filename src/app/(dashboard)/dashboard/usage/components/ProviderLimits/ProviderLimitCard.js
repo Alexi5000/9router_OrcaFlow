@@ -29,7 +29,7 @@ export default function ProviderLimitCard({
 
   const handleRefresh = async () => {
     if (!onRefresh || refreshing) return;
-    
+
     setRefreshing(true);
     try {
       await onRefresh();
@@ -82,9 +82,11 @@ export default function ProviderLimitCard({
               />
             )}
           </div>
-          
+
           <div>
-            <h3 className="font-semibold text-text-primary">{name || provider}</h3>
+            <h3 className="font-semibold text-text-primary">
+              {name || provider}
+            </h3>
             {plan && (
               <Badge
                 variant={planVariants[plan?.toLowerCase()] || "default"}
@@ -146,7 +148,9 @@ export default function ProviderLimitCard({
             <span className="material-symbols-outlined text-blue-500 text-[20px]">
               info
             </span>
-            <p className="text-sm text-blue-600 dark:text-blue-400">{message}</p>
+            <p className="text-sm text-blue-600 dark:text-blue-400">
+              {message}
+            </p>
           </div>
         </div>
       )}
@@ -156,11 +160,12 @@ export default function ProviderLimitCard({
         <div className="space-y-4">
           {quotas.map((quota, index) => {
             // For Antigravity, use remainingPercentage if available, otherwise calculate
-            const percentage = quota.remainingPercentage !== undefined
-              ? Math.round((quota.total - quota.used) / quota.total * 100)
-              : calculatePercentage(quota.used, quota.total);
+            const percentage =
+              quota.remainingPercentage !== undefined
+                ? Math.round(((quota.total - quota.used) / quota.total) * 100)
+                : calculatePercentage(quota.used, quota.total);
             const unlimited = quota.total === 0 || quota.total === null;
-            
+
             return (
               <QuotaProgressBar
                 key={`${quota.name}-${index}`}

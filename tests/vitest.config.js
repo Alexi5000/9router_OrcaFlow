@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
+  root: __dirname,
   test: {
     environment: "node",
     globals: true,
@@ -21,6 +22,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@": resolve(__dirname, "../src"),
       // Resolve open-sse/* imports to the actual local package
       "open-sse": resolve(__dirname, "../open-sse"),
     },

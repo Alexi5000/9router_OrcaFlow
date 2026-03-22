@@ -1,6 +1,6 @@
 /**
  * Translator: OpenAI Responses API → OpenAI Chat Completions
- * 
+ *
  * Responses API uses: { input: [...], instructions: "..." }
  * Chat API uses: { messages: [...] }
  */
@@ -12,7 +12,12 @@ import { sanitizeOpenAIResponsesRequestBody } from "../helpers/openaiResponsesSc
 /**
  * Convert OpenAI Responses API request to OpenAI Chat Completions format
  */
-export function openaiResponsesToOpenAIRequest(model, body, stream, credentials) {
+export function openaiResponsesToOpenAIRequest(
+  model,
+  body,
+  stream,
+  credentials,
+) {
   if (!body.input) return body;
 
   const result = { ...body };
@@ -51,25 +56,27 @@ export function openaiResponsesToOpenAIRequest(model, body, stream, credentials)
 
       // Convert content: input_text → text, output_text → text, input_image → image_url
       const content = Array.isArray(item.content)
-        ? item.content.map(c => {
-          if (c.type === "input_text") return { type: "text", text: c.text };
-          if (c.type === "output_text") return { type: "text", text: c.text };
-          if (c.type === "input_image") {
-            const url = c.image_url || c.file_id || "";
-            return { type: "image_url", image_url: { url, detail: c.detail || "auto" } };
-          }
-          return c;
-        })
+        ? item.content.map((c) => {
+            if (c.type === "input_text") return { type: "text", text: c.text };
+            if (c.type === "output_text") return { type: "text", text: c.text };
+            if (c.type === "input_image") {
+              const url = c.image_url || c.file_id || "";
+              return {
+                type: "image_url",
+                image_url: { url, detail: c.detail || "auto" },
+              };
+            }
+            return c;
+          })
         : item.content;
       result.messages.push({ role: item.role, content });
-    }
-    else if (itemType === "function_call") {
+    } else if (itemType === "function_call") {
       // Start or append to assistant message with tool_calls
       if (!currentAssistantMsg) {
         currentAssistantMsg = {
           role: "assistant",
           content: null,
-          tool_calls: []
+          tool_calls: [],
         };
       }
       currentAssistantMsg.tool_calls.push({
@@ -77,11 +84,10 @@ export function openaiResponsesToOpenAIRequest(model, body, stream, credentials)
         type: "function",
         function: {
           name: item.name,
-          arguments: item.arguments
-        }
+          arguments: item.arguments,
+        },
       });
-    }
-    else if (itemType === "function_call_output") {
+    } else if (itemType === "function_call_output") {
       // Flush assistant message first if exists
       if (currentAssistantMsg) {
         result.messages.push(currentAssistantMsg);
@@ -98,10 +104,12 @@ export function openaiResponsesToOpenAIRequest(model, body, stream, credentials)
       result.messages.push({
         role: "tool",
         tool_call_id: item.call_id,
-        content: typeof item.output === "string" ? item.output : JSON.stringify(item.output)
+        content:
+          typeof item.output === "string"
+            ? item.output
+            : JSON.stringify(item.output),
       });
-    }
-    else if (itemType === "reasoning") {
+    } else if (itemType === "reasoning") {
       // Skip reasoning items - they are for display only
       continue;
     }
@@ -124,21 +132,22 @@ export function openaiResponsesToOpenAIRequest(model, body, stream, credentials)
   // such as Gemini, which strictly validates function names.
   if (body.tools && Array.isArray(body.tools)) {
     result.tools = body.tools
-      .map(tool => {
+      .map((tool) => {
         // Already in Chat Completions format: { type: "function", function: { name, ... } }
         if (tool.function) return tool;
         // Responses API function tool: { type: "function", name, description, parameters }
         // Only convert when a non-empty name is present; skip hosted tools without one.
         const name = tool.name;
-        if (!name || typeof name !== "string" || name.trim() === "") return null;
+        if (!name || typeof name !== "string" || name.trim() === "")
+          return null;
         return {
           type: "function",
           function: {
             name,
             description: tool.description,
             parameters: tool.parameters,
-            strict: tool.strict
-          }
+            strict: tool.strict,
+          },
         };
       })
       .filter(Boolean);
@@ -158,7 +167,12 @@ export function openaiResponsesToOpenAIRequest(model, body, stream, credentials)
 /**
  * Convert OpenAI Chat Completions to OpenAI Responses API format
  */
-export function openaiToOpenAIResponsesRequest(model, body, stream, credentials) {
+export function openaiToOpenAIResponsesRequest(
+  model,
+  body,
+  stream,
+  credentials,
+) {
   // Body already in Responses API format (e.g. Cursor CLI calling /chat/completions with input[])
   if (body.input) {
     return sanitizeOpenAIResponsesRequestBody({ ...body, model, stream: true });
@@ -168,7 +182,7 @@ export function openaiToOpenAIResponsesRequest(model, body, stream, credentials)
     model,
     input: [],
     stream: true,
-    store: false
+    store: false,
   };
 
   // Extract system message as instructions
@@ -179,7 +193,8 @@ export function openaiToOpenAIResponsesRequest(model, body, stream, credentials)
     if (msg.role === "system") {
       // Use first system message as instructions
       if (!hasSystemMessage) {
-        result.instructions = typeof msg.content === "string" ? msg.content : "";
+        result.instructions =
+          typeof msg.content === "string" ? msg.content : "";
         hasSystemMessage = true;
       }
       continue; // Skip system messages in input
@@ -188,24 +203,36 @@ export function openaiToOpenAIResponsesRequest(model, body, stream, credentials)
     // Convert user/assistant messages to input items
     if (msg.role === "user" || msg.role === "assistant") {
       const contentType = msg.role === "user" ? "input_text" : "output_text";
-      const content = typeof msg.content === "string"
-        ? [{ type: contentType, text: msg.content }]
-        : Array.isArray(msg.content)
-          ? msg.content.map(c => {
-            if (c.type === "text") return { type: contentType, text: c.text };
-            // Convert Chat Completions image_url → Responses API input_image
-            // Responses API expects: { type: "input_image", image_url: "<url string>" }
-            // Chat Completions sends: { type: "image_url", image_url: { url: "...", detail: "..." } }
-            if (c.type === "image_url") {
-              const url = typeof c.image_url === "string" ? c.image_url : c.image_url?.url;
-              return { type: "input_image", image_url: url, detail: c.image_url?.detail || "auto" };
-            }
-            if (c.type === "input_image") return c;
-            // Serialize any unknown type (tool_use, tool_result, thinking, etc.) as text
-            const text = c.text || c.content || JSON.stringify(c);
-            return { type: contentType, text: typeof text === "string" ? text : JSON.stringify(text) };
-          })
-          : [];
+      const content =
+        typeof msg.content === "string"
+          ? [{ type: contentType, text: msg.content }]
+          : Array.isArray(msg.content)
+            ? msg.content.map((c) => {
+                if (c.type === "text")
+                  return { type: contentType, text: c.text };
+                // Convert Chat Completions image_url → Responses API input_image
+                // Responses API expects: { type: "input_image", image_url: "<url string>" }
+                // Chat Completions sends: { type: "image_url", image_url: { url: "...", detail: "..." } }
+                if (c.type === "image_url") {
+                  const url =
+                    typeof c.image_url === "string"
+                      ? c.image_url
+                      : c.image_url?.url;
+                  return {
+                    type: "input_image",
+                    image_url: url,
+                    detail: c.image_url?.detail || "auto",
+                  };
+                }
+                if (c.type === "input_image") return c;
+                // Serialize any unknown type (tool_use, tool_result, thinking, etc.) as text
+                const text = c.text || c.content || JSON.stringify(c);
+                return {
+                  type: contentType,
+                  text: typeof text === "string" ? text : JSON.stringify(text),
+                };
+              })
+            : [];
 
       // Only push a message block if content is non-empty.
       // Assistant messages with only tool_calls have content: null — skip the
@@ -214,7 +241,7 @@ export function openaiToOpenAIResponsesRequest(model, body, stream, credentials)
         result.input.push({
           type: "message",
           role: msg.role,
-          content
+          content,
         });
       }
     }
@@ -226,7 +253,7 @@ export function openaiToOpenAIResponsesRequest(model, body, stream, credentials)
           type: "function_call",
           call_id: tc.id,
           name: tc.function?.name || "",
-          arguments: tc.function?.arguments || "{}"
+          arguments: tc.function?.arguments || "{}",
         });
       }
     }
@@ -236,7 +263,7 @@ export function openaiToOpenAIResponsesRequest(model, body, stream, credentials)
       result.input.push({
         type: "function_call_output",
         call_id: msg.tool_call_id,
-        output: msg.content
+        output: msg.content,
       });
     }
   }
@@ -248,14 +275,14 @@ export function openaiToOpenAIResponsesRequest(model, body, stream, credentials)
 
   // Convert tools format
   if (body.tools && Array.isArray(body.tools)) {
-    result.tools = body.tools.map(tool => {
+    result.tools = body.tools.map((tool) => {
       if (tool.type === "function") {
         return {
           type: "function",
           name: tool.function.name,
           description: tool.function.description,
           parameters: tool.function.parameters,
-          strict: tool.function.strict
+          strict: tool.function.strict,
         };
       }
       return tool;
@@ -271,5 +298,15 @@ export function openaiToOpenAIResponsesRequest(model, body, stream, credentials)
 }
 
 // Register both directions
-register(FORMATS.OPENAI_RESPONSES, FORMATS.OPENAI, openaiResponsesToOpenAIRequest, null);
-register(FORMATS.OPENAI, FORMATS.OPENAI_RESPONSES, openaiToOpenAIResponsesRequest, null);
+register(
+  FORMATS.OPENAI_RESPONSES,
+  FORMATS.OPENAI,
+  openaiResponsesToOpenAIRequest,
+  null,
+);
+register(
+  FORMATS.OPENAI,
+  FORMATS.OPENAI_RESPONSES,
+  openaiToOpenAIResponsesRequest,
+  null,
+);

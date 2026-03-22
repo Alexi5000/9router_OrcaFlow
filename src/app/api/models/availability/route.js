@@ -1,4 +1,7 @@
-import { getProviderConnections, updateProviderConnection } from "@/lib/localDb";
+import {
+  getProviderConnections,
+  updateProviderConnection,
+} from "@/lib/localDb";
 import { getEffectiveConnectionStatus } from "@/shared/utils/providerHealth";
 
 function getActiveModelLocks(connection, now = Date.now()) {
@@ -31,7 +34,11 @@ export async function GET() {
         status: "cooldown",
         until: lock.until,
         connectionId: connection.id,
-        connectionName: connection.displayName || connection.name || connection.email || connection.id,
+        connectionName:
+          connection.displayName ||
+          connection.name ||
+          connection.email ||
+          connection.id,
       });
     }
 
@@ -43,20 +50,28 @@ export async function GET() {
         status: "unavailable",
         until: connection.lastErrorAt || null,
         connectionId: connection.id,
-        connectionName: connection.displayName || connection.name || connection.email || connection.id,
+        connectionName:
+          connection.displayName ||
+          connection.name ||
+          connection.email ||
+          connection.id,
         error: connection.lastError || null,
       });
     }
   }
 
-  return Response.json({
-    models,
-    unavailableCount: models.filter((model) => model.status !== "available").length,
-  }, {
-    headers: {
-      "Cache-Control": "no-store",
+  return Response.json(
+    {
+      models,
+      unavailableCount: models.filter((model) => model.status !== "available")
+        .length,
     },
-  });
+    {
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    },
+  );
 }
 
 export async function POST(request) {
@@ -67,35 +82,46 @@ export async function POST(request) {
     return Response.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const connections = await getProviderConnections({ provider, isActive: true });
+  const connections = await getProviderConnections({
+    provider,
+    isActive: true,
+  });
   const lockKey = `modelLock_${model}`;
 
-  await Promise.all(connections.map(async (connection) => {
-    if (!connection?.[lockKey]) return;
-    const clearUpdate = {
-      [lockKey]: null,
-    };
+  await Promise.all(
+    connections.map(async (connection) => {
+      if (!connection?.[lockKey]) return;
+      const clearUpdate = {
+        [lockKey]: null,
+      };
 
-    const hasOtherActiveLocks = Object.entries(connection).some(([key, value]) => {
-      if (!key.startsWith("modelLock_") || key === lockKey || !value) return false;
-      const expiry = new Date(value).getTime();
-      return Number.isFinite(expiry) && expiry > Date.now();
-    });
+      const hasOtherActiveLocks = Object.entries(connection).some(
+        ([key, value]) => {
+          if (!key.startsWith("modelLock_") || key === lockKey || !value)
+            return false;
+          const expiry = new Date(value).getTime();
+          return Number.isFinite(expiry) && expiry > Date.now();
+        },
+      );
 
-    if (!hasOtherActiveLocks) {
-      clearUpdate.testStatus = "active";
-      clearUpdate.lastError = null;
-      clearUpdate.lastErrorAt = null;
-      clearUpdate.errorCode = null;
-      clearUpdate.backoffLevel = 0;
-    }
+      if (!hasOtherActiveLocks) {
+        clearUpdate.testStatus = "active";
+        clearUpdate.lastError = null;
+        clearUpdate.lastErrorAt = null;
+        clearUpdate.errorCode = null;
+        clearUpdate.backoffLevel = 0;
+      }
 
-    await updateProviderConnection(connection.id, clearUpdate);
-  }));
+      await updateProviderConnection(connection.id, clearUpdate);
+    }),
+  );
 
-  return Response.json({ ok: true }, {
-    headers: {
-      "Cache-Control": "no-store",
+  return Response.json(
+    { ok: true },
+    {
+      headers: {
+        "Cache-Control": "no-store",
+      },
     },
-  });
+  );
 }

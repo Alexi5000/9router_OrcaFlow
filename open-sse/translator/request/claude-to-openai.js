@@ -2,12 +2,27 @@ import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
 import { adjustMaxTokens } from "../helpers/maxTokensHelper.js";
 
+function normalizeOpenAIContent(parts) {
+  if (!Array.isArray(parts) || parts.length === 0) {
+    return "";
+  }
+
+  if (parts.every((part) => part?.type === "text")) {
+    return parts
+      .map((part) => part.text)
+      .filter((text) => typeof text === "string" && text.length > 0)
+      .join("\n");
+  }
+
+  return parts;
+}
+
 // Convert Claude request to OpenAI format
 export function claudeToOpenAIRequest(model, body, stream) {
   const result = {
     model: model,
     messages: [],
-    stream: stream
+    stream: stream,
   };
 
   // Max tokens
@@ -23,13 +38,13 @@ export function claudeToOpenAIRequest(model, body, stream) {
   // System message
   if (body.system) {
     const systemContent = Array.isArray(body.system)
-      ? body.system.map(s => s.text || "").join("\n")
+      ? body.system.map((s) => s.text || "").join("\n")
       : body.system;
-    
+
     if (systemContent) {
       result.messages.push({
         role: "system",
-        content: systemContent
+        content: systemContent,
       });
     }
   }
@@ -55,7 +70,7 @@ export function claudeToOpenAIRequest(model, body, stream) {
 
   // Tools
   if (body.tools && Array.isArray(body.tools)) {
-    result.tools = body.tools.map(tool => {
+    result.tools = body.tools.map((tool) => {
       // Preserve Claude-native built-in tools so downstream provider-specific
       // compatibility checks can decide whether to accept or skip them.
       if (tool?.type && tool.type !== "function" && !tool.input_schema) {
@@ -67,8 +82,8 @@ export function claudeToOpenAIRequest(model, body, stream) {
         function: {
           name: tool.name,
           description: tool.description,
-          parameters: tool.input_schema || { type: "object", properties: {} }
-        }
+          parameters: tool.input_schema || { type: "object", properties: {} },
+        },
       };
     });
   }
@@ -85,9 +100,13 @@ export function claudeToOpenAIRequest(model, body, stream) {
 function fixMissingToolResponses(messages) {
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
-    if (msg.role === "assistant" && msg.tool_calls && msg.tool_calls.length > 0) {
-      const toolCallIds = msg.tool_calls.map(tc => tc.id);
-      
+    if (
+      msg.role === "assistant" &&
+      msg.tool_calls &&
+      msg.tool_calls.length > 0
+    ) {
+      const toolCallIds = msg.tool_calls.map((tc) => tc.id);
+
       // Collect all tool response IDs that IMMEDIATELY follow this assistant message
       const respondedIds = new Set();
       let insertPosition = i + 1;
@@ -100,15 +119,15 @@ function fixMissingToolResponses(messages) {
           break;
         }
       }
-      
+
       // Find missing responses and insert them
-      const missingIds = toolCallIds.filter(id => !respondedIds.has(id));
-      
+      const missingIds = toolCallIds.filter((id) => !respondedIds.has(id));
+
       if (missingIds.length > 0) {
-        const missingResponses = missingIds.map(id => ({
+        const missingResponses = missingIds.map((id) => ({
           role: "tool",
           tool_call_id: id,
-          content: "[No response received]"
+          content: "[No response received]",
         }));
         messages.splice(insertPosition, 0, ...missingResponses);
         i = insertPosition + missingResponses.length - 1;
@@ -119,8 +138,9 @@ function fixMissingToolResponses(messages) {
 
 // Convert single Claude message - returns single message or array of messages
 function convertClaudeMessage(msg) {
-  const role = msg.role === "user" || msg.role === "tool" ? "user" : "assistant";
-  
+  const role =
+    msg.role === "user" || msg.role === "tool" ? "user" : "assistant";
+
   // Simple string content
   if (typeof msg.content === "string") {
     return { role, content: msg.content };
@@ -143,8 +163,8 @@ function convertClaudeMessage(msg) {
             parts.push({
               type: "image_url",
               image_url: {
-                url: `data:${block.source.media_type};base64,${block.source.data}`
-              }
+                url: `data:${block.source.media_type};base64,${block.source.data}`,
+              },
             });
           }
           break;
@@ -155,8 +175,8 @@ function convertClaudeMessage(msg) {
             type: "function",
             function: {
               name: block.name,
-              arguments: JSON.stringify(block.input || {})
-            }
+              arguments: JSON.stringify(block.input || {}),
+            },
           });
           break;
 
@@ -165,18 +185,19 @@ function convertClaudeMessage(msg) {
           if (typeof block.content === "string") {
             resultContent = block.content;
           } else if (Array.isArray(block.content)) {
-            resultContent = block.content
-              .filter(c => c.type === "text")
-              .map(c => c.text)
-              .join("\n") || JSON.stringify(block.content);
+            resultContent =
+              block.content
+                .filter((c) => c.type === "text")
+                .map((c) => c.text)
+                .join("\n") || JSON.stringify(block.content);
           } else if (block.content) {
             resultContent = JSON.stringify(block.content);
           }
-          
+
           toolResults.push({
             role: "tool",
             tool_call_id: block.tool_use_id,
-            content: resultContent
+            content: resultContent,
           });
           break;
       }
@@ -185,10 +206,10 @@ function convertClaudeMessage(msg) {
     // If has tool results, return array of tool messages
     if (toolResults.length > 0) {
       if (parts.length > 0) {
-        const textContent = parts.length === 1 && parts[0].type === "text" 
-          ? parts[0].text 
-          : parts;
-        return [...toolResults, { role: "user", content: textContent }];
+        return [
+          ...toolResults,
+          { role: "user", content: normalizeOpenAIContent(parts) },
+        ];
       }
       return toolResults;
     }
@@ -197,9 +218,7 @@ function convertClaudeMessage(msg) {
     if (toolCalls.length > 0) {
       const result = { role: "assistant" };
       if (parts.length > 0) {
-        result.content = parts.length === 1 && parts[0].type === "text" 
-          ? parts[0].text 
-          : parts;
+        result.content = normalizeOpenAIContent(parts);
       }
       result.tool_calls = toolCalls;
       return result;
@@ -209,10 +228,10 @@ function convertClaudeMessage(msg) {
     if (parts.length > 0) {
       return {
         role,
-        content: parts.length === 1 && parts[0].type === "text" ? parts[0].text : parts
+        content: normalizeOpenAIContent(parts),
       };
     }
-    
+
     // Empty content array
     if (msg.content.length === 0) {
       return { role, content: "" };
@@ -226,15 +245,18 @@ function convertClaudeMessage(msg) {
 function convertToolChoice(choice) {
   if (!choice) return "auto";
   if (typeof choice === "string") return choice;
-  
+
   switch (choice.type) {
-    case "auto": return "auto";
-    case "any": return "required";
-    case "tool": return { type: "function", function: { name: choice.name } };
-    default: return "auto";
+    case "auto":
+      return "auto";
+    case "any":
+      return "required";
+    case "tool":
+      return { type: "function", function: { name: choice.name } };
+    default:
+      return "auto";
   }
 }
 
 // Register
 register(FORMATS.CLAUDE, FORMATS.OPENAI, claudeToOpenAIRequest, null);
-

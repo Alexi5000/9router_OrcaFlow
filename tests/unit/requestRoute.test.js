@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRequestRouteSummary, normalizeRequestRoute } from "../../src/shared/utils/requestRoute.js";
+import {
+  buildRequestRouteSummary,
+  normalizeRequestRoute,
+} from "../../src/shared/utils/requestRoute.js";
 
 describe("request route utilities", () => {
   it("builds a readable combo route summary", () => {
@@ -21,7 +24,7 @@ describe("request route utilities", () => {
       "kilocode/openrouter/hunter-alpha",
     ]);
     expect(buildRequestRouteSummary(route)).toBe(
-      "claude-sonnet-4-6 -> combo/sonnet -> kilocode/openrouter/hunter-alpha | kilo-burst-coding"
+      "claude-sonnet-4-6 -> combo/sonnet -> kilocode/openrouter/hunter-alpha | kilo-burst-coding",
     );
   });
 

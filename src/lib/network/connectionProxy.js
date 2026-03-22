@@ -6,9 +6,14 @@ function normalizeString(value) {
 }
 
 function normalizeLegacyProxy(providerSpecificData = {}) {
-  const connectionProxyEnabled = providerSpecificData?.connectionProxyEnabled === true;
-  const connectionProxyUrl = normalizeString(providerSpecificData?.connectionProxyUrl);
-  const connectionNoProxy = normalizeString(providerSpecificData?.connectionNoProxy);
+  const connectionProxyEnabled =
+    providerSpecificData?.connectionProxyEnabled === true;
+  const connectionProxyUrl = normalizeString(
+    providerSpecificData?.connectionProxyUrl,
+  );
+  const connectionNoProxy = normalizeString(
+    providerSpecificData?.connectionNoProxy,
+  );
 
   return {
     connectionProxyEnabled,

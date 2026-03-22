@@ -7,17 +7,29 @@ import {
   getProxyPoolById,
 } from "@/models";
 import { APIKEY_PROVIDERS } from "@/shared/constants/config";
-import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
+import {
+  isOpenAICompatibleProvider,
+  isAnthropicCompatibleProvider,
+} from "@/shared/constants/providers";
 
 export const dynamic = "force-dynamic";
 
 function normalizeProxyConfig(body = {}) {
   const enabled = body?.connectionProxyEnabled === true;
-  const url = typeof body?.connectionProxyUrl === "string" ? body.connectionProxyUrl.trim() : "";
-  const noProxy = typeof body?.connectionNoProxy === "string" ? body.connectionNoProxy.trim() : "";
+  const url =
+    typeof body?.connectionProxyUrl === "string"
+      ? body.connectionProxyUrl.trim()
+      : "";
+  const noProxy =
+    typeof body?.connectionNoProxy === "string"
+      ? body.connectionNoProxy.trim()
+      : "";
 
   if (enabled && !url) {
-    return { error: "Connection proxy URL is required when connection proxy is enabled" };
+    return {
+      error:
+        "Connection proxy URL is required when connection proxy is enabled",
+    };
   }
 
   return {
@@ -28,7 +40,12 @@ function normalizeProxyConfig(body = {}) {
 }
 
 async function normalizeProxyPoolId(proxyPoolId) {
-  if (proxyPoolId === undefined || proxyPoolId === null || proxyPoolId === "" || proxyPoolId === "__none__") {
+  if (
+    proxyPoolId === undefined ||
+    proxyPoolId === null ||
+    proxyPoolId === "" ||
+    proxyPoolId === "__none__"
+  ) {
     return { proxyPoolId: null };
   }
 
@@ -57,13 +74,17 @@ export async function GET() {
       for (const node of nodes) {
         if (node.id && node.name) nodeNameMap[node.id] = node.name;
       }
-    } catch { }
+    } catch {}
 
     // Hide sensitive fields, enrich name for compatible providers
-    const safeConnections = connections.map(c => {
-      const isCompatible = isOpenAICompatibleProvider(c.provider) || isAnthropicCompatibleProvider(c.provider);
+    const safeConnections = connections.map((c) => {
+      const isCompatible =
+        isOpenAICompatibleProvider(c.provider) ||
+        isAnthropicCompatibleProvider(c.provider);
       const name = isCompatible
-        ? (nodeNameMap[c.provider] || c.providerSpecificData?.nodeName || c.provider)
+        ? nodeNameMap[c.provider] ||
+          c.providerSpecificData?.nodeName ||
+          c.provider
         : c.name;
       return {
         ...c,
@@ -80,7 +101,10 @@ export async function GET() {
     return response;
   } catch (error) {
     console.log("Error fetching providers:", error);
-    return NextResponse.json({ error: "Failed to fetch providers" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch providers" },
+      { status: 500 },
+    );
   }
 }
 
@@ -88,7 +112,15 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { provider, apiKey, name, priority, globalPriority, defaultModel, testStatus } = body;
+    const {
+      provider,
+      apiKey,
+      name,
+      priority,
+      globalPriority,
+      defaultModel,
+      testStatus,
+    } = body;
     const proxyConfig = normalizeProxyConfig(body);
     if (proxyConfig.error) {
       return NextResponse.json({ error: proxyConfig.error }, { status: 400 });
@@ -96,12 +128,16 @@ export async function POST(request) {
 
     const proxyPoolResult = await normalizeProxyPoolId(body.proxyPoolId);
     if (proxyPoolResult.error) {
-      return NextResponse.json({ error: proxyPoolResult.error }, { status: 400 });
+      return NextResponse.json(
+        { error: proxyPoolResult.error },
+        { status: 400 },
+      );
     }
     const proxyPoolId = proxyPoolResult.proxyPoolId;
 
     // Validation
-    const isValidProvider = APIKEY_PROVIDERS[provider] ||
+    const isValidProvider =
+      APIKEY_PROVIDERS[provider] ||
       isOpenAICompatibleProvider(provider) ||
       isAnthropicCompatibleProvider(provider);
 
@@ -109,7 +145,10 @@ export async function POST(request) {
       return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
     }
     if (!apiKey) {
-      return NextResponse.json({ error: "API Key is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "API Key is required" },
+        { status: 400 },
+      );
     }
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -120,12 +159,21 @@ export async function POST(request) {
     if (isOpenAICompatibleProvider(provider)) {
       const node = await getProviderNodeById(provider);
       if (!node) {
-        return NextResponse.json({ error: "OpenAI Compatible node not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "OpenAI Compatible node not found" },
+          { status: 404 },
+        );
       }
 
       const existingConnections = await getProviderConnections({ provider });
       if (existingConnections.length > 0) {
-        return NextResponse.json({ error: "Only one connection is allowed for this OpenAI Compatible node" }, { status: 400 });
+        return NextResponse.json(
+          {
+            error:
+              "Only one connection is allowed for this OpenAI Compatible node",
+          },
+          { status: 400 },
+        );
       }
 
       providerSpecificData = {
@@ -137,12 +185,21 @@ export async function POST(request) {
     } else if (isAnthropicCompatibleProvider(provider)) {
       const node = await getProviderNodeById(provider);
       if (!node) {
-        return NextResponse.json({ error: "Anthropic Compatible node not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "Anthropic Compatible node not found" },
+          { status: 404 },
+        );
       }
 
       const existingConnections = await getProviderConnections({ provider });
       if (existingConnections.length > 0) {
-        return NextResponse.json({ error: "Only one connection is allowed for this Anthropic Compatible node" }, { status: 400 });
+        return NextResponse.json(
+          {
+            error:
+              "Only one connection is allowed for this Anthropic Compatible node",
+          },
+          { status: 400 },
+        );
       }
 
       providerSpecificData = {
@@ -183,6 +240,9 @@ export async function POST(request) {
     return NextResponse.json({ connection: result }, { status: 201 });
   } catch (error) {
     console.log("Error creating provider:", error);
-    return NextResponse.json({ error: "Failed to create provider" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create provider" },
+      { status: 500 },
+    );
   }
 }

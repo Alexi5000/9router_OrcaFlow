@@ -9,7 +9,9 @@ const ecosystemPath = path.join(appRoot, "ecosystem.config.cjs");
 const nextDir = path.join(appRoot, ".next");
 const standaloneDir = path.join(nextDir, "standalone");
 const staticDir = path.join(nextDir, "static");
-const isWsl = process.platform === "linux" && fs.existsSync("/proc/sys/fs/binfmt_misc/WSLInterop");
+const isWsl =
+  process.platform === "linux" &&
+  fs.existsSync("/proc/sys/fs/binfmt_misc/WSLInterop");
 const windowsAppRoot = "C:\\Users\\Admin\\TechTide\\Tools\\9router";
 
 function runCommand(command, args, options = {}) {
@@ -21,7 +23,9 @@ function runCommand(command, args, options = {}) {
   });
 
   if (result.status !== 0) {
-    throw new Error(`[redeploy] ${command} ${args.join(" ")} failed with exit code ${result.status}`);
+    throw new Error(
+      `[redeploy] ${command} ${args.join(" ")} failed with exit code ${result.status}`,
+    );
   }
 }
 
@@ -113,15 +117,20 @@ function buildProductionBundle() {
   if (isWsl) {
     const result = spawnSync(
       "cmd.exe",
-      ["/c", `cd /d ${windowsAppRoot} && set NODE_ENV=production&& pnpm exec next build --webpack`],
+      [
+        "/c",
+        `cd /d ${windowsAppRoot} && set NODE_ENV=production&& pnpm exec next build --webpack`,
+      ],
       {
         cwd: appRoot,
         stdio: "inherit",
         env: process.env,
-      }
+      },
     );
     if (result.status !== 0) {
-      throw new Error(`[redeploy] Windows production build failed with exit code ${result.status}`);
+      throw new Error(
+        `[redeploy] Windows production build failed with exit code ${result.status}`,
+      );
     }
     return;
   }
@@ -132,14 +141,18 @@ function buildProductionBundle() {
 function assertStandaloneOutput() {
   const serverPath = path.join(standaloneDir, "server.js");
   if (!fs.existsSync(serverPath)) {
-    throw new Error(`[redeploy] Missing standalone server bundle at ${serverPath}`);
+    throw new Error(
+      `[redeploy] Missing standalone server bundle at ${serverPath}`,
+    );
   }
   if (!fs.existsSync(staticDir)) {
     throw new Error(`[redeploy] Missing static build assets at ${staticDir}`);
   }
   const staticEntries = fs.readdirSync(staticDir);
   if (!staticEntries.length) {
-    throw new Error(`[redeploy] Static build assets directory is empty: ${staticDir}`);
+    throw new Error(
+      `[redeploy] Static build assets directory is empty: ${staticDir}`,
+    );
   }
 }
 
@@ -166,7 +179,9 @@ async function verifyLiveApp() {
     throw new Error("[redeploy] Live app did not become ready after restart");
   }
 
-  const chunkMatch = html.match(/\/_next\/static\/chunks\/app\/login\/page-[^"]+\.js/);
+  const chunkMatch = html.match(
+    /\/_next\/static\/chunks\/app\/login\/page-[^"]+\.js/,
+  );
   if (!chunkMatch) {
     throw new Error("[redeploy] Could not find login page chunk in live HTML");
   }

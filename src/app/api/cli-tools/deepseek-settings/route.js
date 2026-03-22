@@ -48,7 +48,9 @@ const readConfig = async () => {
 
 const has9RouterConfig = (config) => {
   const baseUrl = config?.baseUrl || config?.apiUrl || "";
-  return baseUrl.includes("localhost:20128") || baseUrl.includes("127.0.0.1:20128");
+  return (
+    baseUrl.includes("localhost:20128") || baseUrl.includes("127.0.0.1:20128")
+  );
 };
 
 export async function GET() {
@@ -73,7 +75,10 @@ export async function GET() {
     });
   } catch (error) {
     console.log("Error checking deepseek settings:", error);
-    return NextResponse.json({ error: "Failed to check deepseek settings" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to check deepseek settings" },
+      { status: 500 },
+    );
   }
 }
 
@@ -82,7 +87,10 @@ export async function POST(request) {
     const { baseUrl, apiKey, model } = await request.json();
 
     if (!baseUrl || !model) {
-      return NextResponse.json({ error: "baseUrl and model are required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "baseUrl and model are required" },
+        { status: 400 },
+      );
     }
 
     const configPath = resolveDeepSeekCliConfigPath();
@@ -114,7 +122,10 @@ export async function POST(request) {
     });
   } catch (error) {
     console.log("Error updating deepseek settings:", error);
-    return NextResponse.json({ error: "Failed to update deepseek settings" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update deepseek settings" },
+      { status: 500 },
+    );
   }
 }
 
@@ -128,7 +139,10 @@ export async function DELETE() {
       config = JSON.parse(existing);
     } catch (error) {
       if (error.code === "ENOENT") {
-        return NextResponse.json({ success: true, message: "No config file to reset" });
+        return NextResponse.json({
+          success: true,
+          message: "No config file to reset",
+        });
       }
       throw error;
     }
@@ -150,6 +164,9 @@ export async function DELETE() {
     });
   } catch (error) {
     console.log("Error resetting deepseek settings:", error);
-    return NextResponse.json({ error: "Failed to reset deepseek settings" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to reset deepseek settings" },
+      { status: 500 },
+    );
   }
 }

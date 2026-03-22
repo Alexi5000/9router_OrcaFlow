@@ -3,7 +3,7 @@ name: Build and Push Docker Image
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
     # Uncomment to also build on master pushes (rolling latest).
     # Pair with concurrency + paths below to avoid excessive builds.
     # branches:

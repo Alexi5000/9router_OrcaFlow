@@ -16,7 +16,7 @@ export function Spinner({ size = "md", className }) {
       className={cn(
         "material-symbols-outlined animate-spin text-primary",
         sizes[size],
-        className
+        className,
       )}
     >
       progress_activity
@@ -38,10 +38,7 @@ export function PageLoading({ message = "Loading..." }) {
 export function Skeleton({ className, ...props }) {
   return (
     <div
-      className={cn(
-        "animate-pulse rounded-lg bg-border",
-        className
-      )}
+      className={cn("animate-pulse rounded-lg bg-border", className)}
       {...props}
     />
   );
@@ -74,4 +71,3 @@ export default function Loading({ type = "spinner", ...props }) {
       return <Spinner {...props} />;
   }
 }
-

@@ -33,7 +33,13 @@ export function getEffectiveConnectionStatus(connection, now = Date.now()) {
   if (!connection) return null;
   if (connection.testStatus !== "unavailable") return connection.testStatus;
 
-  if (hasActiveModelLock(connection, now) && !isGlobalProviderHealthError(connection.errorCode, connection.lastError || "")) {
+  if (
+    hasActiveModelLock(connection, now) &&
+    !isGlobalProviderHealthError(
+      connection.errorCode,
+      connection.lastError || "",
+    )
+  ) {
     return "active";
   }
 

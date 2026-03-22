@@ -17,7 +17,8 @@ export class CodexExecutor extends BaseExecutor {
    */
   buildHeaders(credentials, stream = true) {
     const headers = super.buildHeaders(credentials, stream);
-    headers["session_id"] = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    headers["session_id"] =
+      `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     return headers;
   }
 
@@ -31,17 +32,30 @@ export class CodexExecutor extends BaseExecutor {
 
     // Ensure input is present and non-empty (Codex API rejects empty input)
     if (!body.input || (Array.isArray(body.input) && body.input.length === 0)) {
-      body.input = [{ type: "message", role: "user", content: [{ type: "input_text", text: "..." }] }];
+      body.input = [
+        {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "..." }],
+        },
+      ];
     }
 
     // Normalize image content: image_url → input_image (Responses API format)
     if (Array.isArray(body.input)) {
       for (const item of body.input) {
         if (Array.isArray(item.content)) {
-          item.content = item.content.map(c => {
+          item.content = item.content.map((c) => {
             if (c.type === "image_url") {
-              const url = typeof c.image_url === "string" ? c.image_url : c.image_url?.url;
-              return { type: "input_image", image_url: url, detail: c.image_url?.detail || "auto" };
+              const url =
+                typeof c.image_url === "string"
+                  ? c.image_url
+                  : c.image_url?.url;
+              return {
+                type: "input_image",
+                image_url: url,
+                detail: c.image_url?.detail || "auto",
+              };
             }
             return c;
           });
@@ -62,20 +76,20 @@ export class CodexExecutor extends BaseExecutor {
 
     // Extract thinking level from model name suffix
     // e.g., gpt-5.3-codex-high → high, gpt-5.3-codex → medium (default)
-    const effortLevels = ['none', 'low', 'medium', 'high', 'xhigh'];
+    const effortLevels = ["none", "low", "medium", "high", "xhigh"];
     let modelEffort = null;
     for (const level of effortLevels) {
       if (model.endsWith(`-${level}`)) {
         modelEffort = level;
         // Strip suffix from model name for actual API call
-        body.model = body.model.replace(`-${level}`, '');
+        body.model = body.model.replace(`-${level}`, "");
         break;
       }
     }
 
     // Priority: explicit reasoning.effort > reasoning_effort param > model suffix > default (medium)
     if (!body.reasoning) {
-      const effort = body.reasoning_effort || modelEffort || 'medium';
+      const effort = body.reasoning_effort || modelEffort || "medium";
       body.reasoning = { effort, summary: "auto" };
     } else if (!body.reasoning.summary) {
       body.reasoning.summary = "auto";
@@ -83,7 +97,11 @@ export class CodexExecutor extends BaseExecutor {
     delete body.reasoning_effort;
 
     // Include reasoning encrypted content (required by Codex backend for reasoning models)
-    if (body.reasoning && body.reasoning.effort && body.reasoning.effort !== 'none') {
+    if (
+      body.reasoning &&
+      body.reasoning.effort &&
+      body.reasoning.effort !== "none"
+    ) {
       body.include = ["reasoning.encrypted_content"];
     }
 

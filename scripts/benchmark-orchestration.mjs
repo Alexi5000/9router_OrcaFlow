@@ -1,4 +1,5 @@
-const BASE_URL = process.env.ORCAFLOW_BASE_URL || "http://localhost:20128/v1/chat/completions";
+const BASE_URL =
+  process.env.ORCAFLOW_BASE_URL || "http://localhost:20128/v1/chat/completions";
 
 const DEFAULT_BASELINE = "claude/claude-opus-4-6";
 const DEFAULT_CANDIDATES = [
@@ -38,7 +39,9 @@ function normalizeText(content) {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
     return content
-      .map((part) => (typeof part === "string" ? part : (part?.text || part?.content || "")))
+      .map((part) =>
+        typeof part === "string" ? part : part?.text || part?.content || "",
+      )
       .join("");
   }
   if (content && typeof content === "object") {
@@ -104,17 +107,26 @@ function scoreCode(text) {
     .replace(/```$/, "")
     .trim();
 
-  if (!/^function\s+fib/.test(cleaned) && !/^const\s+fib\s*=/.test(cleaned) && !/^let\s+fib\s*=/.test(cleaned)) {
+  if (
+    !/^function\s+fib/.test(cleaned) &&
+    !/^const\s+fib\s*=/.test(cleaned) &&
+    !/^let\s+fib\s*=/.test(cleaned)
+  ) {
     return 0;
   }
 
   let score = 0;
-  if ((/for\s*\(/.test(cleaned) || /while\s*\(/.test(cleaned)) && !/fib\s*\(\s*n\s*-\s*1/.test(cleaned)) {
+  if (
+    (/for\s*\(/.test(cleaned) || /while\s*\(/.test(cleaned)) &&
+    !/fib\s*\(\s*n\s*-\s*1/.test(cleaned)
+  ) {
     score += 1;
   }
 
   try {
-    const runner = new Function(`${cleaned}; return typeof fib === "function" ? fib : null;`);
+    const runner = new Function(
+      `${cleaned}; return typeof fib === "function" ? fib : null;`,
+    );
     const fib = runner();
     if (typeof fib !== "function") return score;
 
@@ -140,8 +152,10 @@ function scoreCode(text) {
 
 const TOOL_STATE = {
   files: {
-    "src/math.js": "export function isEven(n) { return n % 2 === 1; }\nexport function isOdd(n) { return n % 2 !== 0; }",
-    "tests/math.test.js": "import { isEven } from \"../src/math.js\";\ntest(\"isEven\", () => {\n  expect(isEven(2)).toBe(true);\n  expect(isEven(3)).toBe(false);\n  expect(isEven(0)).toBe(true);\n  expect(isEven(-4)).toBe(true);\n});",
+    "src/math.js":
+      "export function isEven(n) { return n % 2 === 1; }\nexport function isOdd(n) { return n % 2 !== 0; }",
+    "tests/math.test.js":
+      'import { isEven } from "../src/math.js";\ntest("isEven", () => {\n  expect(isEven(2)).toBe(true);\n  expect(isEven(3)).toBe(false);\n  expect(isEven(0)).toBe(true);\n  expect(isEven(-4)).toBe(true);\n});',
   },
 };
 
@@ -150,7 +164,8 @@ const TOOLS = [
     type: "function",
     function: {
       name: "search_repo",
-      description: "Search the synthetic repo for relevant code or test references.",
+      description:
+        "Search the synthetic repo for relevant code or test references.",
       parameters: {
         type: "object",
         properties: { query: { type: "string" } },
@@ -219,9 +234,12 @@ function toolResponse(name, args) {
 
   if (name === "delegate_subtask") {
     const responses = {
-      planner: "Inspect src/math.js and tests first. Root cause likely inverted parity comparison.",
-      coder: "The correct one-line patch is `return n % 2 === 0;` for even checks.",
-      reviewer: "Validation should cover 2=>true, 3=>false, 0=>true, -4=>true, -3=>false.",
+      planner:
+        "Inspect src/math.js and tests first. Root cause likely inverted parity comparison.",
+      coder:
+        "The correct one-line patch is `return n % 2 === 0;` for even checks.",
+      reviewer:
+        "Validation should cover 2=>true, 3=>false, 0=>true, -4=>true, -3=>false.",
     };
     return {
       agent: args.agent,
@@ -255,11 +273,39 @@ function scoreOrchestration(finalText, transcript) {
   const calls = transcript.calls;
 
   if (calls.some((call) => call.name === "search_repo")) score += 1;
-  if (calls.some((call) => call.name === "read_file" && call.args.path === "src/math.js")) score += 1;
-  if (calls.some((call) => call.name === "read_file" && call.args.path === "tests/math.test.js")) score += 1;
-  if (calls.some((call) => call.name === "delegate_subtask" && call.args.agent === "planner")) score += 1;
-  if (calls.some((call) => call.name === "delegate_subtask" && call.args.agent === "coder")) score += 1;
-  if (calls.some((call) => call.name === "delegate_subtask" && call.args.agent === "reviewer")) score += 1;
+  if (
+    calls.some(
+      (call) => call.name === "read_file" && call.args.path === "src/math.js",
+    )
+  )
+    score += 1;
+  if (
+    calls.some(
+      (call) =>
+        call.name === "read_file" && call.args.path === "tests/math.test.js",
+    )
+  )
+    score += 1;
+  if (
+    calls.some(
+      (call) =>
+        call.name === "delegate_subtask" && call.args.agent === "planner",
+    )
+  )
+    score += 1;
+  if (
+    calls.some(
+      (call) => call.name === "delegate_subtask" && call.args.agent === "coder",
+    )
+  )
+    score += 1;
+  if (
+    calls.some(
+      (call) =>
+        call.name === "delegate_subtask" && call.args.agent === "reviewer",
+    )
+  )
+    score += 1;
   if (calls.some((call) => call.name === "run_validation")) score += 2;
 
   let parsed = null;
@@ -271,13 +317,22 @@ function scoreOrchestration(finalText, transcript) {
   if (parsed && typeof parsed === "object") score += 1;
 
   const haystack = (finalText || "").toLowerCase();
-  if (/===\s*1/.test(finalText) || haystack.includes("inverted") || haystack.includes("wrong parity") || haystack.includes("returns true for odd")) {
+  if (
+    /===\s*1/.test(finalText) ||
+    haystack.includes("inverted") ||
+    haystack.includes("wrong parity") ||
+    haystack.includes("returns true for odd")
+  ) {
     score += 2;
   }
   if (/===\s*0/.test(finalText) || haystack.includes("n % 2 === 0")) {
     score += 3;
   }
-  if (haystack.includes("2") && haystack.includes("3") && (haystack.includes("validation") || haystack.includes("tests"))) {
+  if (
+    haystack.includes("2") &&
+    haystack.includes("3") &&
+    (haystack.includes("validation") || haystack.includes("tests"))
+  ) {
     score += 1;
   }
 
@@ -288,11 +343,13 @@ async function orchestrationTest(model) {
   const messages = [
     {
       role: "system",
-      content: "You are an autonomous coding orchestrator. You must use tools before answering when tools are available.",
+      content:
+        "You are an autonomous coding orchestrator. You must use tools before answering when tools are available.",
     },
     {
       role: "user",
-      content: "Investigate why `isEven(3)` incorrectly returns true in a small JavaScript repo. Use the available tools to inspect the repo, delegate to planner/coder/reviewer, run validation, and then return ONLY minified JSON with keys root_cause, patch, validation.",
+      content:
+        "Investigate why `isEven(3)` incorrectly returns true in a small JavaScript repo. Use the available tools to inspect the repo, delegate to planner/coder/reviewer, run validation, and then return ONLY minified JSON with keys root_cause, patch, validation.",
     },
   ];
   const transcript = { calls: [], iterations: 0 };
@@ -369,7 +426,9 @@ async function simpleTests(model) {
     stream: false,
     max_tokens: 8,
     temperature: 0,
-    messages: [{ role: "user", content: "Reply with exactly OK and nothing else." }],
+    messages: [
+      { role: "user", content: "Reply with exactly OK and nothing else." },
+    ],
   });
   const exactText = extractAssistant(exact).content;
   tests.push({
@@ -385,7 +444,13 @@ async function simpleTests(model) {
     stream: false,
     max_tokens: 80,
     temperature: 0,
-    messages: [{ role: "user", content: "Return only minified JSON with keys sum and parity for 17+25." }],
+    messages: [
+      {
+        role: "user",
+        content:
+          "Return only minified JSON with keys sum and parity for 17+25.",
+      },
+    ],
   });
   const jsonText = extractAssistant(json).content;
   tests.push({
@@ -401,7 +466,13 @@ async function simpleTests(model) {
     stream: false,
     max_tokens: 220,
     temperature: 0,
-    messages: [{ role: "user", content: "Write only a JavaScript function named fib that returns the nth Fibonacci number iteratively. No explanation." }],
+    messages: [
+      {
+        role: "user",
+        content:
+          "Write only a JavaScript function named fib that returns the nth Fibonacci number iteratively. No explanation.",
+      },
+    ],
   });
   const codeText = extractAssistant(code).content;
   tests.push({
@@ -418,8 +489,10 @@ async function simpleTests(model) {
 async function benchmarkModel(model) {
   const simple = await simpleTests(model);
   const orchestration = await orchestrationTest(model);
-  const totalScore = simple.reduce((sum, test) => sum + test.score, 0) + orchestration.score;
-  const totalLatency = simple.reduce((sum, test) => sum + test.latency, 0) + orchestration.latency;
+  const totalScore =
+    simple.reduce((sum, test) => sum + test.score, 0) + orchestration.score;
+  const totalLatency =
+    simple.reduce((sum, test) => sum + test.latency, 0) + orchestration.latency;
 
   return {
     model,
@@ -433,7 +506,9 @@ async function benchmarkModel(model) {
         status: orchestration.status,
         latency: orchestration.latency,
         preview: orchestration.preview,
-        calls: orchestration.transcript.calls.map((call) => `${call.name}:${JSON.stringify(call.args)}`),
+        calls: orchestration.transcript.calls.map(
+          (call) => `${call.name}:${JSON.stringify(call.args)}`,
+        ),
       },
     ],
   };
@@ -456,17 +531,28 @@ async function main() {
       ...result,
       percentOfOpus: Math.round((result.totalScore / baselineScore) * 100),
     }))
-    .sort((a, b) => b.percentOfOpus - a.percentOfOpus || b.totalScore - a.totalScore || a.totalLatency - b.totalLatency);
+    .sort(
+      (a, b) =>
+        b.percentOfOpus - a.percentOfOpus ||
+        b.totalScore - a.totalScore ||
+        a.totalLatency - b.totalLatency,
+    );
 
-  console.log(JSON.stringify({
-    baseline: {
-      model: baseline,
-      totalScore: baselineScore,
-      totalLatency: baselineResult?.totalLatency || 0,
-      tests: baselineResult?.tests || [],
-    },
-    ranked,
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        baseline: {
+          model: baseline,
+          totalScore: baselineScore,
+          totalLatency: baselineResult?.totalLatency || 0,
+          tests: baselineResult?.tests || [],
+        },
+        ranked,
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 main().catch((error) => {

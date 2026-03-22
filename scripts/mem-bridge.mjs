@@ -8,15 +8,16 @@
  * Usage: node mem-bridge.mjs [--date YYYY-MM-DD] [--dry-run]
  */
 
-const CLAUDE_MEM_URL = process.env.CLAUDE_MEM_URL || 'http://localhost:37777';
-const AXEL_API      = process.env.AXEL_API_URL   || 'http://localhost:4000';
-const USER_ID       = process.env.AXEL_USER_ID   || '00000000-0000-0000-0000-000000000001';
-const MIN_LENGTH    = parseInt(process.env.MIN_CONTENT_LENGTH || '60', 10);
-const POST_DELAY_MS = parseInt(process.env.POST_DELAY_MS      || '200', 10);
-const DRY_RUN       = process.argv.includes('--dry-run');
+const CLAUDE_MEM_URL = process.env.CLAUDE_MEM_URL || "http://localhost:37777";
+const AXEL_API = process.env.AXEL_API_URL || "http://localhost:4000";
+const USER_ID =
+  process.env.AXEL_USER_ID || "00000000-0000-0000-0000-000000000001";
+const MIN_LENGTH = parseInt(process.env.MIN_CONTENT_LENGTH || "60", 10);
+const POST_DELAY_MS = parseInt(process.env.POST_DELAY_MS || "200", 10);
+const DRY_RUN = process.argv.includes("--dry-run");
 
 // Parse optional --date flag, default to yesterday
-const dateArg  = process.argv.find((_, i, a) => a[i - 1] === '--date');
+const dateArg = process.argv.find((_, i, a) => a[i - 1] === "--date");
 const targetDate = dateArg
   ? dateArg
   : new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
@@ -25,24 +26,27 @@ const targetDate = dateArg
 // Fetch all observations from claude-mem (paginated)
 // ---------------------------------------------------------------------------
 async function fetchObservations() {
-  const all   = [];
-  let   offset = 0;
-  const limit  = 100;
+  const all = [];
+  let offset = 0;
+  const limit = 100;
 
   while (true) {
     const res = await fetch(
-      `${CLAUDE_MEM_URL}/api/observations?limit=${limit}&offset=${offset}`
+      `${CLAUDE_MEM_URL}/api/observations?limit=${limit}&offset=${offset}`,
     );
-    if (!res.ok) throw new Error(`claude-mem HTTP ${res.status}: ${await res.text()}`);
+    if (!res.ok)
+      throw new Error(`claude-mem HTTP ${res.status}: ${await res.text()}`);
 
-    const data  = await res.json();
-    const items = Array.isArray(data) ? data : (data.observations ?? data.data ?? []);
+    const data = await res.json();
+    const items = Array.isArray(data)
+      ? data
+      : (data.observations ?? data.data ?? []);
 
     if (items.length === 0) break;
     all.push(...items);
-    if (items.length < limit) break;   // last page
+    if (items.length < limit) break; // last page
     offset += limit;
-    if (all.length >= 2000) break;     // safety cap
+    if (all.length >= 2000) break; // safety cap
   }
 
   return all;
@@ -52,12 +56,12 @@ async function fetchObservations() {
 // Quality filter — only bridge observations worth storing long-term
 // ---------------------------------------------------------------------------
 function isHighValue(obs) {
-  const content = String(obs.content ?? '').trim();
+  const content = String(obs.content ?? "").trim();
   if (content.length < MIN_LENGTH) return false;
 
   // Skip trivial tool calls that add no knowledge (file listings, empty responses)
-  const tool = (obs.tool_name ?? obs.toolName ?? '').toLowerCase();
-  const NOISY_TOOLS = ['glob', 'todowrite'];
+  const tool = (obs.tool_name ?? obs.toolName ?? "").toLowerCase();
+  const NOISY_TOOLS = ["glob", "todowrite"];
   if (NOISY_TOOLS.includes(tool) && content.length < 150) return false;
 
   return true;
@@ -67,19 +71,19 @@ function isHighValue(obs) {
 // Build a readable content string for Axel's process-memory endpoint
 // ---------------------------------------------------------------------------
 function composeContent(obs) {
-  const ts      = obs.timestamp ?? obs.created_at ?? obs.createdAt ?? 'unknown time';
-  const tool    = obs.tool_name ?? obs.toolName ?? '';
-  const cwd     = obs.cwd ?? '';
-  const content = String(obs.content ?? '').trim();
-  const session = obs.contentSessionId ?? obs.sessionId ?? '';
+  const ts = obs.timestamp ?? obs.created_at ?? obs.createdAt ?? "unknown time";
+  const tool = obs.tool_name ?? obs.toolName ?? "";
+  const cwd = obs.cwd ?? "";
+  const content = String(obs.content ?? "").trim();
+  const session = obs.contentSessionId ?? obs.sessionId ?? "";
 
   const parts = [`Claude Code session observation [${ts}]:`];
-  if (tool)    parts.push(`Tool used: ${tool}.`);
-  if (cwd)     parts.push(`Working directory: ${cwd}.`);
+  if (tool) parts.push(`Tool used: ${tool}.`);
+  if (cwd) parts.push(`Working directory: ${cwd}.`);
   parts.push(content);
   if (session) parts.push(`(Session ${session.slice(0, 8)})`);
 
-  return parts.join(' ');
+  return parts.join(" ");
 }
 
 // ---------------------------------------------------------------------------
@@ -87,10 +91,10 @@ function composeContent(obs) {
 // ---------------------------------------------------------------------------
 async function storeInAxel(content) {
   const res = await fetch(`${AXEL_API}/api/memory/process-memory`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'x-user-id': USER_ID,
+      "Content-Type": "application/json",
+      "x-user-id": USER_ID,
     },
     body: JSON.stringify({ content }),
   });
@@ -105,7 +109,7 @@ async function storeInAxel(content) {
 async function main() {
   console.log(
     `[mem-bridge] Bridging claude-mem → Axel for ${targetDate}` +
-    (DRY_RUN ? ' (DRY RUN)' : '')
+      (DRY_RUN ? " (DRY RUN)" : ""),
   );
 
   // 1. Fetch observations — soft-fail if worker isn't running
@@ -113,31 +117,33 @@ async function main() {
   try {
     observations = await fetchObservations();
   } catch (err) {
-    console.warn(`[mem-bridge] Could not reach claude-mem at ${CLAUDE_MEM_URL}: ${err.message}`);
-    console.warn('[mem-bridge] Worker may be stopped — skipping. Exit 0.');
+    console.warn(
+      `[mem-bridge] Could not reach claude-mem at ${CLAUDE_MEM_URL}: ${err.message}`,
+    );
+    console.warn("[mem-bridge] Worker may be stopped — skipping. Exit 0.");
     return; // not a hard failure; worker self-manages
   }
 
   // 2. Filter to target date
-  const dated = observations.filter(obs => {
-    const ts = String(obs.timestamp ?? obs.created_at ?? obs.createdAt ?? '');
+  const dated = observations.filter((obs) => {
+    const ts = String(obs.timestamp ?? obs.created_at ?? obs.createdAt ?? "");
     return ts.startsWith(targetDate);
   });
 
   console.log(
     `[mem-bridge] ${observations.length} total observations, ` +
-    `${dated.length} on ${targetDate}`
+      `${dated.length} on ${targetDate}`,
   );
 
   // 3. Quality filter
   const valuable = dated.filter(isHighValue);
   console.log(
     `[mem-bridge] ${valuable.length} pass quality filter ` +
-    `(min ${MIN_LENGTH} chars, skip noisy tools)`
+      `(min ${MIN_LENGTH} chars, skip noisy tools)`,
   );
 
   if (valuable.length === 0) {
-    console.log('[mem-bridge] Nothing to bridge today. Done.');
+    console.log("[mem-bridge] Nothing to bridge today. Done.");
     return;
   }
 
@@ -156,10 +162,11 @@ async function main() {
 
     try {
       const result = await storeInAxel(content);
-      console.log(`[mem-bridge] ✓ ${result.message ?? 'stored'}`);
+      console.log(`[mem-bridge] ✓ ${result.message ?? "stored"}`);
       stored++;
       // Small pause — Axel runs AI extraction per call; don't hammer it
-      if (POST_DELAY_MS > 0) await new Promise(r => setTimeout(r, POST_DELAY_MS));
+      if (POST_DELAY_MS > 0)
+        await new Promise((r) => setTimeout(r, POST_DELAY_MS));
     } catch (err) {
       console.error(`[mem-bridge] ✗ ${err.message}`);
       failed++;
@@ -170,7 +177,7 @@ async function main() {
   if (failed > 0) process.exit(1);
 }
 
-main().catch(err => {
-  console.error('[mem-bridge] Fatal:', err.message);
+main().catch((err) => {
+  console.error("[mem-bridge] Fatal:", err.message);
   process.exit(1);
 });

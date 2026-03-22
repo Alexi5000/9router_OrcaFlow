@@ -3,7 +3,7 @@ import { errorResponse } from "open-sse/utils/error.js";
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "*"
+  "Access-Control-Allow-Headers": "*",
 };
 
 /**
@@ -21,7 +21,7 @@ export async function handleCountTokens(request, env) {
   // Estimate token count based on content length
   const messages = body.messages || [];
   let totalChars = 0;
-  
+
   for (const msg of messages) {
     if (typeof msg.content === "string") {
       totalChars += msg.content.length;
@@ -37,10 +37,12 @@ export async function handleCountTokens(request, env) {
   // Rough estimate: ~4 chars per token
   const inputTokens = Math.ceil(totalChars / 4);
 
-  return new Response(JSON.stringify({
-    input_tokens: inputTokens
-  }), {
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS }
-  });
+  return new Response(
+    JSON.stringify({
+      input_tokens: inputTokens,
+    }),
+    {
+      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    },
+  );
 }
-

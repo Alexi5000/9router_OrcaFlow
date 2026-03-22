@@ -10,7 +10,7 @@ export async function handleCacheClear(request, env) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    
+
     // Get machineId from API key or body
     let machineId = body.machineId;
     if (!machineId) {
@@ -23,14 +23,20 @@ export async function handleCacheClear(request, env) {
     }
 
     // No cache layer to clear anymore
-    log.info("CACHE", `Cache clear requested for machine: ${machineId} (no-op)`);
+    log.info(
+      "CACHE",
+      `Cache clear requested for machine: ${machineId} (no-op)`,
+    );
 
-    return new Response(JSON.stringify({ success: true, machineId, message: "No cache layer" }), {
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
-      }
-    });
+    return new Response(
+      JSON.stringify({ success: true, machineId, message: "No cache layer" }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      },
+    );
   } catch (error) {
     return errorResponse(500, error.message);
   }

@@ -8,13 +8,13 @@
  */
 export async function parseRouterResponse(response) {
   const text = await response.text();
-  
+
   // Handle streaming responses
   if (text.includes("data: [DONE]")) {
     const jsonStr = text.split("\n")[0];
     return JSON.parse(jsonStr);
   }
-  
+
   // Handle pure JSON responses
   return JSON.parse(text);
 }
@@ -64,7 +64,7 @@ export async function testAllCombos(baseUrl, prompt = "Say 'OK'") {
 
   for (const combo of combos) {
     const start = Date.now();
-    
+
     try {
       const res = await chatCompletion(baseUrl, {
         model: combo,
@@ -101,9 +101,14 @@ export async function testAllCombos(baseUrl, prompt = "Say 'OK'") {
 /**
  * Test a specific provider
  */
-export async function testProvider(baseUrl, provider, model, prompt = "Say 'OK'") {
+export async function testProvider(
+  baseUrl,
+  provider,
+  model,
+  prompt = "Say 'OK'",
+) {
   const start = Date.now();
-  
+
   const res = await chatCompletion(baseUrl, {
     model: `${provider}/${model}`,
     messages: [{ role: "user", content: prompt }],
@@ -130,13 +135,16 @@ export async function testProvider(baseUrl, provider, model, prompt = "Say 'OK'"
 export function printResults(title, results) {
   console.log(`\n${title}`);
   console.log("=".repeat(60));
-  
-  results.forEach(r => {
+
+  results.forEach((r) => {
     const status = r.success ? "OK" : "FAIL";
     const latency = `${r.latency}ms`.padStart(7);
-    console.log(`${status} ${r.combo || r.provider}`.padEnd(15)} -> ${(r.model || r.actualModel).padEnd(30)} ${latency}`);
+    const label = `${status} ${r.combo || r.provider}`.padEnd(15);
+    console.log(
+      `${label} -> ${(r.model || r.actualModel).padEnd(30)} ${latency}`,
+    );
   });
-  
-  const successCount = results.filter(r => r.success).length;
+
+  const successCount = results.filter((r) => r.success).length;
   console.log(`\n${successCount}/${results.length} passed`);
 }

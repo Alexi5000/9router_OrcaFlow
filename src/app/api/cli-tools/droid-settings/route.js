@@ -39,14 +39,14 @@ const readSettings = async () => {
 // Check if settings has 9Router customModels
 const has9RouterConfig = (settings) => {
   if (!settings || !settings.customModels) return false;
-  return settings.customModels.some(m => m.id === "custom:9Router-0");
+  return settings.customModels.some((m) => m.id === "custom:9Router-0");
 };
 
 // GET - Check droid CLI and read current settings
 export async function GET() {
   try {
     const isInstalled = await checkDroidInstalled();
-    
+
     if (!isInstalled) {
       return NextResponse.json({
         installed: false,
@@ -65,7 +65,10 @@ export async function GET() {
     });
   } catch (error) {
     console.log("Error checking droid settings:", error);
-    return NextResponse.json({ error: "Failed to check droid settings" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to check droid settings" },
+      { status: 500 },
+    );
   }
 }
 
@@ -73,9 +76,12 @@ export async function GET() {
 export async function POST(request) {
   try {
     const { baseUrl, apiKey, model } = await request.json();
-    
+
     if (!baseUrl || !model) {
-      return NextResponse.json({ error: "baseUrl and model are required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "baseUrl and model are required" },
+        { status: 400 },
+      );
     }
 
     const droidDir = getDroidDir();
@@ -89,7 +95,9 @@ export async function POST(request) {
     try {
       const existingSettings = await fs.readFile(settingsPath, "utf-8");
       settings = JSON.parse(existingSettings);
-    } catch { /* No existing settings */ }
+    } catch {
+      /* No existing settings */
+    }
 
     // Ensure customModels array exists
     if (!settings.customModels) {
@@ -97,10 +105,14 @@ export async function POST(request) {
     }
 
     // Remove existing 9Router config if any
-    settings.customModels = settings.customModels.filter(m => m.id !== "custom:9Router-0");
+    settings.customModels = settings.customModels.filter(
+      (m) => m.id !== "custom:9Router-0",
+    );
 
     // Normalize baseUrl to ensure /v1 suffix
-    const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
+    const normalizedBaseUrl = baseUrl.endsWith("/v1")
+      ? baseUrl
+      : `${baseUrl}/v1`;
 
     // Add new 9Router config
     const customModel = {
@@ -127,7 +139,10 @@ export async function POST(request) {
     });
   } catch (error) {
     console.log("Error updating droid settings:", error);
-    return NextResponse.json({ error: "Failed to update droid settings" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update droid settings" },
+      { status: 500 },
+    );
   }
 }
 
@@ -153,8 +168,10 @@ export async function DELETE() {
 
     // Remove 9Router customModels
     if (settings.customModels) {
-      settings.customModels = settings.customModels.filter(m => m.id !== "custom:9Router-0");
-      
+      settings.customModels = settings.customModels.filter(
+        (m) => m.id !== "custom:9Router-0",
+      );
+
       // Remove customModels array if empty
       if (settings.customModels.length === 0) {
         delete settings.customModels;
@@ -170,6 +187,9 @@ export async function DELETE() {
     });
   } catch (error) {
     console.log("Error resetting droid settings:", error);
-    return NextResponse.json({ error: "Failed to reset droid settings" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to reset droid settings" },
+      { status: 500 },
+    );
   }
 }

@@ -34,7 +34,10 @@ export function wrapLowDbWrite(db, filePath, ensureDir) {
     };
 
     const next = previous.catch(() => {}).then(runWrite);
-    globalState.set(queueKey, next.catch(() => {}));
+    globalState.set(
+      queueKey,
+      next.catch(() => {}),
+    );
     return next;
   };
 

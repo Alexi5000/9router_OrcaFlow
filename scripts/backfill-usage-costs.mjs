@@ -1,8 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
-import { getDefaultPricing, calculateCostFromTokens } from "../src/shared/constants/pricing.js";
+import {
+  getDefaultPricing,
+  calculateCostFromTokens,
+} from "../src/shared/constants/pricing.js";
 
-const appRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const appRoot = path.resolve(
+  path.dirname(new URL(import.meta.url).pathname),
+  "..",
+);
 function normalizeDataDir(rawPath) {
   if (!rawPath) return path.join(appRoot, "data");
   if (process.platform === "win32") return rawPath;
@@ -11,7 +17,11 @@ function normalizeDataDir(rawPath) {
   if (!winDriveMatch) return rawPath;
 
   const [, drive, remainder] = winDriveMatch;
-  return path.posix.join("/mnt", drive.toLowerCase(), remainder.replace(/\\/g, "/"));
+  return path.posix.join(
+    "/mnt",
+    drive.toLowerCase(),
+    remainder.replace(/\\/g, "/"),
+  );
 }
 
 const dataDir = normalizeDataDir(process.env.DATA_DIR);
@@ -78,7 +88,8 @@ function getPricingForEntry(pricing, provider, model) {
   const lookup = (providerKey) => {
     if (!providerKey || !pricing[providerKey]) return null;
     for (const candidate of candidateModels) {
-      if (pricing[providerKey][candidate]) return pricing[providerKey][candidate];
+      if (pricing[providerKey][candidate])
+        return pricing[providerKey][candidate];
     }
     return null;
   };
@@ -102,4 +113,6 @@ for (const entry of usage.history || []) {
 }
 
 fs.writeFileSync(usagePath, JSON.stringify(usage, null, 2));
-console.log(JSON.stringify({ changed, total: usage.history?.length || 0 }, null, 2));
+console.log(
+  JSON.stringify({ changed, total: usage.history?.length || 0 }, null, 2),
+);

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { 
-  getProvider, 
-  generateAuthData, 
-  exchangeTokens, 
-  requestDeviceCode, 
-  pollForToken 
+import {
+  getProvider,
+  generateAuthData,
+  exchangeTokens,
+  requestDeviceCode,
+  pollForToken,
 } from "@/lib/oauth/providers";
 import { createProviderConnection } from "@/models";
 
@@ -21,7 +21,8 @@ export async function GET(request, { params }) {
     const { searchParams } = new URL(request.url);
 
     if (action === "authorize") {
-      const redirectUri = searchParams.get("redirect_uri") || "http://localhost:8080/callback";
+      const redirectUri =
+        searchParams.get("redirect_uri") || "http://localhost:8080/callback";
       const authData = generateAuthData(provider, redirectUri);
       return NextResponse.json(authData);
     }
@@ -29,13 +30,21 @@ export async function GET(request, { params }) {
     if (action === "device-code") {
       const providerData = getProvider(provider);
       if (providerData.flowType !== "device_code") {
-        return NextResponse.json({ error: "Provider does not support device code flow" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Provider does not support device code flow" },
+          { status: 400 },
+        );
       }
 
       const authData = generateAuthData(provider, null);
-      
+
       // Providers that don't use PKCE for device code
-      const noPkceDeviceProviders = ["github", "kiro", "kimi-coding", "kilocode"];
+      const noPkceDeviceProviders = [
+        "github",
+        "kiro",
+        "kimi-coding",
+        "kilocode",
+      ];
       let deviceData;
       if (noPkceDeviceProviders.includes(provider)) {
         deviceData = await requestDeviceCode(provider);
@@ -66,7 +75,10 @@ export async function POST(request, { params }) {
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json({ error: "Invalid or empty request body" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid or empty request body" },
+        { status: 400 },
+      );
     }
 
     if (action === "exchange") {
@@ -74,32 +86,45 @@ export async function POST(request, { params }) {
 
       // Cline uses authorization_code without PKCE
       const noPkceExchangeProviders = ["cline"];
-      if (!code || !redirectUri || (!codeVerifier && !noPkceExchangeProviders.includes(provider))) {
-        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      if (
+        !code ||
+        !redirectUri ||
+        (!codeVerifier && !noPkceExchangeProviders.includes(provider))
+      ) {
+        return NextResponse.json(
+          { error: "Missing required fields" },
+          { status: 400 },
+        );
       }
 
       // Exchange code for tokens
-      const tokenData = await exchangeTokens(provider, code, redirectUri, codeVerifier, state);
+      const tokenData = await exchangeTokens(
+        provider,
+        code,
+        redirectUri,
+        codeVerifier,
+        state,
+      );
 
       // Save to database
       const connection = await createProviderConnection({
         provider,
         authType: "oauth",
         ...tokenData,
-        expiresAt: tokenData.expiresIn 
-          ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString() 
+        expiresAt: tokenData.expiresIn
+          ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString()
           : null,
         testStatus: "active",
       });
 
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         connection: {
           id: connection.id,
           provider: connection.provider,
           email: connection.email,
           displayName: connection.displayName,
-        }
+        },
       });
     }
 
@@ -107,7 +132,10 @@ export async function POST(request, { params }) {
       const { deviceCode, codeVerifier, extraData } = body;
 
       if (!deviceCode) {
-        return NextResponse.json({ error: "Missing device code" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Missing device code" },
+          { status: 400 },
+        );
       }
 
       // Providers that don't use PKCE for device code
@@ -121,7 +149,10 @@ export async function POST(request, { params }) {
       } else {
         // Qwen and other PKCE providers
         if (!codeVerifier) {
-          return NextResponse.json({ error: "Missing code verifier" }, { status: 400 });
+          return NextResponse.json(
+            { error: "Missing code verifier" },
+            { status: 400 },
+          );
         }
         result = await pollForToken(provider, deviceCode, codeVerifier);
       }
@@ -132,24 +163,29 @@ export async function POST(request, { params }) {
           provider,
           authType: "oauth",
           ...result.tokens,
-          expiresAt: result.tokens.expiresIn 
-            ? new Date(Date.now() + result.tokens.expiresIn * 1000).toISOString() 
+          expiresAt: result.tokens.expiresIn
+            ? new Date(
+                Date.now() + result.tokens.expiresIn * 1000,
+              ).toISOString()
             : null,
           testStatus: "active",
         });
 
-        return NextResponse.json({ 
-          success: true, 
+        return NextResponse.json({
+          success: true,
           connection: {
             id: connection.id,
             provider: connection.provider,
-          }
+          },
         });
       }
 
       // Still pending or error - don't create connection for pending states
-      const isPending = result.pending || result.error === "authorization_pending" || result.error === "slow_down";
-      
+      const isPending =
+        result.pending ||
+        result.error === "authorization_pending" ||
+        result.error === "slow_down";
+
       return NextResponse.json({
         success: false,
         error: result.error,

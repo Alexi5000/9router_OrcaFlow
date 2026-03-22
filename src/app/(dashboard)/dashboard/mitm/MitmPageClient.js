@@ -3,8 +3,14 @@
 import { useState, useEffect } from "react";
 import { CLI_TOOLS } from "@/shared/constants/cliTools";
 import { getModelsByProviderId } from "@/shared/constants/models";
-import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
-import { MitmServerCard, MitmToolCard } from "@/app/(dashboard)/dashboard/cli-tools/components";
+import {
+  isOpenAICompatibleProvider,
+  isAnthropicCompatibleProvider,
+} from "@/shared/constants/providers";
+import {
+  MitmServerCard,
+  MitmToolCard,
+} from "@/app/(dashboard)/dashboard/cli-tools/components";
 
 const MITM_TOOL_IDS = ["antigravity", "copilot"];
 
@@ -14,85 +20,103 @@ export default function MitmPageClient() {
   const [modelAliases, setModelAliases] = useState({});
   const [cloudEnabled, setCloudEnabled] = useState(false);
   const [expandedTool, setExpandedTool] = useState(null);
-  const [mitmStatus, setMitmStatus] = useState({ running: false, certExists: false, dnsStatus: {}, hasCachedPassword: false });
+  const [mitmStatus, setMitmStatus] = useState({
+    running: false,
+    certExists: false,
+    dnsStatus: {},
+    hasCachedPassword: false,
+  });
 
   useEffect(() => {
-    fetchConnections();
-    fetchApiKeys();
-    fetchAliases();
-    fetchCloudSettings();
+    let cancelled = false;
+
+    const loadPageState = async () => {
+      try {
+        const [connectionsRes, apiKeysRes, aliasesRes, settingsRes] =
+          await Promise.all([
+            fetch("/api/providers", { cache: "no-store" }),
+            fetch("/api/keys", { cache: "no-store" }),
+            fetch("/api/models/alias", { cache: "no-store" }),
+            fetch("/api/settings", { cache: "no-store" }),
+          ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (connectionsRes.ok) {
+          const data = await connectionsRes.json();
+          if (!cancelled) {
+            setConnections(data.connections || []);
+          }
+        }
+
+        if (apiKeysRes.ok) {
+          const data = await apiKeysRes.json();
+          if (!cancelled) {
+            setApiKeys(data.keys || []);
+          }
+        }
+
+        if (aliasesRes.ok) {
+          const data = await aliasesRes.json();
+          if (!cancelled) {
+            setModelAliases(data.aliases || {});
+          }
+        }
+
+        if (settingsRes.ok) {
+          const data = await settingsRes.json();
+          if (!cancelled) {
+            setCloudEnabled(data.cloudEnabled || false);
+          }
+        }
+      } catch {
+        // Best-effort hydration for dashboard view.
+      }
+    };
+
+    void loadPageState();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const fetchConnections = async () => {
-    try {
-      const res = await fetch("/api/providers", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        setConnections(data.connections || []);
-      }
-    } catch { /* ignore */ }
-  };
-
-  const fetchApiKeys = async () => {
-    try {
-      const res = await fetch("/api/keys", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        setApiKeys(data.keys || []);
-      }
-    } catch { /* ignore */ }
-  };
-
-  const fetchAliases = async () => {
-    try {
-      const res = await fetch("/api/models/alias", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        setModelAliases(data.aliases || {});
-      }
-    } catch { /* ignore */ }
-  };
-
-  const fetchCloudSettings = async () => {
-    try {
-      const res = await fetch("/api/settings", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        setCloudEnabled(data.cloudEnabled || false);
-      }
-    } catch { /* ignore */ }
-  };
-
-  const getActiveProviders = () => connections.filter(c => c.isActive !== false);
+  const getActiveProviders = () =>
+    connections.filter((connection) => connection.isActive !== false);
 
   const hasActiveProviders = () => {
     const active = getActiveProviders();
-    return active.some(conn =>
-      getModelsByProviderId(conn.provider).length > 0 ||
-      isOpenAICompatibleProvider(conn.provider) ||
-      isAnthropicCompatibleProvider(conn.provider)
+    return active.some(
+      (connection) =>
+        getModelsByProviderId(connection.provider).length > 0 ||
+        isOpenAICompatibleProvider(connection.provider) ||
+        isAnthropicCompatibleProvider(connection.provider),
     );
   };
 
-  const mitmTools = Object.entries(CLI_TOOLS).filter(([id]) => MITM_TOOL_IDS.includes(id));
+  const mitmTools = Object.entries(CLI_TOOLS).filter(([id]) =>
+    MITM_TOOL_IDS.includes(id),
+  );
 
   return (
     <div className="flex flex-col gap-6">
-      {/* MITM Server Card */}
       <MitmServerCard
         apiKeys={apiKeys}
         cloudEnabled={cloudEnabled}
         onStatusChange={setMitmStatus}
       />
 
-      {/* Tool Cards */}
       <div className="flex flex-col gap-2">
         {mitmTools.map(([toolId, tool]) => (
           <MitmToolCard
             key={toolId}
             tool={tool}
             isExpanded={expandedTool === toolId}
-            onToggle={() => setExpandedTool(expandedTool === toolId ? null : toolId)}
+            onToggle={() =>
+              setExpandedTool(expandedTool === toolId ? null : toolId)
+            }
             serverRunning={mitmStatus.running}
             dnsActive={mitmStatus.dnsStatus?.[toolId] || false}
             hasCachedPassword={mitmStatus.hasCachedPassword || false}
@@ -101,7 +125,12 @@ export default function MitmPageClient() {
             hasActiveProviders={hasActiveProviders()}
             modelAliases={modelAliases}
             cloudEnabled={cloudEnabled}
-            onDnsChange={(data) => setMitmStatus(prev => ({ ...prev, dnsStatus: data.dnsStatus ?? prev.dnsStatus }))}
+            onDnsChange={(data) =>
+              setMitmStatus((prev) => ({
+                ...prev,
+                dnsStatus: data.dnsStatus ?? prev.dnsStatus,
+              }))
+            }
           />
         ))}
       </div>

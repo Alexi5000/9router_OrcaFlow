@@ -15,7 +15,8 @@ export default function LoginPage() {
     async function checkAuth() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+      const baseUrl =
+        typeof window !== "undefined" ? window.location.origin : "";
 
       try {
         const res = await fetch(`${baseUrl}/api/settings`, {
@@ -86,7 +87,9 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-primary mb-2">OrcaFlow</h1>
-          <p className="text-text-muted">Enter your password to access the dashboard</p>
+          <p className="text-text-muted">
+            Enter your password to access the dashboard
+          </p>
         </div>
 
         <Card>
@@ -114,7 +117,8 @@ export default function LoginPage() {
             </Button>
 
             <p className="text-xs text-center text-text-muted mt-2">
-              Default password is <code className="bg-sidebar px-1 rounded">123456</code>
+              Default password is{" "}
+              <code className="bg-sidebar px-1 rounded">123456</code>
             </p>
           </form>
         </Card>

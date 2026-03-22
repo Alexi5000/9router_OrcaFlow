@@ -27,9 +27,10 @@ export default function Card({
         "bg-surface",
         "border border-black/5 dark:border-white/5",
         "rounded-lg shadow-sm",
-        hover && "hover:shadow-md hover:border-primary/30 transition-all cursor-pointer",
+        hover &&
+          "hover:shadow-md hover:border-primary/30 transition-all cursor-pointer",
         paddings[padding],
-        className
+        className,
       )}
       {...props}
     >
@@ -38,7 +39,9 @@ export default function Card({
           <div className="flex items-center gap-3">
             {icon && (
               <div className="p-2 rounded-lg bg-bg text-text-muted">
-                <span className="material-symbols-outlined text-[20px]">{icon}</span>
+                <span className="material-symbols-outlined text-[20px]">
+                  {icon}
+                </span>
               </div>
             )}
             <div>
@@ -66,7 +69,7 @@ Card.Section = function CardSection({ children, className, ...props }) {
         "p-4 rounded-lg",
         "bg-black/[0.02] dark:bg-white/[0.02]",
         "border border-black/5 dark:border-white/5",
-        className
+        className,
       )}
       {...props}
     >
@@ -83,7 +86,7 @@ Card.Row = function CardRow({ children, className, ...props }) {
         "p-3 -mx-3 px-3 transition-colors",
         "border-b border-black/5 dark:border-white/5 last:border-b-0",
         "hover:bg-black/[0.02] dark:hover:bg-white/[0.02]",
-        className
+        className,
       )}
       {...props}
     >
@@ -93,11 +96,11 @@ Card.Row = function CardRow({ children, className, ...props }) {
 };
 
 // Sub-component: List item with hover actions (macOS style)
-Card.ListItem = function CardListItem({ 
-  children, 
+Card.ListItem = function CardListItem({
+  children,
   actions,
-  className, 
-  ...props 
+  className,
+  ...props
 }) {
   return (
     <div
@@ -106,7 +109,7 @@ Card.ListItem = function CardListItem({
         "border-b border-black/[0.03] dark:border-white/[0.03] last:border-b-0",
         "hover:bg-black/[0.02] dark:hover:bg-white/[0.02]",
         "transition-colors",
-        className
+        className,
       )}
       {...props}
     >
@@ -119,4 +122,3 @@ Card.ListItem = function CardListItem({
     </div>
   );
 };
-

@@ -82,7 +82,7 @@ export class AntigravityService {
    */
   getApiHeaders(accessToken) {
     return {
-      "Authorization": `Bearer ${accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
       "User-Agent": this.config.loadCodeAssistUserAgent,
       "X-Goog-Api-Client": this.config.loadCodeAssistApiClient,
@@ -121,7 +121,7 @@ export class AntigravityService {
 
     // Extract project ID
     let projectId = data.cloudaicompanionProject;
-    if (typeof projectId === 'object' && projectId !== null && projectId.id) {
+    if (typeof projectId === "object" && projectId !== null && projectId.id) {
       projectId = projectId.id;
     }
 
@@ -169,7 +169,7 @@ export class AntigravityService {
         let finalProjectId = projectId;
         if (result.response?.cloudaicompanionProject) {
           const respProject = result.response.cloudaicompanionProject;
-          if (typeof respProject === 'string') {
+          if (typeof respProject === "string") {
             finalProjectId = respProject.trim();
           } else if (respProject.id) {
             finalProjectId = respProject.id.trim();
@@ -179,7 +179,7 @@ export class AntigravityService {
       }
 
       // Wait 5 seconds before retry
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 5000));
     }
 
     throw new Error("Onboarding timeout - please try again");
@@ -277,7 +277,9 @@ export class AntigravityService {
       close();
 
       if (callbackParams.error) {
-        throw new Error(callbackParams.error_description || callbackParams.error);
+        throw new Error(
+          callbackParams.error_description || callbackParams.error,
+        );
       }
 
       if (!callbackParams.code) {
@@ -297,16 +299,24 @@ export class AntigravityService {
       spinner.text = "Loading Code Assist configuration...";
 
       // Load Code Assist to get project ID and tier
-      const { projectId, tierId } = await this.loadCodeAssist(tokens.access_token);
+      const { projectId, tierId } = await this.loadCodeAssist(
+        tokens.access_token,
+      );
 
       if (!projectId) {
-        throw new Error("No Google Cloud Project found. Please ensure you have a GCP project with Gemini Code Assist enabled.");
+        throw new Error(
+          "No Google Cloud Project found. Please ensure you have a GCP project with Gemini Code Assist enabled.",
+        );
       }
 
       spinner.text = "Onboarding to Gemini Code Assist...";
 
       // Complete onboarding to enable Gemini Code Assist
-      const onboardResult = await this.completeOnboarding(tokens.access_token, projectId, tierId);
+      const onboardResult = await this.completeOnboarding(
+        tokens.access_token,
+        projectId,
+        tierId,
+      );
       const finalProjectId = onboardResult.projectId || projectId;
 
       spinner.text = "Saving tokens to server...";
@@ -314,7 +324,9 @@ export class AntigravityService {
       // Save tokens to server
       await this.saveTokens(tokens, userInfo, finalProjectId);
 
-      spinner.succeed(`Antigravity connected successfully! (${userInfo.email}, Project: ${finalProjectId})`);
+      spinner.succeed(
+        `Antigravity connected successfully! (${userInfo.email}, Project: ${finalProjectId})`,
+      );
       return true;
     } catch (error) {
       spinner.fail(`Failed: ${error.message}`);
@@ -322,4 +334,3 @@ export class AntigravityService {
     }
   }
 }
-

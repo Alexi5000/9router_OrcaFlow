@@ -1,7 +1,10 @@
 // Ensure proxyFetch is loaded to patch globalThis.fetch
 import "open-sse/index.js";
 
-import { getProviderConnectionById, updateProviderConnection } from "@/lib/localDb";
+import {
+  getProviderConnectionById,
+  updateProviderConnection,
+} from "@/lib/localDb";
 import { getUsageForProvider } from "open-sse/services/usage.js";
 import { getExecutor } from "open-sse/executors/index.js";
 /**
@@ -19,7 +22,8 @@ async function refreshAndUpdateCredentials(connection) {
     providerSpecificData: connection.providerSpecificData,
     // For GitHub
     copilotToken: connection.providerSpecificData?.copilotToken,
-    copilotTokenExpiresAt: connection.providerSpecificData?.copilotTokenExpiresAt,
+    copilotTokenExpiresAt:
+      connection.providerSpecificData?.copilotTokenExpiresAt,
   };
 
   // Check if refresh is needed
@@ -37,7 +41,9 @@ async function refreshAndUpdateCredentials(connection) {
     if (connection.provider === "github" && connection.accessToken) {
       return { connection, refreshed: false };
     }
-    throw new Error("Failed to refresh credentials. Please re-authorize the connection.");
+    throw new Error(
+      "Failed to refresh credentials. Please re-authorize the connection.",
+    );
   }
 
   // Build update object
@@ -58,7 +64,9 @@ async function refreshAndUpdateCredentials(connection) {
 
   // Update token expiry
   if (refreshResult.expiresIn) {
-    updateData.expiresAt = new Date(Date.now() + refreshResult.expiresIn * 1000).toISOString();
+    updateData.expiresAt = new Date(
+      Date.now() + refreshResult.expiresIn * 1000,
+    ).toISOString();
   } else if (refreshResult.expiresAt) {
     updateData.expiresAt = refreshResult.expiresAt;
   }
@@ -102,7 +110,9 @@ export async function GET(request, { params }) {
 
     // Only OAuth connections have usage APIs
     if (connection.authType !== "oauth") {
-      return Response.json({ message: "Usage not available for API key connections" });
+      return Response.json({
+        message: "Usage not available for API key connections",
+      });
     }
 
     // Refresh credentials if needed using executor
@@ -111,9 +121,12 @@ export async function GET(request, { params }) {
       connection = result.connection;
     } catch (refreshError) {
       console.error("[Usage API] Credential refresh failed:", refreshError);
-      return Response.json({
-        error: `Credential refresh failed: ${refreshError.message}`
-      }, { status: 401 });
+      return Response.json(
+        {
+          error: `Credential refresh failed: ${refreshError.message}`,
+        },
+        { status: 401 },
+      );
     }
 
     // Fetch usage from provider API

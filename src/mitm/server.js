@@ -49,7 +49,7 @@ function sniCallback(servername, cb) {
     // Create secure context
     const ctx = require("tls").createSecureContext({
       key: certData.key,
-      cert: certData.cert
+      cert: certData.cert,
     });
 
     // Cache it
@@ -73,7 +73,7 @@ try {
   sslOptions = {
     key: fs.readFileSync(rootCAKeyPath),
     cert: fs.readFileSync(rootCACertPath),
-    SNICallback: sniCallback
+    SNICallback: sniCallback,
   };
 } catch (e) {
   console.error(`❌ Root CA not found in ${certDir}: ${e.message}`);
@@ -83,10 +83,15 @@ try {
 // Antigravity: Gemini generateContent endpoints
 const ANTIGRAVITY_URL_PATTERNS = [":generateContent", ":streamGenerateContent"];
 // Copilot: OpenAI-compatible + Anthropic endpoints
-const COPILOT_URL_PATTERNS = ["/chat/completions", "/v1/messages", "/responses"];
+const COPILOT_URL_PATTERNS = [
+  "/chat/completions",
+  "/v1/messages",
+  "/responses",
+];
 
 const LOG_DIR = path.join(__dirname, "../../logs/mitm");
-if (ENABLE_FILE_LOG && !fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
+if (ENABLE_FILE_LOG && !fs.existsSync(LOG_DIR))
+  fs.mkdirSync(LOG_DIR, { recursive: true });
 
 function saveRequestLog(url, bodyBuffer) {
   if (!ENABLE_FILE_LOG) return;
@@ -96,7 +101,9 @@ function saveRequestLog(url, bodyBuffer) {
     const filePath = path.join(LOG_DIR, `${ts}_${urlSlug}.json`);
     const body = JSON.parse(bodyBuffer.toString());
     fs.writeFileSync(filePath, JSON.stringify(body, null, 2));
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 const cachedTargetIPs = {};
@@ -113,7 +120,7 @@ async function resolveTargetIP(hostname) {
 function collectBodyRaw(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on("data", chunk => chunks.push(chunk));
+    req.on("data", (chunk) => chunks.push(chunk));
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
@@ -123,7 +130,11 @@ function collectBodyRaw(req) {
 function extractModel(url, body) {
   const urlMatch = url.match(/\/models\/([^/:]+)/);
   if (urlMatch) return urlMatch[1];
-  try { return JSON.parse(body.toString()).model || null; } catch { return null; }
+  try {
+    return JSON.parse(body.toString()).model || null;
+  } catch {
+    return null;
+  }
 }
 
 function getMappedModel(tool, model) {
@@ -143,7 +154,11 @@ function getMappedModel(tool, model) {
 function getToolForHost(host) {
   const h = (host || "").split(":")[0];
   if (h === "api.individual.githubcopilot.com") return "copilot";
-  if (h === "daily-cloudcode-pa.googleapis.com" || h === "cloudcode-pa.googleapis.com") return "antigravity";
+  if (
+    h === "daily-cloudcode-pa.googleapis.com" ||
+    h === "cloudcode-pa.googleapis.com"
+  )
+    return "antigravity";
   return null;
 }
 
@@ -151,18 +166,21 @@ async function passthrough(req, res, bodyBuffer) {
   const targetHost = (req.headers.host || TARGET_HOSTS[0]).split(":")[0];
   const targetIP = await resolveTargetIP(targetHost);
 
-  const forwardReq = https.request({
-    hostname: targetIP,
-    port: 443,
-    path: req.url,
-    method: req.method,
-    headers: { ...req.headers, host: targetHost },
-    servername: targetHost,
-    rejectUnauthorized: false
-  }, (forwardRes) => {
-    res.writeHead(forwardRes.statusCode, forwardRes.headers);
-    forwardRes.pipe(res);
-  });
+  const forwardReq = https.request(
+    {
+      hostname: targetIP,
+      port: 443,
+      path: req.url,
+      method: req.method,
+      headers: { ...req.headers, host: targetHost },
+      servername: targetHost,
+      rejectUnauthorized: false,
+    },
+    (forwardRes) => {
+      res.writeHead(forwardRes.statusCode, forwardRes.headers);
+      forwardRes.pipe(res);
+    },
+  );
 
   forwardReq.on("error", (err) => {
     console.error(`❌ Passthrough error: ${err.message}`);
@@ -183,9 +201,9 @@ async function intercept(req, res, bodyBuffer, mappedModel) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${API_KEY}`
+        Authorization: `Bearer ${API_KEY}`,
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -194,21 +212,32 @@ async function intercept(req, res, bodyBuffer, mappedModel) {
     }
 
     const ct = response.headers.get("content-type") || "application/json";
-    const resHeaders = { "Content-Type": ct, "Cache-Control": "no-cache", "Connection": "keep-alive" };
-    if (ct.includes("text/event-stream")) resHeaders["X-Accel-Buffering"] = "no";
+    const resHeaders = {
+      "Content-Type": ct,
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    };
+    if (ct.includes("text/event-stream"))
+      resHeaders["X-Accel-Buffering"] = "no";
     res.writeHead(200, resHeaders);
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     while (true) {
       const { done, value } = await reader.read();
-      if (done) { res.end(); break; }
+      if (done) {
+        res.end();
+        break;
+      }
       res.write(decoder.decode(value, { stream: true }));
     }
   } catch (error) {
     console.error(`❌ ${error.message}`);
-    if (!res.headersSent) res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: { message: error.message, type: "mitm_error" } }));
+    if (!res.headersSent)
+      res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({ error: { message: error.message, type: "mitm_error" } }),
+    );
   }
 }
 
@@ -223,7 +252,9 @@ const server = https.createServer(sslOptions, async (req, res) => {
   if (bodyBuffer.length > 0) saveRequestLog(req.url, bodyBuffer);
 
   // Anti-loop: requests originating from 9Router bypass interception
-  if (req.headers[INTERNAL_REQUEST_HEADER.name] === INTERNAL_REQUEST_HEADER.value) {
+  if (
+    req.headers[INTERNAL_REQUEST_HEADER.name] === INTERNAL_REQUEST_HEADER.value
+  ) {
     return passthrough(req, res, bodyBuffer);
   }
 
@@ -231,14 +262,15 @@ const server = https.createServer(sslOptions, async (req, res) => {
   if (!tool) return passthrough(req, res, bodyBuffer);
 
   // Check if this URL should be intercepted based on tool
-  const isChat = tool === "antigravity"
-    ? ANTIGRAVITY_URL_PATTERNS.some(p => req.url.includes(p))
-    : COPILOT_URL_PATTERNS.some(p => req.url.includes(p));
+  const isChat =
+    tool === "antigravity"
+      ? ANTIGRAVITY_URL_PATTERNS.some((p) => req.url.includes(p))
+      : COPILOT_URL_PATTERNS.some((p) => req.url.includes(p));
 
   if (!isChat) return passthrough(req, res, bodyBuffer);
 
   const model = extractModel(req.url, bodyBuffer);
-  console.log("Extracted model:",  model)
+  console.log("Extracted model:", model);
   const mappedModel = getMappedModel(tool, model);
 
   if (!mappedModel) return passthrough(req, res, bodyBuffer);
@@ -261,7 +293,9 @@ server.on("error", (error) => {
   process.exit(1);
 });
 
-const shutdown = () => { server.close(() => process.exit(0)); };
+const shutdown = () => {
+  server.close(() => process.exit(0));
+};
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 if (process.platform === "win32") {

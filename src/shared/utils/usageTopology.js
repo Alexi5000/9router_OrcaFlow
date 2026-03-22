@@ -6,7 +6,12 @@ function getTimestampMs(timestamp) {
   return Number.isFinite(value) ? value : 0;
 }
 
-export function getRecentProvidersFromRequests(requests = [], now = Date.now(), windowMs = TOPOLOGY_RECENT_WINDOW_MS, limit = 4) {
+export function getRecentProvidersFromRequests(
+  requests = [],
+  now = Date.now(),
+  windowMs = TOPOLOGY_RECENT_WINDOW_MS,
+  limit = 4,
+) {
   if (!Array.isArray(requests) || requests.length === 0) return [];
 
   const cutoff = now - windowMs;
@@ -16,7 +21,8 @@ export function getRecentProvidersFromRequests(requests = [], now = Date.now(), 
   for (const req of requests) {
     const provider = req?.provider?.toLowerCase?.();
     const timestamp = getTimestampMs(req?.timestamp);
-    if (!provider || !timestamp || timestamp < cutoff || seen.has(provider)) continue;
+    if (!provider || !timestamp || timestamp < cutoff || seen.has(provider))
+      continue;
     seen.add(provider);
     unique.push(provider);
     if (unique.length >= limit) break;
@@ -25,7 +31,11 @@ export function getRecentProvidersFromRequests(requests = [], now = Date.now(), 
   return unique;
 }
 
-export function getRecentLastProvider(requests = [], now = Date.now(), windowMs = TOPOLOGY_RECENT_WINDOW_MS) {
+export function getRecentLastProvider(
+  requests = [],
+  now = Date.now(),
+  windowMs = TOPOLOGY_RECENT_WINDOW_MS,
+) {
   if (!Array.isArray(requests) || requests.length === 0) return "";
 
   const latest = requests[0];

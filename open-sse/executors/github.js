@@ -1,5 +1,10 @@
 import { BaseExecutor } from "./base.js";
-import { PROVIDERS, OAUTH_ENDPOINTS, HTTP_STATUS, GITHUB_COPILOT } from "../config/constants.js";
+import {
+  PROVIDERS,
+  OAUTH_ENDPOINTS,
+  HTTP_STATUS,
+  GITHUB_COPILOT,
+} from "../config/constants.js";
 import { openaiToOpenAIResponsesRequest } from "../translator/request/openai-responses.js";
 import { openaiResponsesToOpenAIResponse } from "../translator/response/openai-responses.js";
 import { initState } from "../translator/index.js";
@@ -20,7 +25,7 @@ export class GithubExecutor extends BaseExecutor {
   buildHeaders(credentials, stream = true) {
     const token = credentials.copilotToken || credentials.accessToken;
     return {
-      "Authorization": `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
       "copilot-integration-id": "vscode-chat",
       "editor-version": `vscode/${GITHUB_COPILOT.VSCODE_VERSION}`,
@@ -28,10 +33,12 @@ export class GithubExecutor extends BaseExecutor {
       "user-agent": GITHUB_COPILOT.USER_AGENT,
       "openai-intent": "conversation-panel",
       "x-github-api-version": GITHUB_COPILOT.API_VERSION,
-      "x-request-id": crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      "x-request-id":
+        crypto.randomUUID?.() ||
+        `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       "x-vscode-user-agent-library-version": "electron-fetch",
       "X-Initiator": "user",
-      "Accept": stream ? "text/event-stream" : "application/json"
+      Accept: stream ? "text/event-stream" : "application/json",
     };
   }
 
@@ -42,7 +49,7 @@ export class GithubExecutor extends BaseExecutor {
     if (!body?.messages) return body;
 
     const sanitized = { ...body };
-    sanitized.messages = body.messages.map(msg => {
+    sanitized.messages = body.messages.map((msg) => {
       // assistant messages with only tool_calls have content: null — leave as-is
       if (!msg.content) return msg;
 
@@ -52,17 +59,23 @@ export class GithubExecutor extends BaseExecutor {
       // Array content: filter/convert unsupported part types
       if (Array.isArray(msg.content)) {
         const cleanContent = msg.content
-          .map(part => {
+          .map((part) => {
             if (part.type === "text") return part;
             if (part.type === "image_url") return part;
             // Serialize tool_use, tool_result, thinking, etc. as text
             const text = part.text || part.content || JSON.stringify(part);
-            return { type: "text", text: typeof text === "string" ? text : JSON.stringify(text) };
+            return {
+              type: "text",
+              text: typeof text === "string" ? text : JSON.stringify(text),
+            };
           })
-          .filter(part => part.text !== ""); // remove empty text parts
+          .filter((part) => part.text !== ""); // remove empty text parts
 
         // If all content was stripped (e.g. only tool_result with no text), drop content
-        return { ...msg, content: cleanContent.length > 0 ? cleanContent : null };
+        return {
+          ...msg,
+          content: cleanContent.length > 0 ? cleanContent : null,
+        };
       }
 
       return msg;
@@ -84,15 +97,20 @@ export class GithubExecutor extends BaseExecutor {
     // This handles Claude models on GitHub Copilot which reject non-text/image_url content types
     const sanitizedOptions = {
       ...options,
-      body: this.sanitizeMessagesForChatCompletions(options.body)
+      body: this.sanitizeMessagesForChatCompletions(options.body),
     };
 
-    const result = await super.execute({ ...sanitizedOptions, proxyOptions: options.proxyOptions || null });
+    const result = await super.execute({
+      ...sanitizedOptions,
+      proxyOptions: options.proxyOptions || null,
+    });
 
     if (result.response.status === HTTP_STATUS.BAD_REQUEST) {
       const errorBody = await result.response.clone().text();
 
-      if (errorBody.includes("not accessible via the /chat/completions endpoint")) {
+      if (
+        errorBody.includes("not accessible via the /chat/completions endpoint")
+      ) {
         log?.warn("GITHUB", `Model ${model} requires /responses. Switching...`);
         this.knownCodexModels.add(model);
         return this.executeWithResponsesEndpoint(options);
@@ -102,20 +120,37 @@ export class GithubExecutor extends BaseExecutor {
     return result;
   }
 
-  async executeWithResponsesEndpoint({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
+  async executeWithResponsesEndpoint({
+    model,
+    body,
+    stream,
+    credentials,
+    signal,
+    log,
+    proxyOptions = null,
+  }) {
     const url = this.config.responsesUrl;
     const headers = this.buildHeaders(credentials, stream);
 
-    const transformedBody = openaiToOpenAIResponsesRequest(model, body, stream, credentials);
+    const transformedBody = openaiToOpenAIResponsesRequest(
+      model,
+      body,
+      stream,
+      credentials,
+    );
 
     log?.debug("GITHUB", "Sending translated request to /responses");
 
-    const response = await proxyAwareFetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(transformedBody),
-      signal
-    }, proxyOptions);
+    const response = await proxyAwareFetch(
+      url,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(transformedBody),
+        signal,
+      },
+      proxyOptions,
+    );
 
     if (!response.ok) {
       return { response, url, headers, transformedBody };
@@ -159,11 +194,13 @@ export class GithubExecutor extends BaseExecutor {
           if (parsed && !parsed.done) {
             const converted = openaiResponsesToOpenAIResponse(parsed, state);
             if (converted) {
-              controller.enqueue(new TextEncoder().encode(formatSSE(converted, "openai")));
+              controller.enqueue(
+                new TextEncoder().encode(formatSSE(converted, "openai")),
+              );
             }
           }
         }
-      }
+      },
     });
 
     const convertedStream = response.body.pipeThrough(transformStream);
@@ -172,29 +209,35 @@ export class GithubExecutor extends BaseExecutor {
       response: new Response(convertedStream, {
         status: response.status,
         statusText: response.statusText,
-        headers: response.headers
+        headers: response.headers,
       }),
       url,
       headers,
-      transformedBody
+      transformedBody,
     };
   }
 
   async refreshCopilotToken(githubAccessToken, log) {
     try {
-      const response = await fetch("https://api.github.com/copilot_internal/v2/token", {
-        headers: {
-          "Authorization": `token ${githubAccessToken}`,
-          "User-Agent": GITHUB_COPILOT.USER_AGENT,
-          "Editor-Version": `vscode/${GITHUB_COPILOT.VSCODE_VERSION}`,
-          "Editor-Plugin-Version": `copilot-chat/${GITHUB_COPILOT.COPILOT_CHAT_VERSION}`,
-          "Accept": "application/json",
-          "x-github-api-version": GITHUB_COPILOT.API_VERSION
-        }
-      });
+      const response = await fetch(
+        "https://api.github.com/copilot_internal/v2/token",
+        {
+          headers: {
+            Authorization: `token ${githubAccessToken}`,
+            "User-Agent": GITHUB_COPILOT.USER_AGENT,
+            "Editor-Version": `vscode/${GITHUB_COPILOT.VSCODE_VERSION}`,
+            "Editor-Plugin-Version": `copilot-chat/${GITHUB_COPILOT.COPILOT_CHAT_VERSION}`,
+            Accept: "application/json",
+            "x-github-api-version": GITHUB_COPILOT.API_VERSION,
+          },
+        },
+      );
       if (!response.ok) {
         const errorText = await response.text();
-        log?.error?.("TOKEN", `Copilot token refresh failed: ${response.status} ${errorText}`);
+        log?.error?.(
+          "TOKEN",
+          `Copilot token refresh failed: ${response.status} ${errorText}`,
+        );
         return null;
       }
       const data = await response.json();
@@ -210,18 +253,25 @@ export class GithubExecutor extends BaseExecutor {
     try {
       const response = await fetch(OAUTH_ENDPOINTS.github.token, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
         body: new URLSearchParams({
           grant_type: "refresh_token",
           refresh_token: refreshToken,
           client_id: this.config.clientId,
-          client_secret: this.config.clientSecret
-        })
+          client_secret: this.config.clientSecret,
+        }),
       });
       if (!response.ok) return null;
       const tokens = await response.json();
       log?.info?.("TOKEN", "GitHub token refreshed");
-      return { accessToken: tokens.access_token, refreshToken: tokens.refresh_token || refreshToken, expiresIn: tokens.expires_in };
+      return {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || refreshToken,
+        expiresIn: tokens.expires_in,
+      };
     } catch (error) {
       log?.error?.("TOKEN", `GitHub refresh error: ${error.message}`);
       return null;
@@ -229,21 +279,39 @@ export class GithubExecutor extends BaseExecutor {
   }
 
   async refreshCredentials(credentials, log) {
-    let copilotResult = await this.refreshCopilotToken(credentials.accessToken, log);
+    let copilotResult = await this.refreshCopilotToken(
+      credentials.accessToken,
+      log,
+    );
 
     if (!copilotResult && credentials.refreshToken) {
-      const githubTokens = await this.refreshGitHubToken(credentials.refreshToken, log);
+      const githubTokens = await this.refreshGitHubToken(
+        credentials.refreshToken,
+        log,
+      );
       if (githubTokens?.accessToken) {
-        copilotResult = await this.refreshCopilotToken(githubTokens.accessToken, log);
+        copilotResult = await this.refreshCopilotToken(
+          githubTokens.accessToken,
+          log,
+        );
         if (copilotResult) {
-          return { ...githubTokens, copilotToken: copilotResult.token, copilotTokenExpiresAt: copilotResult.expiresAt };
+          return {
+            ...githubTokens,
+            copilotToken: copilotResult.token,
+            copilotTokenExpiresAt: copilotResult.expiresAt,
+          };
         }
         return githubTokens;
       }
     }
 
     if (copilotResult) {
-      return { accessToken: credentials.accessToken, refreshToken: credentials.refreshToken, copilotToken: copilotResult.token, copilotTokenExpiresAt: copilotResult.expiresAt };
+      return {
+        accessToken: credentials.accessToken,
+        refreshToken: credentials.refreshToken,
+        copilotToken: copilotResult.token,
+        copilotTokenExpiresAt: copilotResult.expiresAt,
+      };
     }
 
     return null;

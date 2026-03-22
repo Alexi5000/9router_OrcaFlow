@@ -1,10 +1,24 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal } from "@/shared/components";
+import {
+  Card,
+  Button,
+  Modal,
+  Input,
+  CardSkeleton,
+  ModelSelectModal,
+} from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
-import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
-import { formatBurstCountdown, formatBurstTime, getKiloBurstStatus } from "@/shared/utils/kiloBurst";
+import {
+  isOpenAICompatibleProvider,
+  isAnthropicCompatibleProvider,
+} from "@/shared/constants/providers";
+import {
+  formatBurstCountdown,
+  formatBurstTime,
+  getKiloBurstStatus,
+} from "@/shared/utils/kiloBurst";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
@@ -29,7 +43,7 @@ export default function CombosPage() {
       const combosData = await combosRes.json();
       const providersData = await providersRes.json();
       const usageData = usageRes.ok ? await usageRes.json() : null;
-      
+
       if (combosRes.ok) setCombos(combosData.combos || []);
       if (providersRes.ok) {
         setActiveProviders(providersData.connections || []);
@@ -97,7 +111,7 @@ export default function CombosPage() {
     try {
       const res = await fetch(`/api/combos/${id}`, { method: "DELETE" });
       if (res.ok) {
-        setCombos(combos.filter(c => c.id !== id));
+        setCombos(combos.filter((c) => c.id !== id));
       }
     } catch (error) {
       console.log("Error deleting combo:", error);
@@ -128,17 +142,25 @@ export default function CombosPage() {
         </Button>
       </div>
 
-      <KiloBurstStatusCard status={kiloBurstStatus} combos={combos} kiloHourly={kiloHourly} />
+      <KiloBurstStatusCard
+        status={kiloBurstStatus}
+        combos={combos}
+        kiloHourly={kiloHourly}
+      />
 
       {/* Combos List */}
       {combos.length === 0 ? (
         <Card>
           <div className="text-center py-12">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4">
-              <span className="material-symbols-outlined text-[32px]">layers</span>
+              <span className="material-symbols-outlined text-[32px]">
+                layers
+              </span>
             </div>
             <p className="text-text-main font-medium mb-1">No combos yet</p>
-            <p className="text-sm text-text-muted mb-4">Create model combos with fallback support</p>
+            <p className="text-sm text-text-muted mb-4">
+              Create model combos with fallback support
+            </p>
             <Button icon="add" onClick={() => setShowCreateModal(true)}>
               Create Combo
             </Button>
@@ -218,10 +240,13 @@ function KiloBurstStatusCard({ status, combos, kiloHourly }) {
           <div>
             <h2 className="text-base font-semibold">Kilo Burst Window</h2>
             <p className="text-sm text-text-muted mt-1">
-              `fast`, `sonnet`, `build`, `reason`, and `opus` now burn Kilo first, then fall into the paid coding or overflow tiers.
+              `fast`, `sonnet`, `build`, `reason`, and `opus` now burn Kilo
+              first, then fall into the paid coding or overflow tiers.
             </p>
           </div>
-          <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${stateClasses}`}>
+          <span
+            className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${stateClasses}`}
+          >
             {stateLabel}
           </span>
         </div>
@@ -231,13 +256,15 @@ function KiloBurstStatusCard({ status, combos, kiloHourly }) {
         {kiloHourly && (
           <div className="flex flex-wrap gap-2 text-xs">
             <span className="rounded-full bg-black/5 px-2.5 py-1 font-medium text-text-main dark:bg-white/5">
-              Kilo this hour: {kiloHourly.requestsThisHour}/{kiloHourly.requestLimit}
+              Kilo this hour: {kiloHourly.requestsThisHour}/
+              {kiloHourly.requestLimit}
             </span>
             <span className="rounded-full bg-black/5 px-2.5 py-1 font-medium text-text-main dark:bg-white/5">
               Estimated left: {kiloHourly.remainingRequests} requests
             </span>
             <span className="rounded-full bg-black/5 px-2.5 py-1 font-medium text-text-main dark:bg-white/5">
-              {Math.round(kiloHourly.usedPercent)}% used, resets {formatBurstTime(kiloHourly.resetAt)}
+              {Math.round(kiloHourly.usedPercent)}% used, resets{" "}
+              {formatBurstTime(kiloHourly.resetAt)}
             </span>
           </div>
         )}
@@ -265,13 +292,20 @@ function ComboCard({ combo, copied, onCopy, onEdit, onDelete }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <span className="material-symbols-outlined text-primary text-[18px]">layers</span>
+            <span className="material-symbols-outlined text-primary text-[18px]">
+              layers
+            </span>
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <code className="text-sm font-medium font-mono truncate">{combo.name}</code>
+              <code className="text-sm font-medium font-mono truncate">
+                {combo.name}
+              </code>
               <button
-                onClick={(e) => { e.stopPropagation(); onCopy(combo.name, `combo-${combo.id}`); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCopy(combo.name, `combo-${combo.id}`);
+                }}
                 className="p-0.5 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
                 title="Copy combo name"
               >
@@ -282,16 +316,23 @@ function ComboCard({ combo, copied, onCopy, onEdit, onDelete }) {
             </div>
             <div className="flex items-center gap-1 mt-0.5 flex-wrap">
               {combo.models.length === 0 ? (
-                <span className="text-xs text-text-muted italic">No models</span>
+                <span className="text-xs text-text-muted italic">
+                  No models
+                </span>
               ) : (
                 combo.models.slice(0, 3).map((model, index) => (
-                  <code key={index} className="text-[10px] font-mono bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded text-text-muted">
+                  <code
+                    key={index}
+                    className="text-[10px] font-mono bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded text-text-muted"
+                  >
                     {model}
                   </code>
                 ))
               )}
               {combo.models.length > 3 && (
-                <span className="text-[10px] text-text-muted">+{combo.models.length - 3} more</span>
+                <span className="text-[10px] text-text-muted">
+                  +{combo.models.length - 3} more
+                </span>
               )}
             </div>
           </div>
@@ -311,7 +352,9 @@ function ComboCard({ combo, copied, onCopy, onEdit, onDelete }) {
             className="p-1.5 hover:bg-red-500/10 rounded text-red-500 transition-colors"
             title="Delete"
           >
-            <span className="material-symbols-outlined text-[16px]">delete</span>
+            <span className="material-symbols-outlined text-[16px]">
+              delete
+            </span>
           </button>
         </div>
       </div>
@@ -320,7 +363,16 @@ function ComboCard({ combo, copied, onCopy, onEdit, onDelete }) {
 }
 
 // Inline editable model item
-function ModelItem({ index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown, onRemove }) {
+function ModelItem({
+  index,
+  model,
+  isFirst,
+  isLast,
+  onEdit,
+  onMoveUp,
+  onMoveDown,
+  onRemove,
+}) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(model);
 
@@ -333,13 +385,18 @@ function ModelItem({ index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter") commit();
-    if (e.key === "Escape") { setDraft(model); setEditing(false); }
+    if (e.key === "Escape") {
+      setDraft(model);
+      setEditing(false);
+    }
   };
 
   return (
     <div className="group flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/[0.02] dark:bg-white/[0.02] hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors">
       {/* Index badge */}
-      <span className="text-[10px] font-medium text-text-muted w-3 text-center shrink-0">{index + 1}</span>
+      <span className="text-[10px] font-medium text-text-muted w-3 text-center shrink-0">
+        {index + 1}
+      </span>
 
       {/* Inline editable model value */}
       {editing ? (
@@ -369,7 +426,9 @@ function ModelItem({ index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown
           className={`p-0.5 rounded ${isFirst ? "text-text-muted/20 cursor-not-allowed" : "text-text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5"}`}
           title="Move up"
         >
-          <span className="material-symbols-outlined text-[12px]">arrow_upward</span>
+          <span className="material-symbols-outlined text-[12px]">
+            arrow_upward
+          </span>
         </button>
         <button
           onClick={onMoveDown}
@@ -377,7 +436,9 @@ function ModelItem({ index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown
           className={`p-0.5 rounded ${isLast ? "text-text-muted/20 cursor-not-allowed" : "text-text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5"}`}
           title="Move down"
         >
-          <span className="material-symbols-outlined text-[12px]">arrow_downward</span>
+          <span className="material-symbols-outlined text-[12px]">
+            arrow_downward
+          </span>
         </button>
       </div>
 
@@ -402,19 +463,29 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders }) {
   const [nameError, setNameError] = useState("");
   const [modelAliases, setModelAliases] = useState({});
 
-  const fetchModalData = async () => {
-    try {
-      const aliasesRes = await fetch("/api/models/alias");
-      if (!aliasesRes.ok) return;
-      const aliasesData = await aliasesRes.json();
-      setModelAliases(aliasesData.aliases || {});
-    } catch (error) {
-      console.error("Error fetching modal data:", error);
-    }
-  };
-
   useEffect(() => {
-    if (isOpen) fetchModalData();
+    if (!isOpen) return;
+
+    let cancelled = false;
+
+    const loadModalData = async () => {
+      try {
+        const aliasesRes = await fetch("/api/models/alias");
+        if (!aliasesRes.ok || cancelled) return;
+        const aliasesData = await aliasesRes.json();
+        if (!cancelled) {
+          setModelAliases(aliasesData.aliases || {});
+        }
+      } catch (error) {
+        console.error("Error fetching modal data:", error);
+      }
+    };
+
+    void loadModalData();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
   const validateName = (value) => {
@@ -450,14 +521,20 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders }) {
   const handleMoveUp = (index) => {
     if (index === 0) return;
     const newModels = [...models];
-    [newModels[index - 1], newModels[index]] = [newModels[index], newModels[index - 1]];
+    [newModels[index - 1], newModels[index]] = [
+      newModels[index],
+      newModels[index - 1],
+    ];
     setModels(newModels);
   };
 
   const handleMoveDown = (index) => {
     if (index === models.length - 1) return;
     const newModels = [...models];
-    [newModels[index], newModels[index + 1]] = [newModels[index + 1], newModels[index]];
+    [newModels[index], newModels[index + 1]] = [
+      newModels[index + 1],
+      newModels[index],
+    ];
     setModels(newModels);
   };
 
@@ -498,7 +575,9 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders }) {
 
             {models.length === 0 ? (
               <div className="text-center py-4 border border-dashed border-black/10 dark:border-white/10 rounded-lg bg-black/[0.01] dark:bg-white/[0.01]">
-                <span className="material-symbols-outlined text-text-muted text-xl mb-1">layers</span>
+                <span className="material-symbols-outlined text-text-muted text-xl mb-1">
+                  layers
+                </span>
                 <p className="text-xs text-text-muted">No models added yet</p>
               </div>
             ) : (

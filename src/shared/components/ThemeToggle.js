@@ -26,7 +26,7 @@ export default function ThemeToggle({ className, variant = "default" }) {
       "hover:bg-black/5",
       "hover:text-text-main",
       "transition-colors",
-      isCyberpunk && "hover:bg-[#FF2D95]/10"
+      isCyberpunk && "hover:bg-[#FF2D95]/10",
     ),
     card: cn(
       "flex items-center justify-center size-11 rounded-full",
@@ -37,7 +37,7 @@ export default function ThemeToggle({ className, variant = "default" }) {
       "text-text-muted-light hover:text-primary",
       "hover:text-primary",
       "transition-all group",
-      isCyberpunk && "hover:shadow-[0_0_12px_rgba(255,45,149,0.3)]"
+      isCyberpunk && "hover:shadow-[0_0_12px_rgba(255,45,149,0.3)]",
     ),
   };
 
@@ -54,8 +54,9 @@ export default function ThemeToggle({ className, variant = "default" }) {
       <span
         className={cn(
           "material-symbols-outlined text-[22px]",
-          variant === "card" && "transition-transform duration-300 group-hover:rotate-12",
-          isCyberpunk && "text-[#FF2D95]"
+          variant === "card" &&
+            "transition-transform duration-300 group-hover:rotate-12",
+          isCyberpunk && "text-[#FF2D95]",
         )}
       >
         {icon}
@@ -63,4 +64,3 @@ export default function ThemeToggle({ className, variant = "default" }) {
     </button>
   );
 }
-

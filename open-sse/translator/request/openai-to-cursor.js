@@ -10,7 +10,10 @@ import { FORMATS } from "../formats.js";
 function extractContent(content) {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
-    return content.filter(p => p.type === "text").map(p => p.text).join("");
+    return content
+      .filter((p) => p.type === "text")
+      .map((p) => p.text)
+      .join("");
   }
   return "";
 }
@@ -32,7 +35,10 @@ function convertMessages(messages) {
     const msg = messages[i];
 
     if (msg.role === "system") {
-      result.push({ role: "user", content: `[System Instructions]\n${msg.content}` });
+      result.push({
+        role: "user",
+        content: `[System Instructions]\n${msg.content}`,
+      });
       continue;
     }
 
@@ -49,12 +55,17 @@ function convertMessages(messages) {
             const toolResultText = extractContent(block.content) || "";
             const toolCallId = block.tool_use_id || "";
             const toolName = nameMap[toolCallId] || "";
-            parts.push(`<tool_result>\n<tool_name>${toolName}</tool_name>\n<tool_call_id>${toolCallId}</tool_call_id>\n<result>${toolResultText}</result>\n</tool_result>`);
+            parts.push(
+              `<tool_result>\n<tool_name>${toolName}</tool_name>\n<tool_call_id>${toolCallId}</tool_call_id>\n<result>${toolResultText}</result>\n</tool_result>`,
+            );
           }
         }
         result.push({ role: "user", content: parts.join("\n") || "" });
       } else {
-        result.push({ role: "user", content: extractContent(msg.content) || "" });
+        result.push({
+          role: "user",
+          content: extractContent(msg.content) || "",
+        });
       }
       continue;
     }
@@ -62,14 +73,16 @@ function convertMessages(messages) {
     if (msg.role === "tool") {
       // Strip system-reminder tags injected by Claude Code
       const raw = extractContent(msg.content) || "";
-      const toolContent = raw.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim();
+      const toolContent = raw
+        .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
+        .trim();
       const prevMsg = result[result.length - 1];
       const nameMap = getToolNameMap(prevMsg);
       const toolCallId = msg.tool_call_id || "";
       const toolName = nameMap[toolCallId] || "";
       result.push({
         role: "user",
-        content: `<tool_result>\n<tool_name>${toolName}</tool_name>\n<tool_call_id>${toolCallId}</tool_call_id>\n<result>${toolContent}</result>\n</tool_result>`
+        content: `<tool_result>\n<tool_name>${toolName}</tool_name>\n<tool_call_id>${toolCallId}</tool_call_id>\n<result>${toolContent}</result>\n</tool_result>`,
       });
       continue;
     }
@@ -84,14 +97,14 @@ function convertMessages(messages) {
       } else if (Array.isArray(msg.content)) {
         // Claude format: extract tool_use blocks from content array
         const extracted = msg.content
-          .filter(b => b.type === "tool_use")
-          .map(b => ({
+          .filter((b) => b.type === "tool_use")
+          .map((b) => ({
             id: b.id,
             type: "function",
             function: {
               name: b.name,
-              arguments: JSON.stringify(b.input || {})
-            }
+              arguments: JSON.stringify(b.input || {}),
+            },
           }));
         if (extracted.length > 0) tool_calls = extracted;
       }
@@ -114,7 +127,7 @@ export function buildCursorRequest(model, body, stream, credentials) {
   return {
     ...rest,
     messages,
-    max_tokens: 32000
+    max_tokens: 32000,
   };
 }
 

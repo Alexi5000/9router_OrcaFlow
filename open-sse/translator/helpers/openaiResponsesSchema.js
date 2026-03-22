@@ -1,11 +1,13 @@
 import { cleanJSONSchemaForAntigravity } from "./geminiHelper.js";
 
-export const OPENAI_RESPONSES_SCHEMA_ERROR_CODE = "openai_responses_schema_incompatible";
+export const OPENAI_RESPONSES_SCHEMA_ERROR_CODE =
+  "openai_responses_schema_incompatible";
 
 const PLACEHOLDER_PROPERTY_NAME = "_hint";
 const PLACEHOLDER_PROPERTY = {
   type: "string",
-  description: "Optional placeholder field for tools that accept no structured arguments."
+  description:
+    "Optional placeholder field for tools that accept no structured arguments.",
 };
 
 function deepClone(value) {
@@ -34,13 +36,19 @@ function inspectSchemaFeatures(schema, flags = {}) {
   if (!isPlainObject(schema)) return flags;
 
   if (Array.isArray(schema.type)) flags.hadTypeArray = true;
-  if (Array.isArray(schema.anyOf) && schema.anyOf.length > 0) flags.hadUnionLike = true;
-  if (Array.isArray(schema.oneOf) && schema.oneOf.length > 0) flags.hadUnionLike = true;
-  if (Array.isArray(schema.allOf) && schema.allOf.length > 0) flags.hadUnionLike = true;
+  if (Array.isArray(schema.anyOf) && schema.anyOf.length > 0)
+    flags.hadUnionLike = true;
+  if (Array.isArray(schema.oneOf) && schema.oneOf.length > 0)
+    flags.hadUnionLike = true;
+  if (Array.isArray(schema.allOf) && schema.allOf.length > 0)
+    flags.hadUnionLike = true;
 
-  const isObjectLike = schema.type === "object" || schema.properties || schema.required;
+  const isObjectLike =
+    schema.type === "object" || schema.properties || schema.required;
   if (isObjectLike) {
-    const propCount = isPlainObject(schema.properties) ? Object.keys(schema.properties).length : 0;
+    const propCount = isPlainObject(schema.properties)
+      ? Object.keys(schema.properties).length
+      : 0;
     if (propCount === 0) flags.hadEmptyObjectSchema = true;
   }
 
@@ -61,12 +69,14 @@ function normalizeRequiredArray(schema) {
     return;
   }
 
-  const propertyNames = isPlainObject(schema.properties) ? Object.keys(schema.properties) : [];
+  const propertyNames = isPlainObject(schema.properties)
+    ? Object.keys(schema.properties)
+    : [];
   const valid = schema.required.filter(
     (key, index, arr) =>
       typeof key === "string" &&
       propertyNames.includes(key) &&
-      arr.indexOf(key) === index
+      arr.indexOf(key) === index,
   );
 
   if (valid.length > 0) {
@@ -79,7 +89,11 @@ function normalizeRequiredArray(schema) {
 function maybeRemovePlaceholderRequirement(schema) {
   if (!isPlainObject(schema.properties)) return;
   const propertyKeys = Object.keys(schema.properties);
-  if (propertyKeys.length !== 1 || propertyKeys[0] !== PLACEHOLDER_PROPERTY_NAME) return;
+  if (
+    propertyKeys.length !== 1 ||
+    propertyKeys[0] !== PLACEHOLDER_PROPERTY_NAME
+  )
+    return;
   const onlyProp = schema.properties[PLACEHOLDER_PROPERTY_NAME];
   if (
     !onlyProp ||
@@ -89,7 +103,11 @@ function maybeRemovePlaceholderRequirement(schema) {
     return;
   }
 
-  if (Array.isArray(schema.required) && schema.required.length === 1 && schema.required[0] === PLACEHOLDER_PROPERTY_NAME) {
+  if (
+    Array.isArray(schema.required) &&
+    schema.required.length === 1 &&
+    schema.required[0] === PLACEHOLDER_PROPERTY_NAME
+  ) {
     delete schema.required;
   }
 }
@@ -103,7 +121,8 @@ function normalizeGeminiPlaceholder(schema, flags) {
   if (
     !onlyProp ||
     onlyProp.type !== "string" ||
-    onlyProp.description !== "Brief explanation of why you are calling this tool"
+    onlyProp.description !==
+      "Brief explanation of why you are calling this tool"
   ) {
     return;
   }
@@ -111,7 +130,9 @@ function normalizeGeminiPlaceholder(schema, flags) {
   delete schema.properties.reason;
   schema.properties[PLACEHOLDER_PROPERTY_NAME] = { ...PLACEHOLDER_PROPERTY };
   if (Array.isArray(schema.required)) {
-    schema.required = schema.required.map((key) => (key === "reason" ? PLACEHOLDER_PROPERTY_NAME : key));
+    schema.required = schema.required.map((key) =>
+      key === "reason" ? PLACEHOLDER_PROPERTY_NAME : key,
+    );
   }
   flags.addedPlaceholder = true;
 }
@@ -119,7 +140,8 @@ function normalizeGeminiPlaceholder(schema, flags) {
 function normalizeObjectSchemas(schema, flags = {}) {
   if (!isPlainObject(schema)) return;
 
-  const isObjectLike = schema.type === "object" || schema.properties || schema.required;
+  const isObjectLike =
+    schema.type === "object" || schema.properties || schema.required;
   if (isObjectLike) {
     schema.type = "object";
     if (!isPlainObject(schema.properties)) {
@@ -129,7 +151,9 @@ function normalizeObjectSchemas(schema, flags = {}) {
     normalizeGeminiPlaceholder(schema, flags);
 
     if (Object.keys(schema.properties).length === 0) {
-      schema.properties[PLACEHOLDER_PROPERTY_NAME] = { ...PLACEHOLDER_PROPERTY };
+      schema.properties[PLACEHOLDER_PROPERTY_NAME] = {
+        ...PLACEHOLDER_PROPERTY,
+      };
       flags.addedPlaceholder = true;
     }
 
@@ -137,7 +161,12 @@ function normalizeObjectSchemas(schema, flags = {}) {
     maybeRemovePlaceholderRequirement(schema);
   }
 
-  if (schema.type === "array" && schema.items && !isPlainObject(schema.items) && !Array.isArray(schema.items)) {
+  if (
+    schema.type === "array" &&
+    schema.items &&
+    !isPlainObject(schema.items) &&
+    !Array.isArray(schema.items)
+  ) {
     delete schema.items;
   }
 
@@ -180,7 +209,8 @@ function validateOpenAIResponsesSchema(schema, { strict = false } = {}) {
       issues.push(`${path} contains unsupported schema composition`);
     }
 
-    const isObjectLike = isRoot || node.type === "object" || node.properties || node.required;
+    const isObjectLike =
+      isRoot || node.type === "object" || node.properties || node.required;
     if (isObjectLike) {
       if (node.type !== "object") {
         issues.push(`${path}.type must be "object"`);
@@ -198,14 +228,21 @@ function validateOpenAIResponsesSchema(schema, { strict = false } = {}) {
         } else if (isPlainObject(node.properties)) {
           for (const key of node.required) {
             if (!Object.prototype.hasOwnProperty.call(node.properties, key)) {
-              issues.push(`${path}.required contains unknown property "${key}"`);
+              issues.push(
+                `${path}.required contains unknown property "${key}"`,
+              );
             }
           }
         }
       }
     }
 
-    if (node.type === "array" && node.items !== undefined && !isPlainObject(node.items) && !Array.isArray(node.items)) {
+    if (
+      node.type === "array" &&
+      node.items !== undefined &&
+      !isPlainObject(node.items) &&
+      !Array.isArray(node.items)
+    ) {
       issues.push(`${path}.items must be an object schema`);
     }
 
@@ -224,7 +261,10 @@ function validateOpenAIResponsesSchema(schema, { strict = false } = {}) {
   return issues;
 }
 
-export function sanitizeOpenAIResponsesParameters(parameters, strictRequested = false) {
+export function sanitizeOpenAIResponsesParameters(
+  parameters,
+  strictRequested = false,
+) {
   const originalSchema = isPlainObject(parameters)
     ? deepClone(parameters)
     : { type: "object", properties: {} };
@@ -234,10 +274,15 @@ export function sanitizeOpenAIResponsesParameters(parameters, strictRequested = 
   if (!isPlainObject(cleaned)) {
     return {
       compatible: false,
-      parameters: { type: "object", properties: { [PLACEHOLDER_PROPERTY_NAME]: { ...PLACEHOLDER_PROPERTY } } },
+      parameters: {
+        type: "object",
+        properties: {
+          [PLACEHOLDER_PROPERTY_NAME]: { ...PLACEHOLDER_PROPERTY },
+        },
+      },
       strict: false,
       downgraded: false,
-      issues: ["$ must be an object schema"]
+      issues: ["$ must be an object schema"],
     };
   }
 
@@ -246,7 +291,8 @@ export function sanitizeOpenAIResponsesParameters(parameters, strictRequested = 
   const strictIssues = validateOpenAIResponsesSchema(cleaned, { strict: true });
   const strictCompatible = strictIssues.length === 0;
   const strictSemanticRisk = flags.hadUnionLike || flags.hadTypeArray;
-  const canKeepStrict = strictRequested && strictCompatible && !strictSemanticRisk;
+  const canKeepStrict =
+    strictRequested && strictCompatible && !strictSemanticRisk;
 
   if (canKeepStrict) {
     return {
@@ -254,18 +300,20 @@ export function sanitizeOpenAIResponsesParameters(parameters, strictRequested = 
       parameters: cleaned,
       strict: true,
       downgraded: false,
-      issues: []
+      issues: [],
     };
   }
 
-  const nonStrictIssues = validateOpenAIResponsesSchema(cleaned, { strict: false });
+  const nonStrictIssues = validateOpenAIResponsesSchema(cleaned, {
+    strict: false,
+  });
   if (nonStrictIssues.length === 0) {
     return {
       compatible: true,
       parameters: cleaned,
       strict: false,
       downgraded: strictRequested === true,
-      issues: strictRequested ? strictIssues : []
+      issues: strictRequested ? strictIssues : [],
     };
   }
 
@@ -274,7 +322,7 @@ export function sanitizeOpenAIResponsesParameters(parameters, strictRequested = 
     parameters: cleaned,
     strict: false,
     downgraded: false,
-    issues: nonStrictIssues
+    issues: nonStrictIssues,
   };
 }
 
@@ -283,36 +331,50 @@ function sanitizeResponseFunctionTool(tool) {
     return { tool, incompatible: null };
   }
 
-  const toolName = typeof tool.name === "string" ? tool.name.trim() : "";
+  const functionTool =
+    tool.function && typeof tool.function === "object" ? tool.function : null;
+  const toolName =
+    typeof tool.name === "string"
+      ? tool.name.trim()
+      : typeof functionTool?.name === "string"
+        ? functionTool.name.trim()
+        : "";
   if (!toolName) {
     return {
       tool: null,
       incompatible: {
         name: "(unnamed)",
-        issues: ["function tools must have a non-empty name"]
-      }
+        issues: ["function tools must have a non-empty name"],
+      },
     };
   }
 
-  const result = sanitizeOpenAIResponsesParameters(tool.parameters, tool.strict === true);
+  const result = sanitizeOpenAIResponsesParameters(
+    tool.parameters ?? functionTool?.parameters,
+    tool.strict === true || functionTool?.strict === true,
+  );
   if (!result.compatible) {
     return {
       tool: null,
       incompatible: {
         name: toolName,
-        issues: result.issues
-      }
+        issues: result.issues,
+      },
     };
   }
 
   return {
     tool: {
-      ...tool,
+      type: "function",
       name: toolName,
+      description:
+        typeof tool.description === "string"
+          ? tool.description
+          : functionTool?.description,
       parameters: result.parameters,
-      strict: result.strict
+      strict: result.strict,
     },
-    incompatible: null
+    incompatible: null,
   };
 }
 
@@ -326,8 +388,10 @@ function sanitizeNonFunctionTool(tool) {
       tool: null,
       incompatible: {
         name: tool.name || tool.type,
-        issues: [`tool type "${tool.type}" is Claude-native and not compatible with OpenAI Responses providers`]
-      }
+        issues: [
+          `tool type "${tool.type}" is Claude-native and not compatible with OpenAI Responses providers`,
+        ],
+      },
     };
   }
 
@@ -344,7 +408,8 @@ export function sanitizeOpenAIResponsesTools(tools) {
 
   for (const tool of tools) {
     if (tool?.type && tool.type !== "function") {
-      const { tool: sanitizedTool, incompatible } = sanitizeNonFunctionTool(tool);
+      const { tool: sanitizedTool, incompatible } =
+        sanitizeNonFunctionTool(tool);
       if (incompatible) {
         incompatibleTools.push(incompatible);
         continue;
@@ -353,7 +418,8 @@ export function sanitizeOpenAIResponsesTools(tools) {
       continue;
     }
 
-    const { tool: sanitizedTool, incompatible } = sanitizeResponseFunctionTool(tool);
+    const { tool: sanitizedTool, incompatible } =
+      sanitizeResponseFunctionTool(tool);
     if (incompatible) {
       incompatibleTools.push(incompatible);
       continue;
@@ -363,24 +429,27 @@ export function sanitizeOpenAIResponsesTools(tools) {
 
   return {
     tools: sanitizedTools,
-    incompatibleTools
+    incompatibleTools,
   };
 }
 
-export function attachOpenAIResponsesSchemaIncompatibility(result, incompatibleTools) {
+export function attachOpenAIResponsesSchemaIncompatibility(
+  result,
+  incompatibleTools,
+) {
   if (!Array.isArray(incompatibleTools) || incompatibleTools.length === 0) {
     delete result._schemaIncompatibility;
     return result;
   }
 
   const toolSummary = incompatibleTools
-    .map(tool => `${tool.name}: ${tool.issues.join("; ")}`)
+    .map((tool) => `${tool.name}: ${tool.issues.join("; ")}`)
     .join(" | ");
 
   result._schemaIncompatibility = {
     code: OPENAI_RESPONSES_SCHEMA_ERROR_CODE,
     message: `OpenAI Responses tool schema incompatible: ${toolSummary}`,
-    tools: incompatibleTools
+    tools: incompatibleTools,
   };
 
   return result;
@@ -393,7 +462,9 @@ export function sanitizeOpenAIResponsesRequestBody(body) {
 
   const result = { ...body };
   const existingIncompatibility = result._schemaIncompatibility;
-  const { tools, incompatibleTools } = sanitizeOpenAIResponsesTools(result.tools);
+  const { tools, incompatibleTools } = sanitizeOpenAIResponsesTools(
+    result.tools,
+  );
   result.tools = tools;
   if (existingIncompatibility && incompatibleTools.length === 0) {
     result._schemaIncompatibility = existingIncompatibility;

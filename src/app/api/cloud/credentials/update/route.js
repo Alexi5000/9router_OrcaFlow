@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { validateApiKey, getProviderConnections, updateProviderConnection } from "@/models";
+import {
+  validateApiKey,
+  getProviderConnections,
+  updateProviderConnection,
+} from "@/models";
 
 // Update provider credentials (for cloud token refresh)
 export async function PUT(request) {
@@ -14,7 +18,10 @@ export async function PUT(request) {
     const { provider, credentials } = body;
 
     if (!provider || !credentials) {
-      return NextResponse.json({ error: "Provider and credentials required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Provider and credentials required" },
+        { status: 400 },
+      );
     }
 
     // Validate API key
@@ -24,11 +31,17 @@ export async function PUT(request) {
     }
 
     // Find active connection for provider
-    const connections = await getProviderConnections({ provider, isActive: true });
+    const connections = await getProviderConnections({
+      provider,
+      isActive: true,
+    });
     const connection = connections[0];
 
     if (!connection) {
-      return NextResponse.json({ error: `No active connection found for provider: ${provider}` }, { status: 404 });
+      return NextResponse.json(
+        { error: `No active connection found for provider: ${provider}` },
+        { status: 404 },
+      );
     }
 
     // Update credentials
@@ -40,18 +53,22 @@ export async function PUT(request) {
       updateData.refreshToken = credentials.refreshToken;
     }
     if (credentials.expiresIn) {
-      updateData.expiresAt = new Date(Date.now() + credentials.expiresIn * 1000).toISOString();
+      updateData.expiresAt = new Date(
+        Date.now() + credentials.expiresIn * 1000,
+      ).toISOString();
     }
 
     await updateProviderConnection(connection.id, updateData);
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `Credentials updated for provider: ${provider}` 
+    return NextResponse.json({
+      success: true,
+      message: `Credentials updated for provider: ${provider}`,
     });
-
   } catch (error) {
     console.log("Update credentials error:", error);
-    return NextResponse.json({ error: "Failed to update credentials" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update credentials" },
+      { status: 500 },
+    );
   }
 }

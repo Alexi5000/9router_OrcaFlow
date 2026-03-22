@@ -2,7 +2,7 @@
 /**
  * Comprehensive Chain/Combo Verification Script for 9Router/Orca Flow
  * Tests all combos, providers, and flows to ensure everything works
- * 
+ *
  * Usage: node scripts/test-all-flows.js [baseUrl]
  */
 
@@ -48,18 +48,66 @@ const COMBOS = [
 ];
 
 const DIRECT_PROVIDERS = [
-  { provider: "antigravity", model: "claude-sonnet-4-6", description: "Antigravity Claude Sonnet" },
-  { provider: "antigravity", model: "gemini-3.1-pro-high", description: "Antigravity Gemini 3.1" },
-  { provider: "github", model: "claude-opus-4.6", description: "GitHub Copilot Opus" },
-  { provider: "github", model: "gpt-4.1", description: "GitHub Copilot GPT-4.1" },
-  { provider: "kiro", model: "claude-sonnet-4.5", description: "Kiro Claude Sonnet" },
-  { provider: "kiro", model: "claude-haiku-4.5", description: "Kiro Claude Haiku" },
-  { provider: "kilocode", model: "anthropic/claude-sonnet-4-20250514", description: "KiloCode Claude Sonnet" },
-  { provider: "groq", model: "llama-3.3-70b-versatile", description: "GROQ Llama 3.3" },
-  { provider: "groq", model: "moonshotai/kimi-k2-instruct-0905", description: "GROQ Kimi K2" },
-  { provider: "iflow", model: "qwen3-coder-plus", description: "iFlow Qwen3 Coder" },
-  { provider: "openrouter", model: "deepseek/deepseek-r1:free", description: "OpenRouter DeepSeek R1 Free" },
-  { provider: "claude", model: "claude-sonnet-4-6", description: "Claude OAuth (last resort)" },
+  {
+    provider: "antigravity",
+    model: "claude-sonnet-4-6",
+    description: "Antigravity Claude Sonnet",
+  },
+  {
+    provider: "antigravity",
+    model: "gemini-3.1-pro-high",
+    description: "Antigravity Gemini 3.1",
+  },
+  {
+    provider: "github",
+    model: "claude-opus-4.6",
+    description: "GitHub Copilot Opus",
+  },
+  {
+    provider: "github",
+    model: "gpt-4.1",
+    description: "GitHub Copilot GPT-4.1",
+  },
+  {
+    provider: "kiro",
+    model: "claude-sonnet-4.5",
+    description: "Kiro Claude Sonnet",
+  },
+  {
+    provider: "kiro",
+    model: "claude-haiku-4.5",
+    description: "Kiro Claude Haiku",
+  },
+  {
+    provider: "kilocode",
+    model: "anthropic/claude-sonnet-4-20250514",
+    description: "KiloCode Claude Sonnet",
+  },
+  {
+    provider: "groq",
+    model: "llama-3.3-70b-versatile",
+    description: "GROQ Llama 3.3",
+  },
+  {
+    provider: "groq",
+    model: "moonshotai/kimi-k2-instruct-0905",
+    description: "GROQ Kimi K2",
+  },
+  {
+    provider: "iflow",
+    model: "qwen3-coder-plus",
+    description: "iFlow Qwen3 Coder",
+  },
+  {
+    provider: "openrouter",
+    model: "deepseek/deepseek-r1:free",
+    description: "OpenRouter DeepSeek R1 Free",
+  },
+  {
+    provider: "claude",
+    model: "claude-sonnet-4-6",
+    description: "Claude OAuth (last resort)",
+  },
 ];
 
 const MODEL_ALIASES = [
@@ -67,7 +115,11 @@ const MODEL_ALIASES = [
   { alias: "sonnet", expected: "antigravity", description: "Sonnet alias" },
   { alias: "fast", expected: "groq", description: "Fast alias" },
   { alias: "gpt-4o", expected: "github", description: "GPT-4o alias" },
-  { alias: "gemini-3.1-pro", expected: "antigravity", description: "Gemini alias" },
+  {
+    alias: "gemini-3.1-pro",
+    expected: "antigravity",
+    description: "Gemini alias",
+  },
 ];
 
 const TEST_PROMPT = "Say 'Hello, I am working!' in exactly those words.";
@@ -78,7 +130,7 @@ async function parseJsonResponse(response, testId, latency) {
   const content = data.choices?.[0]?.message?.content || "";
   const actualModel = data.model || "";
   const tokens = data.usage;
-  
+
   return {
     testId,
     success: true,
@@ -102,12 +154,12 @@ async function parseStreamingResponse(response, testId, latency) {
     if (done) break;
 
     const chunk = decoder.decode(value);
-    const lines = chunk.split("\n").filter(line => line.startsWith("data: "));
-    
+    const lines = chunk.split("\n").filter((line) => line.startsWith("data: "));
+
     for (const line of lines) {
       const data = line.slice(6);
       if (data === "[DONE]") continue;
-      
+
       try {
         const parsed = JSON.parse(data);
         const delta = parsed.choices?.[0]?.delta?.content || "";
@@ -132,8 +184,8 @@ async function parseStreamingResponse(response, testId, latency) {
 // Test combo
 async function testCombo(comboName, streaming = false) {
   const startTime = Date.now();
-  const testId = `combo-${comboName}-${streaming ? 'stream' : 'sync'}`;
-  
+  const testId = `combo-${comboName}-${streaming ? "stream" : "sync"}`;
+
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -182,8 +234,8 @@ async function testCombo(comboName, streaming = false) {
 // Test direct provider/model
 async function testDirectProvider(provider, model, streaming = false) {
   const startTime = Date.now();
-  const testId = `direct-${provider}-${model}-${streaming ? 'stream' : 'sync'}`;
-  
+  const testId = `direct-${provider}-${model}-${streaming ? "stream" : "sync"}`;
+
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -239,7 +291,7 @@ async function testDirectProvider(provider, model, streaming = false) {
 async function testAlias(alias, expectedProvider) {
   const startTime = Date.now();
   const testId = `alias-${alias}`;
-  
+
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -273,11 +325,11 @@ async function testAlias(alias, expectedProvider) {
     }
 
     const result = await parseJsonResponse(response, testId, latency);
-    
+
     // Check if the actual provider matches expected
     const actualProvider = result.actualModel?.split("/")[0];
     const providerMatch = actualProvider === expectedProvider;
-    
+
     return {
       ...result,
       alias,
@@ -317,18 +369,21 @@ async function main() {
 
   for (const combo of COMBOS) {
     logSubsection(`Combo: ${combo.name} - ${combo.description}`);
-    
+
     // Test non-streaming
     process.stdout.write(`  Non-streaming... `);
     const syncResult = await testCombo(combo.name, false);
     allResults.push(syncResult);
     totalTests++;
-    
+
     if (syncResult.success) {
       passedTests++;
       log(COLORS.green, `✅ PASS (${syncResult.latency}ms)`);
       log(COLORS.dim, `     Model: ${syncResult.actualModel}`);
-      log(COLORS.dim, `     Response: "${syncResult.content?.slice(0, 50)}..."`);
+      log(
+        COLORS.dim,
+        `     Response: "${syncResult.content?.slice(0, 50)}..."`,
+      );
     } else {
       failedTests++;
       log(COLORS.red, `❌ FAIL (${syncResult.latency}ms)`);
@@ -340,14 +395,20 @@ async function main() {
     const streamResult = await testCombo(combo.name, true);
     allResults.push(streamResult);
     totalTests++;
-    
+
     if (streamResult.success) {
       passedTests++;
-      log(COLORS.green, `✅ PASS (${streamResult.latency}ms, ${streamResult.chunks} chunks)`);
+      log(
+        COLORS.green,
+        `✅ PASS (${streamResult.latency}ms, ${streamResult.chunks} chunks)`,
+      );
     } else {
       failedTests++;
       log(COLORS.red, `❌ FAIL (${streamResult.latency}ms)`);
-      log(COLORS.red, `     Error: ${streamResult.error || streamResult.status}`);
+      log(
+        COLORS.red,
+        `     Error: ${streamResult.error || streamResult.status}`,
+      );
     }
   }
 
@@ -358,13 +419,13 @@ async function main() {
 
   for (const test of DIRECT_PROVIDERS) {
     logSubsection(`${test.description}`);
-    
+
     // Test non-streaming only for direct providers (to save time)
     process.stdout.write(`  Testing ${test.provider}/${test.model}... `);
     const result = await testDirectProvider(test.provider, test.model, false);
     allResults.push(result);
     totalTests++;
-    
+
     if (result.success) {
       passedTests++;
       log(COLORS.green, `✅ PASS (${result.latency}ms)`);
@@ -383,12 +444,12 @@ async function main() {
 
   for (const alias of MODEL_ALIASES) {
     logSubsection(`${alias.description}: ${alias.alias} → ${alias.expected}`);
-    
+
     process.stdout.write(`  Testing alias "${alias.alias}"... `);
     const result = await testAlias(alias.alias, alias.expected);
     allResults.push(result);
     totalTests++;
-    
+
     if (result.success) {
       passedTests++;
       log(COLORS.green, `✅ PASS (${result.latency}ms)`);
@@ -397,7 +458,10 @@ async function main() {
       failedTests++;
       log(COLORS.red, `❌ FAIL (${result.latency}ms)`);
       if (result.providerMatch === false) {
-        log(COLORS.red, `     Expected provider: ${alias.expected}, Got: ${result.actualProvider}`);
+        log(
+          COLORS.red,
+          `     Expected provider: ${alias.expected}, Got: ${result.actualProvider}`,
+        );
       }
       log(COLORS.red, `     Error: ${result.error || result.status}`);
     }
@@ -408,53 +472,67 @@ async function main() {
   // ============================================
   logSection("Final Summary");
 
-  const successRate = totalTests > 0 ? ((passedTests / totalTests) * 100).toFixed(1) : 0;
-  
+  const successRate =
+    totalTests > 0 ? ((passedTests / totalTests) * 100).toFixed(1) : 0;
+
   log(COLORS.bold, `\n  Total Tests: ${totalTests}`);
   log(COLORS.green, `  ✅ Passed: ${passedTests}`);
   log(COLORS.red, `  ❌ Failed: ${failedTests}`);
   log(COLORS.blue, `  📊 Success Rate: ${successRate}%`);
 
   // Group failures by type
-  const failures = allResults.filter(r => !r.success);
+  const failures = allResults.filter((r) => !r.success);
   if (failures.length > 0) {
     logSection("Failed Tests Detail");
-    
-    const comboFailures = failures.filter(r => r.testId?.startsWith("combo-"));
-    const providerFailures = failures.filter(r => r.testId?.startsWith("direct-"));
-    const aliasFailures = failures.filter(r => r.testId?.startsWith("alias-"));
+
+    const comboFailures = failures.filter((r) =>
+      r.testId?.startsWith("combo-"),
+    );
+    const providerFailures = failures.filter((r) =>
+      r.testId?.startsWith("direct-"),
+    );
+    const aliasFailures = failures.filter((r) =>
+      r.testId?.startsWith("alias-"),
+    );
 
     if (comboFailures.length > 0) {
       log(COLORS.red, `\n  Combo Failures (${comboFailures.length}):`);
-      comboFailures.forEach(f => {
+      comboFailures.forEach((f) => {
         log(COLORS.red, `    - ${f.testId}: ${f.error || f.status}`);
       });
     }
 
     if (providerFailures.length > 0) {
       log(COLORS.red, `\n  Provider Failures (${providerFailures.length}):`);
-      providerFailures.forEach(f => {
-        log(COLORS.red, `    - ${f.provider}/${f.model}: ${f.error || f.status}`);
+      providerFailures.forEach((f) => {
+        log(
+          COLORS.red,
+          `    - ${f.provider}/${f.model}: ${f.error || f.status}`,
+        );
       });
     }
 
     if (aliasFailures.length > 0) {
       log(COLORS.red, `\n  Alias Failures (${aliasFailures.length}):`);
-      aliasFailures.forEach(f => {
-        log(COLORS.red, `    - ${f.alias}: Expected ${f.expectedProvider}, got ${f.actualProvider || 'error'}`);
+      aliasFailures.forEach((f) => {
+        log(
+          COLORS.red,
+          `    - ${f.alias}: Expected ${f.expectedProvider}, got ${f.actualProvider || "error"}`,
+        );
       });
     }
   }
 
   // Performance summary
-  const successfulResults = allResults.filter(r => r.success);
+  const successfulResults = allResults.filter((r) => r.success);
   if (successfulResults.length > 0) {
     const avgLatency = Math.round(
-      successfulResults.reduce((sum, r) => sum + r.latency, 0) / successfulResults.length
+      successfulResults.reduce((sum, r) => sum + r.latency, 0) /
+        successfulResults.length,
     );
-    const maxLatency = Math.max(...successfulResults.map(r => r.latency));
-    const minLatency = Math.min(...successfulResults.map(r => r.latency));
-    
+    const maxLatency = Math.max(...successfulResults.map((r) => r.latency));
+    const minLatency = Math.min(...successfulResults.map((r) => r.latency));
+
     logSection("Performance Summary");
     log(COLORS.blue, `  Average Latency: ${avgLatency}ms`);
     log(COLORS.blue, `  Min Latency: ${minLatency}ms`);
@@ -466,7 +544,7 @@ async function main() {
   process.exit(failedTests > 0 ? 1 : 0);
 }
 
-main().catch(error => {
+main().catch((error) => {
   log(COLORS.red, "\nFatal error:", error);
   process.exit(1);
 });

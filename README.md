@@ -26,12 +26,12 @@
 
 We give full credit to the 9Router project for the core routing engine, provider integrations, and architecture that makes this possible.
 
-| | |
-|---|---|
-| **Original Project** | [github.com/decolua/9router](https://github.com/decolua/9router) |
-| **9Router Website** | [9router.com](https://9router.com) |
-| **Original License** | MIT (preserved in this fork) |
-| **Contributors** | [View all contributors](https://github.com/decolua/9router/graphs/contributors) |
+|                      |                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------- |
+| **Original Project** | [github.com/decolua/9router](https://github.com/decolua/9router)                |
+| **9Router Website**  | [9router.com](https://9router.com)                                              |
+| **Original License** | MIT (preserved in this fork)                                                    |
+| **Contributors**     | [View all contributors](https://github.com/decolua/9router/graphs/contributors) |
 
 ---
 
@@ -66,12 +66,12 @@ Your CLI Tool (Claude Code, Codex, Cursor, Cline...)
 
 OrcaFlow builds on 9Router with the following customizations by TechTide AI:
 
-| Change | Description |
-|--------|-------------|
-| **Custom branding** | OrcaFlow identity throughout the UI |
-| **Security hardening** | Re-enabled header masking in request logger to prevent token leaks |
-| **Cloud sync disabled** | No phone-home capability active |
-| **Team customizations** | Provider configs, UI themes, and workflow optimizations |
+| Change                  | Description                                                        |
+| ----------------------- | ------------------------------------------------------------------ |
+| **Custom branding**     | OrcaFlow identity throughout the UI                                |
+| **Security hardening**  | Re-enabled header masking in request logger to prevent token leaks |
+| **Cloud sync disabled** | No phone-home capability active                                    |
+| **Team customizations** | Provider configs, UI themes, and workflow optimizations            |
 
 ---
 
@@ -83,8 +83,8 @@ OrcaFlow builds on 9Router with the following customizations by TechTide AI:
 git clone https://github.com/Alexi5000/9router_OrcaFlow.git
 cd 9router_OrcaFlow
 cp .env.example .env
-npm install
-npm run dev
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
 Dashboard opens at `http://localhost:20128`
@@ -92,8 +92,18 @@ Dashboard opens at `http://localhost:20128`
 ### Production mode
 
 ```bash
-npm run build
-PORT=20128 npm run start
+pnpm build
+PORT=20128 pnpm start
+```
+
+### Verification
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm format:check
+pnpm verify
 ```
 
 ---
@@ -102,18 +112,19 @@ PORT=20128 npm run start
 
 Works with all major AI coding tools:
 
-| Tool | Status |
-|------|--------|
-| Claude Code | Fully supported |
-| OpenAI Codex | Fully supported |
-| Cursor | Fully supported |
+| Tool            | Status          |
+| --------------- | --------------- |
+| Claude Code     | Fully supported |
+| OpenAI Codex    | Fully supported |
+| Cursor          | Fully supported |
 | Cline / RooCode | Fully supported |
-| Continue | Fully supported |
-| GitHub Copilot | Fully supported |
-| OpenClaw | Fully supported |
-| Gemini CLI | Fully supported |
+| Continue        | Fully supported |
+| GitHub Copilot  | Fully supported |
+| OpenClaw        | Fully supported |
+| Gemini CLI      | Fully supported |
 
 **Configuration** (same for all tools):
+
 ```
 Endpoint: http://localhost:20128/v1
 API Key:  [copy from OrcaFlow dashboard]
@@ -126,21 +137,21 @@ Model:    cc/claude-opus-4-6  (or any supported model)
 
 ### OAuth Providers (Free login)
 
-| Provider | Models | Quota |
-|----------|--------|-------|
-| Claude Code | Opus, Sonnet, Haiku | 5h + weekly reset |
-| OpenAI Codex | GPT-5.2, GPT-5.1 | 5h + weekly reset |
-| Gemini CLI | Gemini 3 Flash, 2.5 Pro | 180K/month FREE |
-| GitHub Copilot | GPT-5, Claude 4.5 | Monthly reset |
-| Cursor | Various | Per subscription |
+| Provider       | Models                  | Quota             |
+| -------------- | ----------------------- | ----------------- |
+| Claude Code    | Opus, Sonnet, Haiku     | 5h + weekly reset |
+| OpenAI Codex   | GPT-5.2, GPT-5.1        | 5h + weekly reset |
+| Gemini CLI     | Gemini 3 Flash, 2.5 Pro | 180K/month FREE   |
+| GitHub Copilot | GPT-5, Claude 4.5       | Monthly reset     |
+| Cursor         | Various                 | Per subscription  |
 
 ### Free Providers (Unlimited)
 
-| Provider | Models | Cost |
-|----------|--------|------|
-| iFlow AI | 8+ models (Kimi K2, Qwen, GLM, DeepSeek) | $0 |
-| Qwen Code | Qwen 3 Coder Plus/Flash | $0 |
-| Kiro AI | Claude Sonnet/Haiku | $0 |
+| Provider  | Models                                   | Cost |
+| --------- | ---------------------------------------- | ---- |
+| iFlow AI  | 8+ models (Kimi K2, Qwen, GLM, DeepSeek) | $0   |
+| Qwen Code | Qwen 3 Coder Plus/Flash                  | $0   |
+| Kiro AI   | Claude Sonnet/Haiku                      | $0   |
 
 ### API Key Providers (40+)
 
@@ -150,16 +161,16 @@ OpenRouter, GLM, Kimi, MiniMax, OpenAI, Anthropic, Gemini, DeepSeek, Groq, xAI, 
 
 ## Key Features
 
-| Feature | Description |
-|---------|-------------|
-| **Smart 3-Tier Fallback** | Auto-route: Subscription &rarr; Cheap &rarr; Free |
-| **Real-Time Quota Tracking** | Live token count + reset countdown |
-| **Format Translation** | OpenAI &harr; Claude &harr; Gemini seamless |
-| **Multi-Account Support** | Multiple accounts per provider with round-robin |
-| **Auto Token Refresh** | OAuth tokens refresh automatically |
-| **Custom Combos** | Create unlimited model combinations |
-| **Usage Analytics** | Track tokens, cost, trends locally |
-| **MITM Proxy** | Intercept CLI tool traffic for transparent routing |
+| Feature                      | Description                                        |
+| ---------------------------- | -------------------------------------------------- |
+| **Smart 3-Tier Fallback**    | Auto-route: Subscription &rarr; Cheap &rarr; Free  |
+| **Real-Time Quota Tracking** | Live token count + reset countdown                 |
+| **Format Translation**       | OpenAI &harr; Claude &harr; Gemini seamless        |
+| **Multi-Account Support**    | Multiple accounts per provider with round-robin    |
+| **Auto Token Refresh**       | OAuth tokens refresh automatically                 |
+| **Custom Combos**            | Create unlimited model combinations                |
+| **Usage Analytics**          | Track tokens, cost, trends locally                 |
+| **MITM Proxy**               | Intercept CLI tool traffic for transparent routing |
 
 ---
 
@@ -167,14 +178,15 @@ OpenRouter, GLM, Kimi, MiniMax, OpenAI, Anthropic, Gemini, DeepSeek, Groq, xAI, 
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `20128` | Service port |
-| `JWT_SECRET` | (auto-generated) | JWT signing secret |
-| `INITIAL_PASSWORD` | `123456` | First login password |
-| `REQUIRE_API_KEY` | `false` | Enforce Bearer API key on `/v1/*` routes |
-| `ENABLE_REQUEST_LOGS` | `false` | Enable request/response logs |
-| `OBSERVABILITY_ENABLED` | `true` | Local usage tracking |
+| Variable                | Default          | Description                              |
+| ----------------------- | ---------------- | ---------------------------------------- |
+| `PORT`                  | `20128`          | Service port                             |
+| `JWT_SECRET`            | (auto-generated) | JWT signing secret                       |
+| `INITIAL_PASSWORD`      | `change-me`      | First login password                     |
+| `REQUIRE_API_KEY`       | `false`          | Enforce Bearer API key on `/v1/*` routes |
+| `ENABLE_REQUEST_LOGS`   | `false`          | Enable request/response logs             |
+| `OBSERVABILITY_ENABLED` | `true`           | Local usage tracking                     |
+| `DATA_DIR`              | `./data`         | Local runtime data directory             |
 
 See `.env.example` for all available variables.
 
@@ -198,25 +210,25 @@ Content-Type: application/json
 
 ### Compatibility Endpoints
 
-| Endpoint | Format |
-|----------|--------|
-| `POST /v1/chat/completions` | OpenAI format |
-| `POST /v1/messages` | Anthropic format |
-| `POST /v1/responses` | OpenAI Responses format |
-| `GET /v1/models` | List all models |
+| Endpoint                    | Format                  |
+| --------------------------- | ----------------------- |
+| `POST /v1/chat/completions` | OpenAI format           |
+| `POST /v1/messages`         | Anthropic format        |
+| `POST /v1/responses`        | OpenAI Responses format |
+| `GET /v1/models`            | List all models         |
 
 ---
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|------------|
-| **Runtime** | Node.js 20+ |
-| **Framework** | Next.js 16 |
-| **UI** | React 19 + Tailwind CSS 4 |
-| **Database** | LowDB (JSON file-based, local only) |
-| **Streaming** | Server-Sent Events (SSE) |
-| **Auth** | OAuth 2.0 (PKCE) + JWT + API Keys |
+| Component     | Technology                          |
+| ------------- | ----------------------------------- |
+| **Runtime**   | Node.js 20+                         |
+| **Framework** | Next.js 16                          |
+| **UI**        | React 19 + Tailwind CSS 4           |
+| **Database**  | LowDB (JSON file-based, local only) |
+| **Streaming** | Server-Sent Events (SSE)            |
+| **Auth**      | OAuth 2.0 (PKCE) + JWT + API Keys   |
 
 ---
 
@@ -229,7 +241,7 @@ OrcaFlow includes security hardening over the base 9Router:
 - **Tunnel disabled**: The Cloudflare tunnel feature is disabled by default
 - **Header masking**: Sensitive headers (authorization, API keys, tokens) are masked in logs
 - **Local-only data**: All usage data, credentials, and logs stay on your machine
-- **Proper `.gitignore`**: `.env`, `data/`, `ecosystem.config.*`, `logs/` are all excluded
+- **Proper `.gitignore`**: `.env`, `data/`, `test-results/`, and `logs/` are excluded while docs stay tracked
 
 See [SECURITY.md](SECURITY.md) for our security policy and vulnerability reporting.
 

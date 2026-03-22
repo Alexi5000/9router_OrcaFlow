@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
 export async function POST() {
-  const response = NextResponse.json({ success: true, message: "Shutting down..." });
+  const response = NextResponse.json({
+    success: true,
+    message: "Shutting down...",
+  });
 
   setTimeout(() => {
     process.exit(0);
@@ -9,4 +12,3 @@ export async function POST() {
 
   return response;
 }
-

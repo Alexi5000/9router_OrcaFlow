@@ -25,9 +25,7 @@ const baseCombo = {
     },
     {
       name: "paid-continuity",
-      models: [
-        "paid-coding",
-      ],
+      models: ["paid-coding"],
     },
   ],
 };
@@ -39,7 +37,8 @@ describe("deepseek swarm routing", () => {
       messages: [
         {
           role: "user",
-          content: "Plan a swarm orchestration with 6 agents, 3 verification checks, and a final rollout strategy.",
+          content:
+            "Plan a swarm orchestration with 6 agents, 3 verification checks, and a final rollout strategy.",
         },
       ],
     });
@@ -52,7 +51,8 @@ describe("deepseek swarm routing", () => {
       messages: [
         {
           role: "user",
-          content: "Write and refactor a TypeScript function, add tests, and patch the bug in the module.",
+          content:
+            "Write and refactor a TypeScript function, add tests, and patch the bug in the module.",
         },
       ],
     });
@@ -66,7 +66,8 @@ describe("deepseek swarm routing", () => {
       messages: [
         {
           role: "user",
-          content: "Coordinate a multi-agent swarm plan and verification strategy.",
+          content:
+            "Coordinate a multi-agent swarm plan and verification strategy.",
         },
       ],
     });
@@ -91,7 +92,8 @@ describe("deepseek swarm routing", () => {
       messages: [
         {
           role: "user",
-          content: "Implement the debounce function, patch the tests, and ship the code fix.",
+          content:
+            "Implement the debounce function, patch the tests, and ship the code fix.",
         },
       ],
     });

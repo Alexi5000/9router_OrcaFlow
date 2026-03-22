@@ -71,7 +71,12 @@ export function parseModel(modelStr) {
     const providerOrAlias = modelStr.slice(0, firstSlash);
     const model = modelStr.slice(firstSlash + 1);
     if (providerOrAlias === "combo") {
-      return { provider: null, model, isAlias: false, providerAlias: providerOrAlias };
+      return {
+        provider: null,
+        model,
+        isAlias: false,
+        providerAlias: providerOrAlias,
+      };
     }
     const provider = resolveProviderAlias(providerOrAlias);
     return { provider, model, isAlias: false, providerAlias: providerOrAlias };
@@ -135,7 +140,11 @@ export function resolveModelAliasFromMap(alias, aliases) {
  * @param {string} modelStr - Model string
  * @param {object|function} aliasesOrGetter - Aliases object or async function to get aliases
  */
-export async function getModelInfoCore(modelStr, aliasesOrGetter, options = {}) {
+export async function getModelInfoCore(
+  modelStr,
+  aliasesOrGetter,
+  options = {},
+) {
   const parsed = parseModel(modelStr);
 
   const aliases =
@@ -144,20 +153,21 @@ export async function getModelInfoCore(modelStr, aliasesOrGetter, options = {}) 
       : aliasesOrGetter;
 
   if (!parsed.isAlias) {
-    const resolvedPrefixedAlias = resolveModelAliasFromMap(parsed.model, aliases);
+    const resolvedPrefixedAlias = resolveModelAliasFromMap(
+      parsed.model,
+      aliases,
+    );
 
     // Only provider shorthand such as "cc/model-id" should honor model aliases.
     // Explicit provider hops inside combos stay direct by default, but
     // Claude-facing client entry paths can opt in to strict alias routing.
     if (
       resolvedPrefixedAlias &&
-      (
-        (parsed.providerAlias && parsed.providerAlias !== parsed.provider) ||
-        (
-          options.resolveClientPrefixedAliases === true &&
-          STRICT_CLIENT_ALIAS_PROVIDERS.has(parsed.providerAlias || parsed.provider)
-        )
-      )
+      ((parsed.providerAlias && parsed.providerAlias !== parsed.provider) ||
+        (options.resolveClientPrefixedAliases === true &&
+          STRICT_CLIENT_ALIAS_PROVIDERS.has(
+            parsed.providerAlias || parsed.provider,
+          )))
     ) {
       return resolvedPrefixedAlias;
     }

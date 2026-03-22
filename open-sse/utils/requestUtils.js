@@ -7,8 +7,8 @@ import { HTTP_STATUS } from "../config/constants.js";
 
 // Default timeout values
 export const TIMEOUT_CONFIG = {
-  defaultMs: 60000,        // 60 seconds default
-  streamingMs: 300000,     // 5 minutes for streaming
+  defaultMs: 60000, // 60 seconds default
+  streamingMs: 300000, // 5 minutes for streaming
   maxRetries: 3,
   retryDelayMs: 1000,
   maxRetryDelayMs: 60000,
@@ -21,28 +21,28 @@ export const ERROR_CLASSIFICATION = {
   // No fallback - client errors
   NO_FALLBACK: {
     statuses: [HTTP_STATUS.BAD_REQUEST], // 400
-    patterns: [/invalid.*model/i, /not supported/i, /unsupported/i]
+    patterns: [/invalid.*model/i, /not supported/i, /unsupported/i],
   },
-  
+
   // Short cooldown, try next provider
   SHORT_COOLDOWN: {
     statuses: [HTTP_STATUS.UNAUTHORIZED, HTTP_STATUS.FORBIDDEN], // 401, 403
     cooldownMs: 2 * 60 * 1000, // 2 minutes
   },
-  
+
   // Exponential backoff
   RATE_LIMITED: {
     statuses: [HTTP_STATUS.RATE_LIMITED], // 429
     baseCooldownMs: 1000,
     maxCooldownMs: 2 * 60 * 1000, // 2 minutes max
   },
-  
+
   // Immediate fallback
   SERVER_ERROR: {
     statuses: [500, 502, 503, 504],
     cooldownMs: 60 * 1000, // 1 minute
   },
-  
+
   // Not found - short cooldown
   NOT_FOUND: {
     statuses: [HTTP_STATUS.NOT_FOUND], // 404
@@ -111,7 +111,7 @@ export function parseRetryAfterHeader(response) {
  */
 export function classifyError(status, message = "") {
   // Check for no-fallback patterns first
-  if (ERROR_CLASSIFICATION.NO_FALLBACK.patterns.some(p => p.test(message))) {
+  if (ERROR_CLASSIFICATION.NO_FALLBACK.patterns.some((p) => p.test(message))) {
     return {
       shouldFallback: false,
       cooldownMs: 0,
@@ -194,11 +194,11 @@ export function isRetryableError(error) {
   if (error.code === "ECONNRESET") return true;
   if (error.code === "ETIMEDOUT") return true;
   if (error.code === "ENOTFOUND") return false;
-  
+
   // Fetch errors
   if (error.message?.includes("fetch failed")) return true;
   if (error.message?.includes("network")) return true;
-  
+
   return false;
 }
 
@@ -209,62 +209,62 @@ export function isRetryableError(error) {
  * @param {number} options.maxRetries - Maximum retry attempts
  * @param {function} options.onRetry - Callback before retry
  */
-export function createResilientFetch({ 
+export function createResilientFetch({
   timeoutMs = TIMEOUT_CONFIG.defaultMs,
   maxRetries = TIMEOUT_CONFIG.maxRetries,
-  onRetry = null
+  onRetry = null,
 } = {}) {
   return async function resilientFetch(url, options = {}) {
     let lastError = null;
-    
+
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const { controller, clear } = createTimeoutController(timeoutMs);
-      
+
       try {
         const response = await fetch(url, {
           ...options,
           signal: controller.signal,
         });
-        
+
         clear();
-        
+
         // Check for retryable status codes
         if (!response.ok && attempt < maxRetries) {
           const classification = classifyError(response.status);
-          
+
           if (classification.shouldFallback) {
             const retryAfter = parseRetryAfterHeader(response);
             const delay = retryAfter || calculateBackoff(attempt);
-            
+
             if (onRetry) {
               await onRetry({ attempt, delay, status: response.status });
             }
-            
-            await new Promise(resolve => setTimeout(resolve, delay));
+
+            await new Promise((resolve) => setTimeout(resolve, delay));
             continue;
           }
         }
-        
+
         return response;
       } catch (error) {
         clear();
         lastError = error;
-        
+
         if (attempt < maxRetries && isRetryableError(error)) {
           const delay = calculateBackoff(attempt);
-          
+
           if (onRetry) {
             await onRetry({ attempt, delay, error });
           }
-          
-          await new Promise(resolve => setTimeout(resolve, delay));
+
+          await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
-        
+
         throw error;
       }
     }
-    
+
     throw lastError || new Error("Max retries exceeded");
   };
 }

@@ -1,9 +1,13 @@
 import * as log from "../utils/logger.js";
-import { getMachineData, saveMachineData, deleteMachineData } from "../services/storage.js";
+import {
+  getMachineData,
+  saveMachineData,
+  deleteMachineData,
+} from "../services/storage.js";
 
 const CORS_HEADERS = {
   "Content-Type": "application/json",
-  "Access-Control-Allow-Origin": "*"
+  "Access-Control-Allow-Origin": "*",
 };
 
 // Removed: WORKER_FIELDS and WORKER_SPECIFIC_FIELDS
@@ -19,8 +23,8 @@ export async function handleSync(request, env, ctx) {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "*"
-      }
+        "Access-Control-Allow-Headers": "*",
+      },
     });
   }
 
@@ -56,7 +60,7 @@ async function handleGet(machineId, env) {
   log.info("SYNC", "Data retrieved", { machineId });
   return jsonResponse({
     success: true,
-    data
+    data,
   });
 }
 
@@ -79,7 +83,11 @@ async function handlePost(request, machineId, env) {
     return jsonResponse({ error: "Missing providers array" }, 400);
   }
 
-  const existingData = await getMachineData(machineId, env) || { providers: {}, modelAliases: {}, apiKeys: [] };
+  const existingData = (await getMachineData(machineId, env)) || {
+    providers: {},
+    modelAliases: {},
+    apiKeys: [],
+  };
 
   // Merge providers by ID
   const mergedProviders = {};
@@ -88,7 +96,9 @@ async function handlePost(request, machineId, env) {
   for (const webProvider of body.providers) {
     const providerId = webProvider.id;
     if (!providerId) {
-      log.warn("SYNC", "Provider missing id", { provider: webProvider.provider });
+      log.warn("SYNC", "Provider missing id", {
+        provider: webProvider.provider,
+      });
       continue;
     }
 
@@ -96,7 +106,12 @@ async function handlePost(request, machineId, env) {
 
     if (workerProvider) {
       // Merge: token fields from Worker, config fields from Web
-      mergedProviders[providerId] = mergeProvider(webProvider, workerProvider, changes, providerId);
+      mergedProviders[providerId] = mergeProvider(
+        webProvider,
+        workerProvider,
+        changes,
+        providerId,
+      );
     } else {
       // New provider from Web
       mergedProviders[providerId] = formatProviderData(webProvider);
@@ -110,7 +125,7 @@ async function handlePost(request, machineId, env) {
     modelAliases: body.modelAliases || existingData.modelAliases || {},
     combos: body.combos || existingData.combos || [],
     apiKeys: body.apiKeys || existingData.apiKeys || [],
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
   };
 
   // Store in D1 + invalidate cache
@@ -119,13 +134,13 @@ async function handlePost(request, machineId, env) {
   log.info("SYNC", "Data synced successfully", {
     machineId,
     providerCount: Object.keys(mergedProviders).length,
-    changes
+    changes,
   });
 
   return jsonResponse({
     success: true,
     data: finalData,
-    changes
+    changes,
   });
 }
 
@@ -138,7 +153,7 @@ async function handleDelete(machineId, env) {
   log.info("SYNC", "Data deleted", { machineId });
   return jsonResponse({
     success: true,
-    message: "Data deleted successfully"
+    message: "Data deleted successfully",
   });
 }
 
@@ -151,7 +166,7 @@ function mergeProvider(webProvider, workerProvider, changes, providerId) {
   const workerTime = new Date(workerProvider.updatedAt || 0).getTime();
 
   let merged;
-  
+
   if (workerTime > webTime) {
     // Cloud has newer data - use entire Cloud provider
     merged = formatProviderData(workerProvider);
@@ -198,14 +213,20 @@ function formatProviderData(provider) {
     errorCode: provider.errorCode || null,
     rateLimitedUntil: provider.rateLimitedUntil || null,
     createdAt: provider.createdAt,
-    updatedAt: provider.updatedAt || new Date().toISOString()
+    updatedAt: provider.updatedAt || new Date().toISOString(),
   };
 }
 
 /**
  * Update provider status (called when token refresh fails or API errors)
  */
-export function updateProviderStatus(providers, providerId, status, error = null, errorCode = null) {
+export function updateProviderStatus(
+  providers,
+  providerId,
+  status,
+  error = null,
+  errorCode = null,
+) {
   if (providers[providerId]) {
     providers[providerId].status = status;
     providers[providerId].lastError = error;
@@ -222,6 +243,6 @@ export function updateProviderStatus(providers, providerId, status, error = null
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: CORS_HEADERS
+    headers: CORS_HEADERS,
   });
 }

@@ -15,7 +15,7 @@ vi.mock("@/lib/localDb", () => ({
 }));
 
 vi.mock("../../src/sse/services/model.js", () => ({
-  getModelInfo: vi.fn(),
+  getModelInfoWithOptions: vi.fn(),
   getComboConfig: vi.fn(),
 }));
 
@@ -43,12 +43,15 @@ vi.mock("open-sse/services/projectId.js", () => ({
 
 import { handleChat } from "../../src/sse/handlers/chat.js";
 import {
+  extractApiKey,
   getProviderCredentials,
   markAccountUnavailable,
-  extractApiKey,
 } from "../../src/sse/services/auth.js";
 import { getSettings } from "@/lib/localDb";
-import { getComboConfig, getModelInfo } from "../../src/sse/services/model.js";
+import {
+  getComboConfig,
+  getModelInfoWithOptions,
+} from "../../src/sse/services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { checkAndRefreshToken } from "../../src/sse/services/tokenRefresh.js";
 
@@ -91,7 +94,7 @@ describe("chat schema incompatibility fallback", () => {
       }
       return null;
     });
-    vi.mocked(getModelInfo).mockImplementation(async (model) => {
+    vi.mocked(getModelInfoWithOptions).mockImplementation(async (model) => {
       if (model === "codex/gpt-5.4") {
         return { provider: "codex", model: "gpt-5.4" };
       }
@@ -105,7 +108,9 @@ describe("chat schema incompatibility fallback", () => {
       providerSpecificData: {},
       _connection: {},
     }));
-    vi.mocked(checkAndRefreshToken).mockImplementation(async (_provider, credentials) => credentials);
+    vi.mocked(checkAndRefreshToken).mockImplementation(
+      async (_provider, credentials) => credentials,
+    );
   });
 
   afterEach(() => {
@@ -117,17 +122,26 @@ describe("chat schema incompatibility fallback", () => {
       .mockResolvedValueOnce({
         success: false,
         status: 400,
-        error: "OpenAI Responses tool schema incompatible: mcp__pencil__get_style_guide_tags",
+        error:
+          "OpenAI Responses tool schema incompatible: mcp__pencil__get_style_guide_tags",
         errorCode: "openai_responses_schema_incompatible",
         skipProviderCooldown: true,
         requestScopedFallback: true,
         response: new Response(
           JSON.stringify({
             error: {
-              message: "OpenAI Responses tool schema incompatible: mcp__pencil__get_style_guide_tags",
+              message:
+                "OpenAI Responses tool schema incompatible: mcp__pencil__get_style_guide_tags",
             },
           }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
+          {
+            status: 400,
+            headers: {
+              "Content-Type": "application/json",
+              "X-9Router-Request-Scoped-Fallback": "1",
+              "X-9Router-Error-Code": "openai_responses_schema_incompatible",
+            },
+          },
         ),
       })
       .mockResolvedValueOnce({

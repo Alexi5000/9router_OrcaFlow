@@ -40,7 +40,7 @@ export default function Toggle({
       className={cn(
         "flex items-center gap-3",
         disabled && "opacity-50 cursor-not-allowed",
-        className
+        className,
       )}
     >
       <button
@@ -53,11 +53,9 @@ export default function Toggle({
           "relative inline-flex shrink-0 cursor-pointer rounded-full",
           "transition-colors duration-200 ease-in-out",
           "focus:outline-none focus:ring-1 focus:ring-primary/30",
-          checked
-            ? "bg-primary"
-            : "bg-black/10 dark:bg-white/20",
+          checked ? "bg-primary" : "bg-black/10 dark:bg-white/20",
           sizes[size].track,
-          disabled && "cursor-not-allowed"
+          disabled && "cursor-not-allowed",
         )}
       >
         <span
@@ -66,25 +64,20 @@ export default function Toggle({
             "transform transition duration-200 ease-in-out",
             checked ? sizes[size].translate : "translate-x-0.5",
             sizes[size].thumb,
-            "mt-0.5"
+            "mt-0.5",
           )}
         />
       </button>
       {(label || description) && (
         <div className="flex flex-col">
           {label && (
-            <span className="text-sm font-medium text-text-main">
-              {label}
-            </span>
+            <span className="text-sm font-medium text-text-main">{label}</span>
           )}
           {description && (
-            <span className="text-xs text-text-muted">
-              {description}
-            </span>
+            <span className="text-xs text-text-muted">{description}</span>
           )}
         </div>
       )}
     </div>
   );
 }
-

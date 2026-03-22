@@ -1,8 +1,21 @@
 import { translateResponse, initState } from "../translator/index.js";
 import { FORMATS } from "../translator/formats.js";
 import { trackPendingRequest, appendRequestLog } from "@/lib/usageDb.js";
-import { extractUsage, hasValidUsage, estimateUsage, logUsage, addBufferToUsage, filterUsageForFormat, COLORS } from "./usageTracking.js";
-import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE } from "./streamHelpers.js";
+import {
+  extractUsage,
+  hasValidUsage,
+  estimateUsage,
+  logUsage,
+  addBufferToUsage,
+  filterUsageForFormat,
+  COLORS,
+} from "./usageTracking.js";
+import {
+  parseSSELine,
+  hasValuableContent,
+  fixInvalidId,
+  formatSSE,
+} from "./streamHelpers.js";
 
 export { COLORS, formatSSE };
 
@@ -21,8 +34,16 @@ function appendTextIfString(value, target) {
 function collectChunkText(parsed, totals) {
   if (!parsed || typeof parsed !== "object") return;
 
-  const appendContent = (value) => appendTextIfString(value, { totalContentLength: totals.totalContentLength, bucket: totals.accumulatedContent });
-  const appendThinking = (value) => appendTextIfString(value, { totalContentLength: totals.totalContentLength, bucket: totals.accumulatedThinking });
+  const appendContent = (value) =>
+    appendTextIfString(value, {
+      totalContentLength: totals.totalContentLength,
+      bucket: totals.accumulatedContent,
+    });
+  const appendThinking = (value) =>
+    appendTextIfString(value, {
+      totalContentLength: totals.totalContentLength,
+      bucket: totals.accumulatedThinking,
+    });
 
   const applyResult = (result, key) => {
     totals.totalContentLength = result.totalContentLength;
@@ -34,8 +55,14 @@ function collectChunkText(parsed, totals) {
   applyResult(appendThinking(parsed.delta?.thinking), "accumulatedThinking");
 
   // OpenAI streaming format
-  applyResult(appendContent(parsed.choices?.[0]?.delta?.content), "accumulatedContent");
-  applyResult(appendThinking(parsed.choices?.[0]?.delta?.reasoning_content), "accumulatedThinking");
+  applyResult(
+    appendContent(parsed.choices?.[0]?.delta?.content),
+    "accumulatedContent",
+  );
+  applyResult(
+    appendThinking(parsed.choices?.[0]?.delta?.reasoning_content),
+    "accumulatedThinking",
+  );
 
   // OpenAI non-delta / final-message style chunks
   const messageContent = parsed.choices?.[0]?.message?.content;
@@ -54,7 +81,7 @@ function collectChunkText(parsed, totals) {
   // Gemini / Antigravity top-level and wrapped response payloads
   const partsSets = [
     parsed.candidates?.[0]?.content?.parts,
-    parsed.response?.candidates?.[0]?.content?.parts
+    parsed.response?.candidates?.[0]?.content?.parts,
   ];
   for (const parts of partsSets) {
     if (!Array.isArray(parts)) continue;
@@ -72,8 +99,8 @@ function collectChunkText(parsed, totals) {
  * Stream modes
  */
 const STREAM_MODE = {
-  TRANSLATE: "translate",    // Full translation between formats
-  PASSTHROUGH: "passthrough" // No translation, normalize output, extract usage
+  TRANSLATE: "translate", // Full translation between formats
+  PASSTHROUGH: "passthrough", // No translation, normalize output, extract usage
 };
 
 /**
@@ -102,13 +129,16 @@ export function createSSEStream(options = {}) {
     connectionId = null,
     body = null,
     onStreamComplete = null,
-    apiKey = null
+    apiKey = null,
   } = options;
 
   let buffer = "";
   let usage = null;
 
-  const state = mode === STREAM_MODE.TRANSLATE ? { ...initState(sourceFormat), provider, toolNameMap, model } : null;
+  const state =
+    mode === STREAM_MODE.TRANSLATE
+      ? { ...initState(sourceFormat), provider, toolNameMap, model }
+      : null;
 
   let totalContentLength = 0;
   let accumulatedContent = "";
@@ -135,7 +165,10 @@ export function createSSEStream(options = {}) {
           let output;
           let injectedUsage = false;
 
-          if (trimmed.startsWith("data:") && trimmed.slice(5).trim() !== "[DONE]") {
+          if (
+            trimmed.startsWith("data:") &&
+            trimmed.slice(5).trim() !== "[DONE]"
+          ) {
             try {
               const parsed = JSON.parse(trimmed.slice(5).trim());
 
@@ -144,8 +177,14 @@ export function createSSEStream(options = {}) {
               // Ensure OpenAI-required fields are present on streaming chunks (Letta compat)
               let fieldsInjected = false;
               if (parsed.choices !== undefined) {
-                if (!parsed.object) { parsed.object = "chat.completion.chunk"; fieldsInjected = true; }
-                if (!parsed.created) { parsed.created = Math.floor(Date.now() / 1000); fieldsInjected = true; }
+                if (!parsed.object) {
+                  parsed.object = "chat.completion.chunk";
+                  fieldsInjected = true;
+                }
+                if (!parsed.created) {
+                  parsed.created = Math.floor(Date.now() / 1000);
+                  fieldsInjected = true;
+                }
               }
 
               // Strip Azure-specific non-standard fields from streaming chunks
@@ -166,11 +205,15 @@ export function createSSEStream(options = {}) {
                 continue;
               }
 
-	              const totals = { totalContentLength, accumulatedContent, accumulatedThinking };
-	              collectChunkText(parsed, totals);
-	              totalContentLength = totals.totalContentLength;
-	              accumulatedContent = totals.accumulatedContent;
-	              accumulatedThinking = totals.accumulatedThinking;
+              const totals = {
+                totalContentLength,
+                accumulatedContent,
+                accumulatedThinking,
+              };
+              collectChunkText(parsed, totals);
+              totalContentLength = totals.totalContentLength;
+              accumulatedContent = totals.accumulatedContent;
+              accumulatedThinking = totals.accumulatedThinking;
 
               const extracted = extractUsage(parsed);
               if (extracted) {
@@ -179,7 +222,11 @@ export function createSSEStream(options = {}) {
 
               const isFinishChunk = parsed.choices?.[0]?.finish_reason;
               if (isFinishChunk && !hasValidUsage(parsed.usage)) {
-                const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
+                const estimated = estimateUsage(
+                  body,
+                  totalContentLength,
+                  FORMATS.OPENAI,
+                );
                 parsed.usage = filterUsageForFormat(estimated, FORMATS.OPENAI);
                 output = `data: ${JSON.stringify(parsed)}\n`;
                 usage = estimated;
@@ -193,7 +240,7 @@ export function createSSEStream(options = {}) {
                 output = `data: ${JSON.stringify(parsed)}\n`;
                 injectedUsage = true;
               }
-            } catch { }
+            } catch {}
           }
 
           if (!injectedUsage) {
@@ -222,18 +269,27 @@ export function createSSEStream(options = {}) {
           continue;
         }
 
-	        const totals = { totalContentLength, accumulatedContent, accumulatedThinking };
-	        collectChunkText(parsed, totals);
-	        totalContentLength = totals.totalContentLength;
-	        accumulatedContent = totals.accumulatedContent;
-	        accumulatedThinking = totals.accumulatedThinking;
+        const totals = {
+          totalContentLength,
+          accumulatedContent,
+          accumulatedThinking,
+        };
+        collectChunkText(parsed, totals);
+        totalContentLength = totals.totalContentLength;
+        accumulatedContent = totals.accumulatedContent;
+        accumulatedThinking = totals.accumulatedThinking;
 
         // Extract usage
         const extracted = extractUsage(parsed);
         if (extracted) state.usage = extracted; // Keep original usage for logging
 
         // Translate: targetFormat -> openai -> sourceFormat
-        const translated = translateResponse(targetFormat, sourceFormat, parsed, state);
+        const translated = translateResponse(
+          targetFormat,
+          sourceFormat,
+          parsed,
+          state,
+        );
 
         // Log OpenAI intermediate chunks (if available)
         if (translated?._openaiIntermediate) {
@@ -251,9 +307,19 @@ export function createSSEStream(options = {}) {
             }
 
             // Inject estimated usage if finish chunk has no valid usage
-            const isFinishChunk = item.type === "message_delta" || item.choices?.[0]?.finish_reason;
-            if (state.finishReason && isFinishChunk && !hasValidUsage(item.usage) && totalContentLength > 0) {
-              const estimated = estimateUsage(body, totalContentLength, sourceFormat);
+            const isFinishChunk =
+              item.type === "message_delta" || item.choices?.[0]?.finish_reason;
+            if (
+              state.finishReason &&
+              isFinishChunk &&
+              !hasValidUsage(item.usage) &&
+              totalContentLength > 0
+            ) {
+              const estimated = estimateUsage(
+                body,
+                totalContentLength,
+                sourceFormat,
+              );
               item.usage = filterUsageForFormat(estimated, sourceFormat); // Filter + already has buffer
               state.usage = estimated;
             } else if (state.finishReason && isFinishChunk && state.usage) {
@@ -293,9 +359,15 @@ export function createSSEStream(options = {}) {
           if (hasValidUsage(usage)) {
             logUsage(provider, usage, model, connectionId, apiKey);
           } else {
-            appendRequestLog({ model, provider, connectionId, tokens: null, status: "200 OK" }).catch(() => { });
+            appendRequestLog({
+              model,
+              provider,
+              connectionId,
+              tokens: null,
+              status: "200 OK",
+            }).catch(() => {});
           }
-          
+
           // IMPORTANT: In passthrough mode we still must terminate the SSE stream.
           // Some clients (e.g. OpenClaw) expect the OpenAI-style sentinel:
           //   data: [DONE]\n\n
@@ -305,10 +377,14 @@ export function createSSEStream(options = {}) {
           controller.enqueue(sharedEncoder.encode(doneOutput));
 
           if (onStreamComplete) {
-            onStreamComplete({
-              content: accumulatedContent,
-              thinking: accumulatedThinking
-            }, usage, ttftAt);
+            onStreamComplete(
+              {
+                content: accumulatedContent,
+                thinking: accumulatedThinking,
+              },
+              usage,
+              ttftAt,
+            );
           }
           return;
         }
@@ -316,7 +392,12 @@ export function createSSEStream(options = {}) {
         if (buffer.trim()) {
           const parsed = parseSSELine(buffer.trim());
           if (parsed && !parsed.done) {
-            const translated = translateResponse(targetFormat, sourceFormat, parsed, state);
+            const translated = translateResponse(
+              targetFormat,
+              sourceFormat,
+              parsed,
+              state,
+            );
 
             if (translated?._openaiIntermediate) {
               for (const item of translated._openaiIntermediate) {
@@ -335,7 +416,12 @@ export function createSSEStream(options = {}) {
           }
         }
 
-        const flushed = translateResponse(targetFormat, sourceFormat, null, state);
+        const flushed = translateResponse(
+          targetFormat,
+          sourceFormat,
+          null,
+          state,
+        );
 
         if (flushed?._openaiIntermediate) {
           for (const item of flushed._openaiIntermediate) {
@@ -361,25 +447,52 @@ export function createSSEStream(options = {}) {
         }
 
         if (hasValidUsage(state?.usage)) {
-          logUsage(state.provider || targetFormat, state.usage, model, connectionId, apiKey);
+          logUsage(
+            state.provider || targetFormat,
+            state.usage,
+            model,
+            connectionId,
+            apiKey,
+          );
         } else {
-          appendRequestLog({ model, provider, connectionId, tokens: null, status: "200 OK" }).catch(() => { });
+          appendRequestLog({
+            model,
+            provider,
+            connectionId,
+            tokens: null,
+            status: "200 OK",
+          }).catch(() => {});
         }
-        
+
         if (onStreamComplete) {
-          onStreamComplete({
-            content: accumulatedContent,
-            thinking: accumulatedThinking
-          }, state?.usage, ttftAt);
+          onStreamComplete(
+            {
+              content: accumulatedContent,
+              thinking: accumulatedThinking,
+            },
+            state?.usage,
+            ttftAt,
+          );
         }
       } catch (error) {
         console.log("Error in flush:", error);
       }
-    }
+    },
   });
 }
 
-export function createSSETransformStreamWithLogger(targetFormat, sourceFormat, provider = null, reqLogger = null, toolNameMap = null, model = null, connectionId = null, body = null, onStreamComplete = null, apiKey = null) {
+export function createSSETransformStreamWithLogger(
+  targetFormat,
+  sourceFormat,
+  provider = null,
+  reqLogger = null,
+  toolNameMap = null,
+  model = null,
+  connectionId = null,
+  body = null,
+  onStreamComplete = null,
+  apiKey = null,
+) {
   return createSSEStream({
     mode: STREAM_MODE.TRANSLATE,
     targetFormat,
@@ -391,11 +504,19 @@ export function createSSETransformStreamWithLogger(targetFormat, sourceFormat, p
     connectionId,
     body,
     onStreamComplete,
-    apiKey
+    apiKey,
   });
 }
 
-export function createPassthroughStreamWithLogger(provider = null, reqLogger = null, model = null, connectionId = null, body = null, onStreamComplete = null, apiKey = null) {
+export function createPassthroughStreamWithLogger(
+  provider = null,
+  reqLogger = null,
+  model = null,
+  connectionId = null,
+  body = null,
+  onStreamComplete = null,
+  apiKey = null,
+) {
   return createSSEStream({
     mode: STREAM_MODE.PASSTHROUGH,
     provider,
@@ -404,6 +525,6 @@ export function createPassthroughStreamWithLogger(provider = null, reqLogger = n
     connectionId,
     body,
     onStreamComplete,
-    apiKey
+    apiKey,
   });
 }

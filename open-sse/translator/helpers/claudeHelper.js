@@ -7,10 +7,11 @@ import { applyCloaking } from "../../utils/claudeCloaking.js";
 export function hasValidContent(msg) {
   if (typeof msg.content === "string" && msg.content.trim()) return true;
   if (Array.isArray(msg.content)) {
-    return msg.content.some(block =>
-      (block.type === "text" && block.text?.trim()) ||
-      block.type === "tool_use" ||
-      block.type === "tool_result"
+    return msg.content.some(
+      (block) =>
+        (block.type === "text" && block.text?.trim()) ||
+        block.type === "tool_use" ||
+        block.type === "tool_result",
     );
   }
   return false;
@@ -21,21 +22,24 @@ export function hasValidContent(msg) {
 // 2. Merge consecutive same-role messages
 export function fixToolUseOrdering(messages) {
   if (messages.length <= 1) return messages;
-  
+
   // Pass 1: Fix assistant messages with tool_use - remove text after tool_use
   for (const msg of messages) {
     if (msg.role === "assistant" && Array.isArray(msg.content)) {
-      const hasToolUse = msg.content.some(b => b.type === "tool_use");
+      const hasToolUse = msg.content.some((b) => b.type === "tool_use");
       if (hasToolUse) {
         // Keep only: thinking blocks + tool_use blocks (remove text blocks after tool_use)
         const newContent = [];
         let foundToolUse = false;
-        
+
         for (const block of msg.content) {
           if (block.type === "tool_use") {
             foundToolUse = true;
             newContent.push(block);
-          } else if (block.type === "thinking" || block.type === "redacted_thinking") {
+          } else if (
+            block.type === "thinking" ||
+            block.type === "redacted_thinking"
+          ) {
             newContent.push(block);
           } else if (!foundToolUse) {
             // Keep text blocks BEFORE tool_use
@@ -43,35 +47,47 @@ export function fixToolUseOrdering(messages) {
           }
           // Skip text blocks AFTER tool_use
         }
-        
+
         msg.content = newContent;
       }
     }
   }
-  
+
   // Pass 2: Merge consecutive same-role messages
   const merged = [];
-  
+
   for (const msg of messages) {
     const last = merged[merged.length - 1];
-    
+
     if (last && last.role === msg.role) {
       // Merge content arrays
-      const lastContent = Array.isArray(last.content) ? last.content : [{ type: "text", text: last.content }];
-      const msgContent = Array.isArray(msg.content) ? msg.content : [{ type: "text", text: msg.content }];
-      
+      const lastContent = Array.isArray(last.content)
+        ? last.content
+        : [{ type: "text", text: last.content }];
+      const msgContent = Array.isArray(msg.content)
+        ? msg.content
+        : [{ type: "text", text: msg.content }];
+
       // Put tool_result first, then other content
-      const toolResults = [...lastContent.filter(b => b.type === "tool_result"), ...msgContent.filter(b => b.type === "tool_result")];
-      const otherContent = [...lastContent.filter(b => b.type !== "tool_result"), ...msgContent.filter(b => b.type !== "tool_result")];
-      
+      const toolResults = [
+        ...lastContent.filter((b) => b.type === "tool_result"),
+        ...msgContent.filter((b) => b.type === "tool_result"),
+      ];
+      const otherContent = [
+        ...lastContent.filter((b) => b.type !== "tool_result"),
+        ...msgContent.filter((b) => b.type !== "tool_result"),
+      ];
+
       last.content = [...toolResults, ...otherContent];
     } else {
       // Ensure content is array
-      const content = Array.isArray(msg.content) ? msg.content : [{ type: "text", text: msg.content }];
+      const content = Array.isArray(msg.content)
+        ? msg.content
+        : [{ type: "text", text: msg.content }];
       merged.push({ role: msg.role, content: [...content] });
     }
   }
-  
+
   return merged;
 }
 
@@ -101,7 +117,7 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null) {
     // Pass 1: remove cache_control + filter empty messages
     for (let i = 0; i < len; i++) {
       const msg = body.messages[i];
-      
+
       // Remove cache_control from content blocks
       if (Array.isArray(msg.content)) {
         for (const block of msg.content) {
@@ -125,17 +141,20 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null) {
     // Check if thinking is enabled AND last message is from user
     const lastMessage = filtered[filtered.length - 1];
     const lastMessageIsUser = lastMessage?.role === "user";
-    const thinkingEnabled = body.thinking?.type === "enabled" && lastMessageIsUser;
+    const thinkingEnabled =
+      body.thinking?.type === "enabled" && lastMessageIsUser;
 
     // Pass 2 (reverse): add cache_control to last assistant + handle thinking for Anthropic
     let lastAssistantProcessed = false;
     for (let i = filtered.length - 1; i >= 0; i--) {
       const msg = filtered[i];
-      
+
       if (msg.role === "assistant" && Array.isArray(msg.content)) {
         // Add cache_control to last block of first (from end) assistant with content
         if (!lastAssistantProcessed && msg.content.length > 0) {
-          msg.content[msg.content.length - 1].cache_control = { type: "ephemeral" };
+          msg.content[msg.content.length - 1].cache_control = {
+            type: "ephemeral",
+          };
           lastAssistantProcessed = true;
         }
 
@@ -143,10 +162,13 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null) {
         if (provider === "claude") {
           let hasToolUse = false;
           let hasThinking = false;
-          
+
           // Always replace signature for all thinking blocks
           for (const block of msg.content) {
-            if (block.type === "thinking" || block.type === "redacted_thinking") {
+            if (
+              block.type === "thinking" ||
+              block.type === "redacted_thinking"
+            ) {
               block.signature = DEFAULT_THINKING_CLAUDE_SIGNATURE;
               hasThinking = true;
             }
@@ -158,7 +180,7 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null) {
             msg.content.unshift({
               type: "thinking",
               thinking: ".",
-              signature: DEFAULT_THINKING_CLAUDE_SIGNATURE
+              signature: DEFAULT_THINKING_CLAUDE_SIGNATURE,
             });
           }
         }
@@ -170,7 +192,9 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null) {
   if (body.tools && Array.isArray(body.tools)) {
     // Strip built-in tools (e.g. web_search_20250305) for providers that don't support them
     if (provider !== "claude") {
-      body.tools = body.tools.filter(tool => !tool.type || tool.type === "function");
+      body.tools = body.tools.filter(
+        (tool) => !tool.type || tool.type === "function",
+      );
     }
 
     body.tools = body.tools.map((tool, i) => {
@@ -195,4 +219,3 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null) {
 
   return body;
 }
-

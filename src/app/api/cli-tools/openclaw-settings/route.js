@@ -10,7 +10,8 @@ import os from "os";
 const execAsync = promisify(exec);
 
 const getOpenClawDir = () => path.join(os.homedir(), ".openclaw");
-const getOpenClawSettingsPath = () => path.join(getOpenClawDir(), "openclaw.json");
+const getOpenClawSettingsPath = () =>
+  path.join(getOpenClawDir(), "openclaw.json");
 
 // Check if openclaw CLI is installed
 const checkOpenClawInstalled = async () => {
@@ -46,7 +47,7 @@ const has9RouterConfig = (settings) => {
 export async function GET() {
   try {
     const isInstalled = await checkOpenClawInstalled();
-    
+
     if (!isInstalled) {
       return NextResponse.json({
         installed: false,
@@ -65,7 +66,10 @@ export async function GET() {
     });
   } catch (error) {
     console.log("Error checking openclaw settings:", error);
-    return NextResponse.json({ error: "Failed to check openclaw settings" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to check openclaw settings" },
+      { status: 500 },
+    );
   }
 }
 
@@ -73,9 +77,12 @@ export async function GET() {
 export async function POST(request) {
   try {
     const { baseUrl, apiKey, model } = await request.json();
-    
+
     if (!baseUrl || !model) {
-      return NextResponse.json({ error: "baseUrl and model are required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "baseUrl and model are required" },
+        { status: 400 },
+      );
     }
 
     const openclawDir = getOpenClawDir();
@@ -89,7 +96,9 @@ export async function POST(request) {
     try {
       const existingSettings = await fs.readFile(settingsPath, "utf-8");
       settings = JSON.parse(existingSettings);
-    } catch { /* No existing settings */ }
+    } catch {
+      /* No existing settings */
+    }
 
     // Ensure structure exists
     if (!settings.agents) settings.agents = {};
@@ -99,7 +108,9 @@ export async function POST(request) {
     if (!settings.models.providers) settings.models.providers = {};
 
     // Normalize baseUrl to ensure /v1 suffix
-    const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
+    const normalizedBaseUrl = baseUrl.endsWith("/v1")
+      ? baseUrl
+      : `${baseUrl}/v1`;
 
     // Update agents.defaults.model.primary
     settings.agents.defaults.model.primary = `9router/${model}`;
@@ -127,7 +138,10 @@ export async function POST(request) {
     });
   } catch (error) {
     console.log("Error updating openclaw settings:", error);
-    return NextResponse.json({ error: "Failed to update openclaw settings" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update openclaw settings" },
+      { status: 500 },
+    );
   }
 }
 
@@ -154,7 +168,7 @@ export async function DELETE() {
     // Remove 9Router from models.providers
     if (settings.models && settings.models.providers) {
       delete settings.models.providers["9router"];
-      
+
       // Remove providers object if empty
       if (Object.keys(settings.models.providers).length === 0) {
         delete settings.models.providers;
@@ -175,6 +189,9 @@ export async function DELETE() {
     });
   } catch (error) {
     console.log("Error resetting openclaw settings:", error);
-    return NextResponse.json({ error: "Failed to reset openclaw settings" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to reset openclaw settings" },
+      { status: 500 },
+    );
   }
 }

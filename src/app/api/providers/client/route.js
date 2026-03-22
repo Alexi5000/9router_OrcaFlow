@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const connections = await getProviderConnections();
-    
+
     // Include sensitive fields for sync to cloud (only accessible from same origin)
-    const clientConnections = connections.map(c => ({
+    const clientConnections = connections.map((c) => ({
       ...c,
       // Don't hide sensitive fields here since this is for internal sync
     }));
@@ -19,6 +19,9 @@ export async function GET() {
     return response;
   } catch (error) {
     console.log("Error fetching providers for client:", error);
-    return NextResponse.json({ error: "Failed to fetch providers" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch providers" },
+      { status: 500 },
+    );
   }
 }

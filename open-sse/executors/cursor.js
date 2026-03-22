@@ -3,7 +3,7 @@ import { PROVIDERS, HTTP_STATUS } from "../config/constants.js";
 import {
   generateCursorBody,
   parseConnectRPCFrame,
-  extractTextFromResponse
+  extractTextFromResponse,
 } from "../utils/cursorProtobuf.js";
 import { estimateUsage } from "../utils/usageTracking.js";
 import { FORMATS } from "../translator/formats.js";
@@ -34,7 +34,7 @@ const COMPRESS_FLAG = {
   NONE: 0x00,
   GZIP: 0x01,
   TRAILER: 0x02,
-  GZIP_TRAILER: 0x03
+  GZIP_TRAILER: 0x03,
 };
 
 function decompressPayload(payload, flags) {
@@ -47,7 +47,9 @@ function decompressPayload(payload, flags) {
     try {
       return zlib.gunzipSync(payload);
     } catch (err) {
-      console.log(`[DECOMPRESS ERROR] flags=${flags}, payloadSize=${payload.length}, error=${err.message}`);
+      console.log(
+        `[DECOMPRESS ERROR] flags=${flags}, payloadSize=${payload.length}, error=${err.message}`,
+      );
       return payload;
     }
   }
@@ -55,23 +57,27 @@ function decompressPayload(payload, flags) {
 }
 
 function createErrorResponse(jsonError) {
-  const errorMsg = jsonError?.error?.details?.[0]?.debug?.details?.title
-    || jsonError?.error?.details?.[0]?.debug?.details?.detail
-    || jsonError?.error?.message
-    || "API Error";
-  
+  const errorMsg =
+    jsonError?.error?.details?.[0]?.debug?.details?.title ||
+    jsonError?.error?.details?.[0]?.debug?.details?.detail ||
+    jsonError?.error?.message ||
+    "API Error";
+
   const isRateLimit = jsonError?.error?.code === "resource_exhausted";
-  
-  return new Response(JSON.stringify({
-    error: {
-      message: errorMsg,
-      type: isRateLimit ? "rate_limit_error" : "api_error",
-      code: jsonError?.error?.details?.[0]?.debug?.error || "unknown"
-    }
-  }), {
-    status: isRateLimit ? HTTP_STATUS.RATE_LIMITED : HTTP_STATUS.BAD_REQUEST,
-    headers: { "Content-Type": "application/json" }
-  });
+
+  return new Response(
+    JSON.stringify({
+      error: {
+        message: errorMsg,
+        type: isRateLimit ? "rate_limit_error" : "api_error",
+        code: jsonError?.error?.details?.[0]?.debug?.error || "unknown",
+      },
+    }),
+    {
+      status: isRateLimit ? HTTP_STATUS.RATE_LIMITED : HTTP_STATUS.BAD_REQUEST,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
 }
 
 export class CursorExecutor extends BaseExecutor {
@@ -87,21 +93,22 @@ export class CursorExecutor extends BaseExecutor {
   generateChecksum(machineId) {
     const timestamp = Math.floor(Date.now() / 1000000);
     const byteArray = new Uint8Array([
-      (timestamp >> 40) & 0xFF,
-      (timestamp >> 32) & 0xFF,
-      (timestamp >> 24) & 0xFF,
-      (timestamp >> 16) & 0xFF,
-      (timestamp >> 8) & 0xFF,
-      timestamp & 0xFF
+      (timestamp >> 40) & 0xff,
+      (timestamp >> 32) & 0xff,
+      (timestamp >> 24) & 0xff,
+      (timestamp >> 16) & 0xff,
+      (timestamp >> 8) & 0xff,
+      timestamp & 0xff,
     ]);
 
     let t = 165;
     for (let i = 0; i < byteArray.length; i++) {
-      byteArray[i] = ((byteArray[i] ^ t) + (i % 256)) & 0xFF;
+      byteArray[i] = ((byteArray[i] ^ t) + (i % 256)) & 0xff;
       t = byteArray[i];
     }
 
-    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const alphabet =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let encoded = "";
 
     for (let i = 0; i < byteArray.length; i += 3) {
@@ -132,24 +139,35 @@ export class CursorExecutor extends BaseExecutor {
       throw new Error("Machine ID is required for Cursor API");
     }
 
-    const cleanToken = accessToken.includes("::") ? accessToken.split("::")[1] : accessToken;
+    const cleanToken = accessToken.includes("::")
+      ? accessToken.split("::")[1]
+      : accessToken;
 
     return {
-      "authorization": `Bearer ${cleanToken}`,
+      authorization: `Bearer ${cleanToken}`,
       "connect-accept-encoding": "gzip",
       "connect-protocol-version": "1",
       "content-type": "application/connect+proto",
       "user-agent": "connect-es/1.6.1",
       "x-amzn-trace-id": `Root=${crypto.randomUUID()}`,
-      "x-client-key": crypto.createHash("sha256").update(cleanToken).digest("hex"),
+      "x-client-key": crypto
+        .createHash("sha256")
+        .update(cleanToken)
+        .digest("hex"),
       "x-cursor-checksum": this.generateChecksum(machineId),
       "x-cursor-client-version": "2.3.41",
       "x-cursor-client-type": "ide",
-      "x-cursor-client-os": process.platform === "win32" ? "windows" : process.platform === "darwin" ? "macos" : "linux",
+      "x-cursor-client-os":
+        process.platform === "win32"
+          ? "windows"
+          : process.platform === "darwin"
+            ? "macos"
+            : "linux",
       "x-cursor-client-arch": process.arch === "arm64" ? "aarch64" : "x64",
       "x-cursor-client-device-type": "desktop",
       "x-cursor-config-version": crypto.randomUUID(),
-      "x-cursor-timezone": Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      "x-cursor-timezone":
+        Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       "x-ghost-mode": ghostMode ? "true" : "false",
       "x-request-id": crypto.randomUUID(),
       "x-session-id": uuidv5(cleanToken, uuidv5.DNS),
@@ -165,17 +183,21 @@ export class CursorExecutor extends BaseExecutor {
   }
 
   async makeFetchRequest(url, headers, body, signal, proxyOptions = null) {
-    const response = await proxyAwareFetch(url, {
-      method: "POST",
-      headers,
-      body,
-      signal
-    }, proxyOptions);
+    const response = await proxyAwareFetch(
+      url,
+      {
+        method: "POST",
+        headers,
+        body,
+        signal,
+      },
+      proxyOptions,
+    );
 
     return {
       status: response.status,
       headers: Object.fromEntries(response.headers.entries()),
-      body: Buffer.from(await response.arrayBuffer())
+      body: Buffer.from(await response.arrayBuffer()),
     };
   }
 
@@ -197,17 +219,21 @@ export class CursorExecutor extends BaseExecutor {
         ":path": urlObj.pathname,
         ":authority": urlObj.host,
         ":scheme": "https",
-        ...headers
+        ...headers,
       });
 
-      req.on("response", (hdrs) => { responseHeaders = hdrs; });
-      req.on("data", (chunk) => { chunks.push(chunk); });
+      req.on("response", (hdrs) => {
+        responseHeaders = hdrs;
+      });
+      req.on("data", (chunk) => {
+        chunks.push(chunk);
+      });
       req.on("end", () => {
         client.close();
         resolve({
           status: responseHeaders[":status"],
           headers: responseHeaders,
-          body: Buffer.concat(chunks)
+          body: Buffer.concat(chunks),
         });
       });
       req.on("error", (err) => {
@@ -228,48 +254,82 @@ export class CursorExecutor extends BaseExecutor {
     });
   }
 
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
+  async execute({
+    model,
+    body,
+    stream,
+    credentials,
+    signal,
+    log,
+    proxyOptions = null,
+  }) {
     const url = this.buildUrl();
     const headers = this.buildHeaders(credentials);
-    const transformedBody = this.transformRequest(model, body, stream, credentials);
+    const transformedBody = this.transformRequest(
+      model,
+      body,
+      stream,
+      credentials,
+    );
 
     try {
-      const shouldForceFetch = proxyOptions?.enabled === true || proxyOptions?.connectionProxyEnabled === true;
-      const response = (http2 && !shouldForceFetch)
-        ? await this.makeHttp2Request(url, headers, transformedBody, signal)
-        : await this.makeFetchRequest(url, headers, transformedBody, signal, proxyOptions);
+      const shouldForceFetch =
+        proxyOptions?.enabled === true ||
+        proxyOptions?.connectionProxyEnabled === true;
+      const response =
+        http2 && !shouldForceFetch
+          ? await this.makeHttp2Request(url, headers, transformedBody, signal)
+          : await this.makeFetchRequest(
+              url,
+              headers,
+              transformedBody,
+              signal,
+              proxyOptions,
+            );
 
       if (response.status !== 200) {
         const errorText = response.body?.toString() || "Unknown error";
-        const errorResponse = new Response(JSON.stringify({
-          error: {
-            message: `[${response.status}]: ${errorText}`,
-            type: "invalid_request_error",
-            code: ""
-          }
-        }), {
-          status: response.status,
-          headers: { "Content-Type": "application/json" }
-        });
+        const errorResponse = new Response(
+          JSON.stringify({
+            error: {
+              message: `[${response.status}]: ${errorText}`,
+              type: "invalid_request_error",
+              code: "",
+            },
+          }),
+          {
+            status: response.status,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
         return { response: errorResponse, url, headers, transformedBody: body };
       }
 
-      const transformedResponse = stream !== false
-        ? this.transformProtobufToSSE(response.body, model, body)
-        : this.transformProtobufToJSON(response.body, model, body);
+      const transformedResponse =
+        stream !== false
+          ? this.transformProtobufToSSE(response.body, model, body)
+          : this.transformProtobufToJSON(response.body, model, body);
 
-      return { response: transformedResponse, url, headers, transformedBody: body };
+      return {
+        response: transformedResponse,
+        url,
+        headers,
+        transformedBody: body,
+      };
     } catch (error) {
-      const errorResponse = new Response(JSON.stringify({
-        error: {
-          message: error.message,
-          type: "connection_error",
-          code: ""
-        }
-      }), {
-        status: HTTP_STATUS.SERVER_ERROR,
-        headers: { "Content-Type": "application/json" }
-      });
+      const errorResponse = new Response(
+        JSON.stringify({
+          error: {
+            message: error.message,
+            type: "connection_error",
+            code: "",
+          },
+        }),
+        {
+          status: HTTP_STATUS.SERVER_ERROR,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
       return { response: errorResponse, url, headers, transformedBody: body };
     }
   }
@@ -314,21 +374,24 @@ export class CursorExecutor extends BaseExecutor {
       const result = extractTextFromResponse(new Uint8Array(payload));
 
       if (result.error) {
-        return new Response(JSON.stringify({
-          error: {
-            message: result.error,
-            type: "rate_limit_error",
-            code: "rate_limited"
-          }
-        }), {
-          status: HTTP_STATUS.RATE_LIMITED,
-          headers: { "Content-Type": "application/json" }
-        });
+        return new Response(
+          JSON.stringify({
+            error: {
+              message: result.error,
+              type: "rate_limit_error",
+              code: "rate_limited",
+            },
+          }),
+          {
+            status: HTTP_STATUS.RATE_LIMITED,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
       }
 
       if (result.toolCall) {
         const tc = result.toolCall;
-        
+
         if (toolCallsMap.has(tc.id)) {
           // Accumulate arguments for existing tool call
           const existing = toolCallsMap.get(tc.id);
@@ -338,7 +401,7 @@ export class CursorExecutor extends BaseExecutor {
           // New tool call
           toolCallsMap.set(tc.id, { ...tc });
         }
-        
+
         // Push to final array when isLast is true
         if (tc.isLast) {
           const finalToolCall = toolCallsMap.get(tc.id);
@@ -347,34 +410,33 @@ export class CursorExecutor extends BaseExecutor {
             type: finalToolCall.type,
             function: {
               name: finalToolCall.function.name,
-              arguments: finalToolCall.function.arguments
-            }
+              arguments: finalToolCall.function.arguments,
+            },
           });
         }
       }
-      
+
       if (result.text) totalContent += result.text;
     }
 
     // Finalize all remaining tool calls in map (in case stream ended without isLast=true)
     for (const [id, tc] of toolCallsMap.entries()) {
       // Check if already in final array
-      if (!toolCalls.find(t => t.id === id)) {
+      if (!toolCalls.find((t) => t.id === id)) {
         toolCalls.push({
           id: tc.id,
           type: tc.type,
           function: {
             name: tc.function.name,
-            arguments: tc.function.arguments
-          }
+            arguments: tc.function.arguments,
+          },
         });
       }
     }
 
-
     const message = {
       role: "assistant",
-      content: totalContent || null
+      content: totalContent || null,
     };
 
     if (toolCalls.length > 0) {
@@ -388,17 +450,19 @@ export class CursorExecutor extends BaseExecutor {
       object: "chat.completion",
       created,
       model,
-      choices: [{
-        index: 0,
-        message,
-        finish_reason: toolCalls.length > 0 ? "tool_calls" : "stop"
-      }],
-      usage
+      choices: [
+        {
+          index: 0,
+          message,
+          finish_reason: toolCalls.length > 0 ? "tool_calls" : "stop",
+        },
+      ],
+      usage,
     };
 
     return new Response(JSON.stringify(completion), {
       status: 200,
-      headers: { "Content-Type": "application/json" }
+      headers: { "Content-Type": "application/json" },
     });
   }
 
@@ -443,144 +507,175 @@ export class CursorExecutor extends BaseExecutor {
       const result = extractTextFromResponse(new Uint8Array(payload));
 
       if (result.error) {
-        return new Response(JSON.stringify({
-          error: {
-            message: result.error,
-            type: "rate_limit_error",
-            code: "rate_limited"
-          }
-        }), {
-          status: HTTP_STATUS.RATE_LIMITED,
-          headers: { "Content-Type": "application/json" }
-        });
+        return new Response(
+          JSON.stringify({
+            error: {
+              message: result.error,
+              type: "rate_limit_error",
+              code: "rate_limited",
+            },
+          }),
+          {
+            status: HTTP_STATUS.RATE_LIMITED,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
       }
 
       if (result.toolCall) {
         const tc = result.toolCall;
-        
+
         if (chunks.length === 0) {
-          chunks.push(`data: ${JSON.stringify({
-            id: responseId,
-            object: "chat.completion.chunk",
-            created,
-            model,
-            choices: [{
-              index: 0,
-              delta: { role: "assistant", content: "" },
-              finish_reason: null
-            }]
-          })}\n\n`);
+          chunks.push(
+            `data: ${JSON.stringify({
+              id: responseId,
+              object: "chat.completion.chunk",
+              created,
+              model,
+              choices: [
+                {
+                  index: 0,
+                  delta: { role: "assistant", content: "" },
+                  finish_reason: null,
+                },
+              ],
+            })}\n\n`,
+          );
         }
-        
+
         if (toolCallsMap.has(tc.id)) {
           // Accumulate arguments for existing tool call
           const existing = toolCallsMap.get(tc.id);
           const oldArgsLen = existing.function.arguments.length;
           existing.function.arguments += tc.function.arguments;
           existing.isLast = tc.isLast;
-          
+
           // Stream the delta arguments
           if (tc.function.arguments) {
-            chunks.push(`data: ${JSON.stringify({
-              id: responseId,
-              object: "chat.completion.chunk",
-              created,
-              model,
-              choices: [{
-                index: 0,
-                delta: { 
-                  tool_calls: [{ 
-                    index: existing.index,
-                    id: tc.id,
-                    type: "function",
-                    function: {
-                      name: tc.function.name,
-                      arguments: tc.function.arguments
-                    }
-                  }] 
-                },
-                finish_reason: null
-              }]
-            })}\n\n`);
+            chunks.push(
+              `data: ${JSON.stringify({
+                id: responseId,
+                object: "chat.completion.chunk",
+                created,
+                model,
+                choices: [
+                  {
+                    index: 0,
+                    delta: {
+                      tool_calls: [
+                        {
+                          index: existing.index,
+                          id: tc.id,
+                          type: "function",
+                          function: {
+                            name: tc.function.name,
+                            arguments: tc.function.arguments,
+                          },
+                        },
+                      ],
+                    },
+                    finish_reason: null,
+                  },
+                ],
+              })}\n\n`,
+            );
           }
         } else {
           // New tool call - assign index and add to map
           const toolCallIndex = toolCalls.length;
           toolCalls.push({ ...tc, index: toolCallIndex });
           toolCallsMap.set(tc.id, { ...tc, index: toolCallIndex });
-          
+
           // Stream initial tool call with name
-          chunks.push(`data: ${JSON.stringify({
-            id: responseId,
-            object: "chat.completion.chunk",
-            created,
-            model,
-            choices: [{
-              index: 0,
-              delta: { 
-                tool_calls: [{ 
-                  index: toolCallIndex,
-                  id: tc.id,
-                  type: "function",
-                  function: {
-                    name: tc.function.name,
-                    arguments: tc.function.arguments
-                  }
-                }] 
-              },
-              finish_reason: null
-            }]
-          })}\n\n`);
+          chunks.push(
+            `data: ${JSON.stringify({
+              id: responseId,
+              object: "chat.completion.chunk",
+              created,
+              model,
+              choices: [
+                {
+                  index: 0,
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: toolCallIndex,
+                        id: tc.id,
+                        type: "function",
+                        function: {
+                          name: tc.function.name,
+                          arguments: tc.function.arguments,
+                        },
+                      },
+                    ],
+                  },
+                  finish_reason: null,
+                },
+              ],
+            })}\n\n`,
+          );
         }
       }
 
       if (result.text) {
         totalContent += result.text;
-        chunks.push(`data: ${JSON.stringify({
+        chunks.push(
+          `data: ${JSON.stringify({
+            id: responseId,
+            object: "chat.completion.chunk",
+            created,
+            model,
+            choices: [
+              {
+                index: 0,
+                delta:
+                  chunks.length === 0 && toolCalls.length === 0
+                    ? { role: "assistant", content: result.text }
+                    : { content: result.text },
+                finish_reason: null,
+              },
+            ],
+          })}\n\n`,
+        );
+      }
+    }
+
+    if (chunks.length === 0 && toolCalls.length === 0) {
+      chunks.push(
+        `data: ${JSON.stringify({
           id: responseId,
           object: "chat.completion.chunk",
           created,
           model,
-          choices: [{
-            index: 0,
-            delta: chunks.length === 0 && toolCalls.length === 0
-              ? { role: "assistant", content: result.text }
-              : { content: result.text },
-            finish_reason: null
-          }]
-        })}\n\n`);
-      }
-    }
-
-
-    if (chunks.length === 0 && toolCalls.length === 0) {
-      chunks.push(`data: ${JSON.stringify({
-        id: responseId,
-        object: "chat.completion.chunk",
-        created,
-        model,
-        choices: [{
-          index: 0,
-          delta: { role: "assistant", content: "" },
-          finish_reason: null
-        }]
-      })}\n\n`);
+          choices: [
+            {
+              index: 0,
+              delta: { role: "assistant", content: "" },
+              finish_reason: null,
+            },
+          ],
+        })}\n\n`,
+      );
     }
 
     const usage = estimateUsage(body, totalContent.length, FORMATS.OPENAI);
 
-    chunks.push(`data: ${JSON.stringify({
-      id: responseId,
-      object: "chat.completion.chunk",
-      created,
-      model,
-      choices: [{
-        index: 0,
-        delta: {},
-        finish_reason: toolCalls.length > 0 ? "tool_calls" : "stop"
-      }],
-      usage
-    })}\n\n`);
+    chunks.push(
+      `data: ${JSON.stringify({
+        id: responseId,
+        object: "chat.completion.chunk",
+        created,
+        model,
+        choices: [
+          {
+            index: 0,
+            delta: {},
+            finish_reason: toolCalls.length > 0 ? "tool_calls" : "stop",
+          },
+        ],
+        usage,
+      })}\n\n`,
+    );
     chunks.push("data: [DONE]\n\n");
 
     return new Response(chunks.join(""), {
@@ -588,8 +683,8 @@ export class CursorExecutor extends BaseExecutor {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        "Connection": "keep-alive"
-      }
+        Connection: "keep-alive",
+      },
     });
   }
 

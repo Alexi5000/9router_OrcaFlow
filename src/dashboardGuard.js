@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
 const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "orcaflow-default-secret-change-me"
+  process.env.JWT_SECRET || "orcaflow-default-secret-change-me",
 );
 
 export async function proxy(request) {

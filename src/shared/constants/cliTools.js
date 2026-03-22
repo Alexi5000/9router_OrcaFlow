@@ -17,9 +17,27 @@ export const CLI_TOOLS = {
     modelAliases: ["default", "sonnet", "opus", "haiku", "opusplan"],
     settingsFile: "~/.claude/settings.json",
     defaultModels: [
-      { id: "opus", name: "Claude Opus", alias: "opus", envKey: "ANTHROPIC_DEFAULT_OPUS_MODEL", defaultValue: "claude-opus-4-6" },
-      { id: "sonnet", name: "Claude Sonnet", alias: "sonnet", envKey: "ANTHROPIC_DEFAULT_SONNET_MODEL", defaultValue: "claude-sonnet-4-6" },
-      { id: "haiku", name: "Claude Haiku", alias: "haiku", envKey: "ANTHROPIC_DEFAULT_HAIKU_MODEL", defaultValue: "claude-haiku-4-5-20251001" },
+      {
+        id: "opus",
+        name: "Claude Opus",
+        alias: "opus",
+        envKey: "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        defaultValue: "claude-opus-4-6",
+      },
+      {
+        id: "sonnet",
+        name: "Claude Sonnet",
+        alias: "sonnet",
+        envKey: "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        defaultValue: "claude-sonnet-4-6",
+      },
+      {
+        id: "haiku",
+        name: "Claude Haiku",
+        alias: "haiku",
+        envKey: "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+        defaultValue: "claude-haiku-4-5-20251001",
+      },
     ],
   },
   openclaw: {
@@ -50,8 +68,16 @@ export const CLI_TOOLS = {
       { id: "deepseek-swarm", name: "DeepSeek Swarm", alias: "deepseek-swarm" },
       { id: "deepseek-code", name: "DeepSeek Code", alias: "deepseek-code" },
       { id: "deepseek-think", name: "DeepSeek Think", alias: "deepseek-think" },
-      { id: "deepseek-chat", name: "Direct DeepSeek Chat", alias: "deepseek-chat" },
-      { id: "deepseek-reasoner", name: "Direct DeepSeek Reasoner", alias: "deepseek-reasoner" },
+      {
+        id: "deepseek-chat",
+        name: "Direct DeepSeek Chat",
+        alias: "deepseek-chat",
+      },
+      {
+        id: "deepseek-reasoner",
+        name: "Direct DeepSeek Reasoner",
+        alias: "deepseek-reasoner",
+      },
     ],
   },
   opencode: {
@@ -70,14 +96,41 @@ export const CLI_TOOLS = {
     description: "Google Antigravity IDE with MITM",
     configType: "mitm",
     mitmDomain: "daily-cloudcode-pa.googleapis.com",
-    modelAliases: ["claude-opus-4-6-thinking", "claude-sonnet-4-6", "gemini-3-flash", "gpt-oss-120b-medium", "gemini-3-pro-high", "gemini-3-pro-low"],
+    modelAliases: [
+      "claude-opus-4-6-thinking",
+      "claude-sonnet-4-6",
+      "gemini-3-flash",
+      "gpt-oss-120b-medium",
+      "gemini-3-pro-high",
+      "gemini-3-pro-low",
+    ],
     defaultModels: [
-      { id: "gemini-3.1-pro-high", name: "Gemini 3.1 Pro High", alias: "gemini-3.1-pro-high" },
-      { id: "gemini-3.1-pro-low", name: "Gemini 3.1 Pro Low", alias: "gemini-3.1-pro-low" },
+      {
+        id: "gemini-3.1-pro-high",
+        name: "Gemini 3.1 Pro High",
+        alias: "gemini-3.1-pro-high",
+      },
+      {
+        id: "gemini-3.1-pro-low",
+        name: "Gemini 3.1 Pro Low",
+        alias: "gemini-3.1-pro-low",
+      },
       { id: "gemini-3-flash", name: "Gemini 3 Flash", alias: "gemini-3-flash" },
-      { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", alias: "claude-sonnet-4-6" },
-      { id: "claude-opus-4-6-thinking", name: "Claude Opus 4.6 Thinking", alias: "claude-opus-4-6-thinking" },
-      { id: "gpt-oss-120b-medium", name: "GPT OSS 120B Medium", alias: "gpt-oss-120b-medium" },
+      {
+        id: "claude-sonnet-4-6",
+        name: "Claude Sonnet 4.6",
+        alias: "claude-sonnet-4-6",
+      },
+      {
+        id: "claude-opus-4-6-thinking",
+        name: "Claude Opus 4.6 Thinking",
+        alias: "claude-opus-4-6-thinking",
+      },
+      {
+        id: "gpt-oss-120b-medium",
+        name: "GPT OSS 120B Medium",
+        alias: "gpt-oss-120b-medium",
+      },
     ],
   },
   copilot: {
@@ -93,7 +146,11 @@ export const CLI_TOOLS = {
       { id: "gpt-4o", name: "GPT-4o", alias: "gpt-4o" },
       { id: "gpt-4.1", name: "GPT-4.1", alias: "gpt-4.1" },
       { id: "gpt-5-mini", name: "GPT-5 Mini", alias: "gpt-5-mini" },
-      { id: "claude-haiku-4.5", name: "Claude Haiku 4.5", alias: "claude-haiku-4.5" },
+      {
+        id: "claude-haiku-4.5",
+        name: "Claude Haiku 4.5",
+        alias: "claude-haiku-4.5",
+      },
     ],
   },
   droid: {
@@ -113,15 +170,29 @@ export const CLI_TOOLS = {
     configType: "guide",
     requiresExternalUrl: true,
     notes: [
-      { type: "warning", text: "Requires Cursor Pro account to use this feature." },
-      { type: "cloudCheck", text: "Cursor routes requests through its own server, so local endpoint is not supported. Please enable Tunnel or Cloud Endpoint in Settings." },
+      {
+        type: "warning",
+        text: "Requires Cursor Pro account to use this feature.",
+      },
+      {
+        type: "cloudCheck",
+        text: "Cursor routes requests through its own server, so local endpoint is not supported. Please enable Tunnel or Cloud Endpoint in Settings.",
+      },
     ],
     guideSteps: [
       { step: 1, title: "Open Settings", desc: "Go to Settings → Models" },
-      { step: 2, title: "Enable OpenAI API", desc: "Enable \"OpenAI API key\" option" },
+      {
+        step: 2,
+        title: "Enable OpenAI API",
+        desc: 'Enable "OpenAI API key" option',
+      },
       { step: 3, title: "Base URL", value: "{{baseUrl}}", copyable: true },
       { step: 4, title: "API Key", type: "apiKeySelector" },
-      { step: 5, title: "Add Custom Model", desc: "Click \"View All Model\" → \"Add Custom Model\"" },
+      {
+        step: 5,
+        title: "Add Custom Model",
+        desc: 'Click "View All Model" → "Add Custom Model"',
+      },
       { step: 6, title: "Select Model", type: "modelSelector" },
     ],
   },
@@ -134,7 +205,11 @@ export const CLI_TOOLS = {
     configType: "guide",
     guideSteps: [
       { step: 1, title: "Open Settings", desc: "Go to Cline Settings panel" },
-      { step: 2, title: "Select Provider", desc: "Choose API Provider → OpenAI Compatible" },
+      {
+        step: 2,
+        title: "Select Provider",
+        desc: "Choose API Provider → OpenAI Compatible",
+      },
       { step: 3, title: "Base URL", value: "{{baseUrl}}/v1", copyable: true },
       { step: 4, title: "API Key", type: "apiKeySelector" },
       { step: 5, title: "Select Model", type: "modelSelector" },
@@ -148,8 +223,16 @@ export const CLI_TOOLS = {
     description: "Kilo Code AI Assistant",
     configType: "guide",
     guideSteps: [
-      { step: 1, title: "Open Settings", desc: "Go to Kilo Code Settings panel" },
-      { step: 2, title: "Select Provider", desc: "Choose API Provider → OpenAI Compatible" },
+      {
+        step: 1,
+        title: "Open Settings",
+        desc: "Go to Kilo Code Settings panel",
+      },
+      {
+        step: 2,
+        title: "Select Provider",
+        desc: "Choose API Provider → OpenAI Compatible",
+      },
       { step: 3, title: "Base URL", value: "{{baseUrl}}/v1", copyable: true },
       { step: 4, title: "API Key", type: "apiKeySelector" },
       { step: 5, title: "Select Model", type: "modelSelector" },
@@ -164,7 +247,11 @@ export const CLI_TOOLS = {
     configType: "guide",
     guideSteps: [
       { step: 1, title: "Open Settings", desc: "Go to Roo Settings panel" },
-      { step: 2, title: "Select Provider", desc: "Choose API Provider → Ollama" },
+      {
+        step: 2,
+        title: "Select Provider",
+        desc: "Choose API Provider → Ollama",
+      },
       { step: 3, title: "Base URL", value: "{{baseUrl}}", copyable: true },
       { step: 4, title: "API Key", type: "apiKeySelector" },
       { step: 5, title: "Select Model", type: "modelSelector" },
@@ -178,10 +265,18 @@ export const CLI_TOOLS = {
     description: "Continue AI Assistant",
     configType: "guide",
     guideSteps: [
-      { step: 1, title: "Open Config", desc: "Open Continue configuration file" },
+      {
+        step: 1,
+        title: "Open Config",
+        desc: "Open Continue configuration file",
+      },
       { step: 2, title: "API Key", type: "apiKeySelector" },
       { step: 3, title: "Select Model", type: "modelSelector" },
-      { step: 4, title: "Add Model Config", desc: "Add the following configuration to your models array:" },
+      {
+        step: 4,
+        title: "Add Model Config",
+        desc: "Add the following configuration to your models array:",
+      },
     ],
     codeBlock: {
       language: "json",
@@ -216,8 +311,11 @@ export const CLI_TOOLS = {
 // Get all provider models for mapping dropdown
 export const getProviderModelsForMapping = (providers) => {
   const result = [];
-  providers.forEach(conn => {
-    if (conn.isActive && (conn.testStatus === "active" || conn.testStatus === "success")) {
+  providers.forEach((conn) => {
+    if (
+      conn.isActive &&
+      (conn.testStatus === "active" || conn.testStatus === "success")
+    ) {
       result.push({
         connectionId: conn.id,
         provider: conn.provider,
@@ -228,4 +326,3 @@ export const getProviderModelsForMapping = (providers) => {
   });
   return result;
 };
-

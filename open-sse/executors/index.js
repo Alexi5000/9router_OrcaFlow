@@ -16,14 +16,15 @@ const executors = {
   codex: new CodexExecutor(),
   openai: new CodexExecutor(), // Same ChatGPT subscription endpoint
   cursor: new CursorExecutor(),
-  cu: new CursorExecutor() // Alias for cursor
+  cu: new CursorExecutor(), // Alias for cursor
 };
 
 const defaultCache = new Map();
 
 export function getExecutor(provider) {
   if (executors[provider]) return executors[provider];
-  if (!defaultCache.has(provider)) defaultCache.set(provider, new DefaultExecutor(provider));
+  if (!defaultCache.has(provider))
+    defaultCache.set(provider, new DefaultExecutor(provider));
   return defaultCache.get(provider);
 }
 

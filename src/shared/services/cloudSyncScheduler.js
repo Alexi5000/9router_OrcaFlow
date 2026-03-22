@@ -34,16 +34,19 @@ export class CloudSyncScheduler {
     }
 
     await this.initializeMachineId();
-    
+
     // Delay first sync by 30 seconds to ensure server is ready
     setTimeout(() => {
       this.syncWithRetry().catch(() => {});
     }, 30000);
-    
+
     // Then sync periodically
-    this.intervalId = setInterval(() => {
-      this.syncWithRetry().catch(() => {});
-    }, this.intervalMinutes * 60 * 1000);
+    this.intervalId = setInterval(
+      () => {
+        this.syncWithRetry().catch(() => {});
+      },
+      this.intervalMinutes * 60 * 1000,
+    );
   }
 
   /**
@@ -68,9 +71,9 @@ export class CloudSyncScheduler {
         if (attempt === maxRetries) {
           return null;
         }
-        
+
         const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // Max 10s
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
@@ -86,12 +89,12 @@ export class CloudSyncScheduler {
     }
 
     await this.initializeMachineId();
-    
+
     // Call internal API route which handles both sync and token update
     const response = await fetch(`${INTERNAL_BASE_URL}/api/sync/cloud`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ machineId: this.machineId, action: "sync" })
+      body: JSON.stringify({ machineId: this.machineId, action: "sync" }),
     });
 
     if (!response.ok) {
@@ -114,7 +117,10 @@ export class CloudSyncScheduler {
 // Export a singleton instance if needed
 let cloudSyncScheduler = null;
 
-export async function getCloudSyncScheduler(machineId = null, intervalMinutes = 15) {
+export async function getCloudSyncScheduler(
+  machineId = null,
+  intervalMinutes = 15,
+) {
   if (!cloudSyncScheduler) {
     cloudSyncScheduler = new CloudSyncScheduler(machineId, intervalMinutes);
   }

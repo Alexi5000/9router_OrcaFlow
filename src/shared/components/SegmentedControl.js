@@ -20,7 +20,7 @@ export default function SegmentedControl({
       className={cn(
         "inline-flex items-center gap-1 p-1 rounded-lg border border-border",
         "bg-black/10 dark:bg-white/10 cyberpunk:bg-white/5",
-        className
+        className,
       )}
     >
       {options.map((option) => (
@@ -32,7 +32,7 @@ export default function SegmentedControl({
             sizes[size],
             value === option.value
               ? "bg-primary text-white shadow-sm cyberpunk:text-black"
-              : "text-text-muted hover:text-text-main bg-transparent hover:bg-black/10 dark:hover:bg-white/10 cyberpunk:hover:bg-white/5"
+              : "text-text-muted hover:text-text-main bg-transparent hover:bg-black/10 dark:hover:bg-white/10 cyberpunk:hover:bg-white/5",
           )}
         >
           {option.icon && (

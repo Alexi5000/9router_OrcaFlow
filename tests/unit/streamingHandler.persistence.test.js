@@ -24,7 +24,8 @@ describe("buildOnStreamComplete", () => {
   });
 
   it("persists streaming usage stats to dashboard history", async () => {
-    const { buildOnStreamComplete } = await import("../../open-sse/handlers/chatCore/streamingHandler.js");
+    const { buildOnStreamComplete } =
+      await import("../../open-sse/handlers/chatCore/streamingHandler.js");
 
     const { onStreamComplete } = buildOnStreamComplete({
       provider: "kilocode",
@@ -49,18 +50,20 @@ describe("buildOnStreamComplete", () => {
     onStreamComplete(
       { content: "done", thinking: null },
       { prompt_tokens: 123, completion_tokens: 45 },
-      Date.now() - 500
+      Date.now() - 500,
     );
 
-    expect(saveUsageStats).toHaveBeenCalledWith(expect.objectContaining({
-      provider: "kilocode",
-      model: "openrouter/hunter-alpha",
-      endpoint: "/v1/messages",
-      persist: true,
-      route: expect.objectContaining({
-        requestedModel: "claude-sonnet-4-6",
-        comboName: "kilo-burst-coding",
+    expect(saveUsageStats).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "kilocode",
+        model: "openrouter/hunter-alpha",
+        endpoint: "/v1/messages",
+        persist: true,
+        route: expect.objectContaining({
+          requestedModel: "claude-sonnet-4-6",
+          comboName: "kilo-burst-coding",
+        }),
       }),
-    }));
+    );
   });
 });

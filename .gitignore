@@ -1,7 +1,6 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
+/.pnpm-store
 /.pnp
 .pnp.*
 .yarn/*
@@ -12,58 +11,43 @@
 
 # testing
 /coverage
+/test-results
 
 # next.js
-/.next/
-/out/
+/.next
+/out
 
-# production
+# build output
 /build
 
-# misc
+# local runtime data
+/data
+/logs
+
+# editor and OS files
 .DS_Store
+/.cursor
+.vscode/
+
+# secrets and local env files
+.env*
+!.env.example
 *.pem
 
-# debug
+# package manager noise
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-!.env.example
-
-# vercel
-.vercel
+/package-lock.json
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-.bin/*
-data/
-logs/*
-source/*
-.cursor/*
-docs/*
-!docs/ARCHITECTURE.md
-test/*
-bin/*
-open-sse/test/*
-RM.vn.md
-RM.md
-cursor/*
-PUBLIC.md
-Thanks.md
-PUBLIC.en.md
-PR/*
-package-lock.json
-
-
-#Ignore vscode AI rules
+# local-only helper files
 .github/instructions/codacy.instructions.md
 README1.md
 deploy.sh
-ecosystem.config.*
+ecosystem.config.local.*
 start.sh

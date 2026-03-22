@@ -43,7 +43,8 @@ export const PROVIDER_ENDPOINTS = {
   minimax: "https://api.minimax.io/anthropic/v1/messages",
   "minimax-cn": "https://api.minimaxi.com/anthropic/v1/messages",
   alicode: "https://coding.dashscope.aliyuncs.com/v1/chat/completions",
-  "alicode-intl": "https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions",
+  "alicode-intl":
+    "https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions",
   openai: "https://api.openai.com/v1/chat/completions",
   anthropic: "https://api.anthropic.com/v1/messages",
   gemini: "https://generativelanguage.googleapis.com/v1beta/models",
@@ -59,7 +60,4 @@ export {
 } from "./providers.js";
 
 // Re-export from models.js for backward compatibility
-export {
-  PROVIDER_MODELS,
-  AI_MODELS,
-} from "./models.js";
+export { PROVIDER_MODELS, AI_MODELS } from "./models.js";

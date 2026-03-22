@@ -3,10 +3,9 @@
  * Tests unusual scenarios, error handling, timeouts, and boundary conditions
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect } from "vitest";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:20128";
-const TIMEOUT_MS = 30000;
 
 describe("Edge Cases", () => {
   describe("Invalid Inputs", () => {
@@ -74,7 +73,8 @@ describe("Edge Cases", () => {
     });
 
     it("should handle special characters in prompt", async () => {
-      const specialChars = "Test with special chars: \n\t\r\"'<>&\\u0000\\u001F";
+      const specialChars =
+        "Test with special chars: \n\t\r\"'<>&\\u0000\\u001F";
       const res = await fetch(`${BASE_URL}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -124,7 +124,7 @@ describe("Edge Cases", () => {
 
       expect(res.status).toBe(200);
       expect(res.headers.get("content-type")).toContain("text/event-stream");
-      
+
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let chunks = 0;
@@ -133,14 +133,16 @@ describe("Edge Cases", () => {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
+
         const chunk = decoder.decode(value);
-        const lines = chunk.split("\n").filter(line => line.startsWith("data: "));
-        
+        const lines = chunk
+          .split("\n")
+          .filter((line) => line.startsWith("data: "));
+
         for (const line of lines) {
           const data = line.slice(6);
           if (data === "[DONE]") continue;
-          
+
           try {
             const parsed = JSON.parse(data);
             const delta = parsed.choices?.[0]?.delta?.content || "";
@@ -167,7 +169,7 @@ describe("Edge Cases", () => {
       });
 
       expect(res.status).toBe(200);
-      
+
       const reader = res.body.getReader();
       let chunks = 0;
 
@@ -209,23 +211,26 @@ describe("Edge Cases", () => {
     });
 
     it("should handle multiple concurrent requests", async () => {
-      const requests = Array(5).fill(null).map((_, i) => 
-        fetch(`${BASE_URL}/v1/chat/completions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "fast",
-            messages: [{ role: "user", content: `Request ${i + 1}` }],
-            max_tokens: 10,
+      const requests = Array(5)
+        .fill(null)
+        .map((_, i) =>
+          fetch(`${BASE_URL}/v1/chat/completions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "fast",
+              messages: [{ role: "user", content: `Request ${i + 1}` }],
+              max_tokens: 10,
+            }),
           }),
-        })
-      );
+        );
 
       const responses = await Promise.all(requests);
-      responses.forEach(res => {
+      responses.forEach((res) => {
         expect([200, 429]).toContain(res.status);
       });
     });
+  });
 
   describe("Provider Failover", () => {
     it("should fallback to next provider on failure", async () => {
@@ -276,34 +281,29 @@ describe("Edge Cases", () => {
         }),
       });
 
-      // Check if rate limiting headers are present (optional)
-      const rateLimitHeaders = [
-        "x-ratelimit-limit",
-        "x-ratelimit-remaining",
-        "x-ratelimit-reset",
-      ];
-
       // Just verify the request succeeds
       expect([200, 429]).toContain(res.status);
     });
 
     it("should handle rapid successive requests", async () => {
-      const requests = Array(10).fill(null).map(() => 
-        fetch(`${BASE_URL}/v1/chat/completions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "fast",
-            messages: [{ role: "user", content: "test" }],
-            max_tokens: 5,
+      const requests = Array(10)
+        .fill(null)
+        .map(() =>
+          fetch(`${BASE_URL}/v1/chat/completions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "fast",
+              messages: [{ role: "user", content: "test" }],
+              max_tokens: 5,
+            }),
           }),
-        })
-      );
+        );
 
       const responses = await Promise.all(requests);
-      const successCount = responses.filter(r => r.status === 200).length;
-      const rateLimitedCount = responses.filter(r => r.status === 429).length;
-      
+      const successCount = responses.filter((r) => r.status === 200).length;
+      const rateLimitedCount = responses.filter((r) => r.status === 429).length;
+
       // At least some should succeed
       expect(successCount + rateLimitedCount).toBe(10);
     });
@@ -491,11 +491,11 @@ describe("Edge Cases", () => {
 
       expect(res.status).toBe(200);
       const data = await res.json();
-      
+
       expect(data.usage.prompt_tokens).toBeGreaterThan(0);
       expect(data.usage.completion_tokens).toBeGreaterThan(0);
       expect(data.usage.total_tokens).toBe(
-        data.usage.prompt_tokens + data.usage.completion_tokens
+        data.usage.prompt_tokens + data.usage.completion_tokens,
       );
     });
   });

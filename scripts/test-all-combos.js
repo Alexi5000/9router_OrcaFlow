@@ -22,7 +22,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ── Config ─────────────────────────────────────────────────────────────────
 
-const BASE_URL = process.argv.find(a => a.startsWith("http")) || "http://localhost:20128";
+const BASE_URL =
+  process.argv.find((a) => a.startsWith("http")) || "http://localhost:20128";
 const COMBOS_ONLY = process.argv.includes("--combos-only");
 const NO_STREAM = process.argv.includes("--no-stream");
 // --sequential: run models one-at-a-time to avoid triggering provider cooldowns
@@ -69,7 +70,10 @@ function pad(str, len) {
 // fetch finish naturally but surfaces a timeout error to the caller.
 function fetchWithTimeout(url, options, timeoutMs = TIMEOUT_MS) {
   const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error(`timeout after ${timeoutMs}ms`)), timeoutMs)
+    setTimeout(
+      () => reject(new Error(`timeout after ${timeoutMs}ms`)),
+      timeoutMs,
+    ),
   );
   return Promise.race([fetch(url, options), timeout]);
 }
@@ -79,25 +83,27 @@ function fetchWithTimeout(url, options, timeoutMs = TIMEOUT_MS) {
 async function testCompletion(model) {
   const start = Date.now();
   try {
-    const res = await fetchWithTimeout(
-      `${BASE_URL}/v1/chat/completions`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "user", content: TEST_PROMPT }],
-          max_tokens: MAX_TOKENS,
-          stream: false,
-        }),
-      }
-    );
+    const res = await fetchWithTimeout(`${BASE_URL}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: TEST_PROMPT }],
+        max_tokens: MAX_TOKENS,
+        stream: false,
+      }),
+    });
 
     const latency = Date.now() - start;
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      return { ok: false, latency, status: res.status, error: body.slice(0, 150) };
+      return {
+        ok: false,
+        latency,
+        status: res.status,
+        error: body.slice(0, 150),
+      };
     }
 
     const data = await res.json();
@@ -121,19 +127,16 @@ async function testCompletion(model) {
 async function testStreaming(model) {
   const start = Date.now();
   try {
-    const res = await fetchWithTimeout(
-      `${BASE_URL}/v1/chat/completions`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "user", content: TEST_PROMPT }],
-          max_tokens: MAX_TOKENS,
-          stream: true,
-        }),
-      }
-    );
+    const res = await fetchWithTimeout(`${BASE_URL}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: TEST_PROMPT }],
+        max_tokens: MAX_TOKENS,
+        stream: true,
+      }),
+    });
 
     if (!res.ok) {
       return { ok: false, status: res.status };
@@ -190,7 +193,7 @@ async function runConcurrent(items, fn, concurrency) {
       const i = idx++;
       results[i] = await fn(items[i], i);
       if (SEQUENTIAL && SEQUENTIAL_DELAY_MS > 0 && idx < items.length) {
-        await new Promise(r => setTimeout(r, SEQUENTIAL_DELAY_MS));
+        await new Promise((r) => setTimeout(r, SEQUENTIAL_DELAY_MS));
       }
     }
   }
@@ -225,11 +228,17 @@ async function healthCheck() {
 function printHeader() {
   const line = "═".repeat(64);
   console.log(c(C.cyan + C.bold, `\n${line}`));
-  console.log(c(C.cyan + C.bold, "  9Router Comprehensive Combo & Chain Test Suite"));
+  console.log(
+    c(C.cyan + C.bold, "  9Router Comprehensive Combo & Chain Test Suite"),
+  );
   console.log(c(C.cyan + C.bold, `${line}\n`));
   console.log(`  ${c(C.dim, "Base URL:")} ${BASE_URL}`);
-  console.log(`  ${c(C.dim, "Mode:")}     ${COMBOS_ONLY ? "Combos only" : `Full (combos + per-model)${SEQUENTIAL ? " [sequential]" : ""}`}`);
-  console.log(`  ${c(C.dim, "Streaming:")} ${NO_STREAM ? "disabled" : "enabled"}`);
+  console.log(
+    `  ${c(C.dim, "Mode:")}     ${COMBOS_ONLY ? "Combos only" : `Full (combos + per-model)${SEQUENTIAL ? " [sequential]" : ""}`}`,
+  );
+  console.log(
+    `  ${c(C.dim, "Streaming:")} ${NO_STREAM ? "disabled" : "enabled"}`,
+  );
   console.log(`  ${c(C.dim, "Timeout:")}  ${TIMEOUT_MS / 1000}s per request`);
   console.log(`  ${c(C.dim, "Started:")}  ${new Date().toISOString()}\n`);
 }
@@ -239,24 +248,33 @@ function printResult(label, result, streamResult) {
   const latency = c(C.dim, `${result.latency}ms`);
 
   if (result.ok) {
-    const resolved = result.resolvedModel && result.resolvedModel !== label
-      ? c(C.dim, ` → ${result.resolvedModel}`)
-      : "";
+    const resolved =
+      result.resolvedModel && result.resolvedModel !== label
+        ? c(C.dim, ` → ${result.resolvedModel}`)
+        : "";
     console.log(`    ${status} ${latency}${resolved}`);
     if (result.content) {
       console.log(`    ${c(C.dim, `"${result.content}"`)}`);
     }
   } else {
-    console.log(`    ${status} ${latency} ${c(C.red, result.error || `HTTP ${result.status}`)}`);
+    console.log(
+      `    ${status} ${latency} ${c(C.red, result.error || `HTTP ${result.status}`)}`,
+    );
   }
 
   if (streamResult) {
-    const sStatus = streamResult.ok ? c(C.green, "✅ stream") : c(C.red, "❌ stream");
+    const sStatus = streamResult.ok
+      ? c(C.green, "✅ stream")
+      : c(C.red, "❌ stream");
     const sLatency = c(C.dim, `${streamResult.latency}ms`);
     if (streamResult.ok) {
-      console.log(`    ${sStatus} ${c(C.dim, `${streamResult.chunks} chunks`)} ${sLatency}`);
+      console.log(
+        `    ${sStatus} ${c(C.dim, `${streamResult.chunks} chunks`)} ${sLatency}`,
+      );
     } else {
-      console.log(`    ${sStatus} ${c(C.red, streamResult.error || `HTTP ${streamResult.status}`)}`);
+      console.log(
+        `    ${sStatus} ${c(C.red, streamResult.error || `HTTP ${streamResult.status}`)}`,
+      );
     }
   }
 }
@@ -296,7 +314,12 @@ async function main() {
   for (const combo of combos) {
     const divider = "─".repeat(60);
     console.log(c(C.yellow + C.bold, `\n${divider}`));
-    console.log(c(C.yellow + C.bold, `  COMBO: ${combo.name}  (${combo.models.length} models)`));
+    console.log(
+      c(
+        C.yellow + C.bold,
+        `  COMBO: ${combo.name}  (${combo.models.length} models)`,
+      ),
+    );
     console.log(c(C.yellow + C.bold, divider));
 
     const comboResult = {
@@ -330,7 +353,7 @@ async function main() {
           }
           return { model, result, streamResult };
         },
-        MODEL_CONCURRENCY
+        MODEL_CONCURRENCY,
       );
 
       for (const { model, result, streamResult } of modelTests) {
@@ -340,9 +363,10 @@ async function main() {
 
         if (result.ok) {
           const latency = c(C.dim, `${result.latency}ms`);
-          const resolved = result.resolvedModel && result.resolvedModel !== model
-            ? c(C.dim, ` → ${result.resolvedModel}`)
-            : "";
+          const resolved =
+            result.resolvedModel && result.resolvedModel !== model
+              ? c(C.dim, ` → ${result.resolvedModel}`)
+              : "";
           process.stdout.write(`${latency}${resolved}`);
           if (streamResult) {
             const ss = streamResult.ok
@@ -369,8 +393,10 @@ async function main() {
   console.log(c(C.cyan + C.bold, "  SUMMARY"));
   console.log(c(C.cyan + C.bold, summaryLine));
 
-  let totalChains = 0, passedChains = 0;
-  let totalModels = 0, passedModels = 0;
+  let totalChains = 0,
+    passedChains = 0;
+  let totalModels = 0,
+    passedModels = 0;
 
   for (const [comboName, comboResult] of Object.entries(allResults.combos)) {
     totalChains++;
@@ -384,28 +410,41 @@ async function main() {
     totalModels += mTotal;
     passedModels += mPass;
 
-    const modelSummary = mTotal > 0
-      ? `  models: ${mPass}/${mTotal} ${mPass === mTotal ? c(C.green, "all pass") : c(C.yellow, `${mTotal - mPass} fail`)}`
-      : "";
+    const modelSummary =
+      mTotal > 0
+        ? `  models: ${mPass}/${mTotal} ${mPass === mTotal ? c(C.green, "all pass") : c(C.yellow, `${mTotal - mPass} fail`)}`
+        : "";
 
-    console.log(`\n  ${chainIcon} ${c(C.bold, pad(comboName, 10))} chain: ${chainOk ? c(C.green, "PASS") : c(C.red, "FAIL")}${modelSummary}`);
+    console.log(
+      `\n  ${chainIcon} ${c(C.bold, pad(comboName, 10))} chain: ${chainOk ? c(C.green, "PASS") : c(C.red, "FAIL")}${modelSummary}`,
+    );
 
     // List failing models
     for (const [model, result] of models) {
       if (!result.ok) {
         const err = result.error || `HTTP ${result.status || "?"}`;
-        console.log(`      ${c(C.red, "✗")} ${c(C.dim, model)} — ${c(C.red, err.slice(0, 70))}`);
+        console.log(
+          `      ${c(C.red, "✗")} ${c(C.dim, model)} — ${c(C.red, err.slice(0, 70))}`,
+        );
       }
     }
   }
 
-  console.log(`\n  ${c(C.bold, "Chains:")}  ${passedChains}/${totalChains} passed`);
+  console.log(
+    `\n  ${c(C.bold, "Chains:")}  ${passedChains}/${totalChains} passed`,
+  );
   if (!COMBOS_ONLY) {
-    console.log(`  ${c(C.bold, "Models:")}  ${passedModels}/${totalModels} passed`);
+    console.log(
+      `  ${c(C.bold, "Models:")}  ${passedModels}/${totalModels} passed`,
+    );
   }
 
-  const allPassed = passedChains === totalChains && (COMBOS_ONLY || passedModels === totalModels);
-  const overallIcon = allPassed ? c(C.green + C.bold, "✅ ALL PASS") : c(C.yellow + C.bold, "⚠️  SOME FAILURES");
+  const allPassed =
+    passedChains === totalChains &&
+    (COMBOS_ONLY || passedModels === totalModels);
+  const overallIcon = allPassed
+    ? c(C.green + C.bold, "✅ ALL PASS")
+    : c(C.yellow + C.bold, "⚠️  SOME FAILURES");
   console.log(`\n  Overall: ${overallIcon}`);
   console.log(c(C.cyan + C.bold, `\n${summaryLine}\n`));
 
@@ -424,7 +463,7 @@ async function main() {
   process.exit(allPassed ? 0 : 1);
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error(c(C.red, `\nFatal: ${err.message}`));
   process.exit(1);
 });

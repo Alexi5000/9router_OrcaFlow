@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Badge, Button, Card, CardSkeleton, Input, Modal, Toggle } from "@/shared/components";
+import {
+  Badge,
+  Button,
+  Card,
+  CardSkeleton,
+  Input,
+  Modal,
+  Toggle,
+} from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
 
 function getStatusVariant(status) {
@@ -42,7 +50,9 @@ export default function ProxyPoolsPage() {
 
   const fetchProxyPools = useCallback(async () => {
     try {
-      const res = await fetch("/api/proxy-pools?includeUsage=true", { cache: "no-store" });
+      const res = await fetch("/api/proxy-pools?includeUsage=true", {
+        cache: "no-store",
+      });
       const data = await res.json();
       if (res.ok) {
         setProxyPools(data.proxyPools || []);
@@ -93,16 +103,21 @@ export default function ProxyPoolsPage() {
     setSaving(true);
     try {
       const isEdit = !!editingProxyPool;
-      const res = await fetch(isEdit ? `/api/proxy-pools/${editingProxyPool.id}` : "/api/proxy-pools", {
-        method: isEdit ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        isEdit ? `/api/proxy-pools/${editingProxyPool.id}` : "/api/proxy-pools",
+        {
+          method: isEdit ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
 
       if (res.ok) {
         await fetchProxyPools();
         closeFormModal();
-        notify.success(editingProxyPool ? "Proxy pool updated" : "Proxy pool created");
+        notify.success(
+          editingProxyPool ? "Proxy pool updated" : "Proxy pool created",
+        );
       } else {
         const data = await res.json();
         notify.error(data.error || "Failed to save proxy pool");
@@ -119,16 +134,22 @@ export default function ProxyPoolsPage() {
     if (!deleting) return;
 
     try {
-      const res = await fetch(`/api/proxy-pools/${proxyPool.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/proxy-pools/${proxyPool.id}`, {
+        method: "DELETE",
+      });
       if (res.ok) {
-        setProxyPools((prev) => prev.filter((item) => item.id !== proxyPool.id));
+        setProxyPools((prev) =>
+          prev.filter((item) => item.id !== proxyPool.id),
+        );
         notify.success("Proxy pool deleted");
         return;
       }
 
       const data = await res.json();
       if (res.status === 409) {
-        notify.warning(`Cannot delete: ${data.boundConnectionCount || 0} connection(s) are still using this pool.`);
+        notify.warning(
+          `Cannot delete: ${data.boundConnectionCount || 0} connection(s) are still using this pool.`,
+        );
       } else {
         notify.error(data.error || "Failed to delete proxy pool");
       }
@@ -141,7 +162,9 @@ export default function ProxyPoolsPage() {
   const handleTest = async (proxyPoolId) => {
     setTestingId(proxyPoolId);
     try {
-      const res = await fetch(`/api/proxy-pools/${proxyPoolId}/test`, { method: "POST" });
+      const res = await fetch(`/api/proxy-pools/${proxyPoolId}/test`, {
+        method: "POST",
+      });
       const data = await res.json();
 
       if (!res.ok) {
@@ -175,7 +198,9 @@ export default function ProxyPoolsPage() {
 
     if (trimmed.includes("://")) {
       const parsed = new URL(trimmed);
-      const hostLabel = parsed.port ? `${parsed.hostname}:${parsed.port}` : parsed.hostname;
+      const hostLabel = parsed.port
+        ? `${parsed.hostname}:${parsed.port}`
+        : parsed.hostname;
       return {
         proxyUrl: parsed.toString(),
         name: `Imported ${hostLabel}`,
@@ -236,7 +261,10 @@ export default function ProxyPoolsPage() {
     setImporting(true);
     try {
       const existingKeys = new Set(
-        proxyPools.map((pool) => `${(pool.proxyUrl || "").trim()}|||${(pool.noProxy || "").trim()}`)
+        proxyPools.map(
+          (pool) =>
+            `${(pool.proxyUrl || "").trim()}|||${(pool.noProxy || "").trim()}`,
+        ),
       );
 
       let created = 0;
@@ -271,7 +299,9 @@ export default function ProxyPoolsPage() {
 
       await fetchProxyPools();
       setShowBatchImportModal(false);
-      notify.success(`Batch import completed: Created ${created}, Skipped ${skipped}, Failed ${failed}`);
+      notify.success(
+        `Batch import completed: Created ${created}, Skipped ${skipped}, Failed ${failed}`,
+      );
     } catch (error) {
       console.log("Error batch importing proxies:", error);
       notify.error("Batch import failed");
@@ -282,7 +312,7 @@ export default function ProxyPoolsPage() {
 
   const activeCount = useMemo(
     () => proxyPools.filter((pool) => pool.isActive === true).length,
-    [proxyPools]
+    [proxyPools],
   );
 
   if (loading) {
@@ -300,15 +330,22 @@ export default function ProxyPoolsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Proxy Pools</h1>
           <p className="text-sm text-text-muted mt-1">
-            Manage reusable per-connection proxies and bind them to provider connections.
+            Manage reusable per-connection proxies and bind them to provider
+            connections.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="secondary" icon="upload" onClick={openBatchImportModal}>
+          <Button
+            variant="secondary"
+            icon="upload"
+            onClick={openBatchImportModal}
+          >
             Batch Import Proxies
           </Button>
-          <Button icon="add" onClick={openCreateModal}>Add Proxy Pool</Button>
+          <Button icon="add" onClick={openCreateModal}>
+            Add Proxy Pool
+          </Button>
         </div>
       </div>
 
@@ -322,32 +359,50 @@ export default function ProxyPoolsPage() {
 
         {proxyPools.length === 0 ? (
           <div className="text-center py-10">
-            <p className="text-text-main font-medium mb-1">No proxy pool entries yet</p>
+            <p className="text-text-main font-medium mb-1">
+              No proxy pool entries yet
+            </p>
             <p className="text-sm text-text-muted mb-4">
               Create a proxy pool entry, then assign it to connections.
             </p>
-            <Button icon="add" onClick={openCreateModal}>Add Proxy Pool</Button>
+            <Button icon="add" onClick={openCreateModal}>
+              Add Proxy Pool
+            </Button>
           </div>
         ) : (
           <div className="flex flex-col divide-y divide-black/[0.04] dark:divide-white/[0.05]">
             {proxyPools.map((pool) => (
-              <div key={pool.id} className="py-3 flex items-center justify-between gap-3 group">
+              <div
+                key={pool.id}
+                className="py-3 flex items-center justify-between gap-3 group"
+              >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium truncate">{pool.name}</p>
-                    <Badge variant={getStatusVariant(pool.testStatus)} size="sm" dot>
+                    <Badge
+                      variant={getStatusVariant(pool.testStatus)}
+                      size="sm"
+                      dot
+                    >
                       {pool.testStatus || "unknown"}
                     </Badge>
-                    <Badge variant={pool.isActive ? "success" : "default"} size="sm">
+                    <Badge
+                      variant={pool.isActive ? "success" : "default"}
+                      size="sm"
+                    >
                       {pool.isActive ? "active" : "inactive"}
                     </Badge>
                     <Badge variant="default" size="sm">
                       {pool.boundConnectionCount || 0} bound
                     </Badge>
                   </div>
-                  <p className="text-xs text-text-muted truncate mt-1">{pool.proxyUrl}</p>
+                  <p className="text-xs text-text-muted truncate mt-1">
+                    {pool.proxyUrl}
+                  </p>
                   {pool.noProxy ? (
-                    <p className="text-xs text-text-muted truncate">No proxy: {pool.noProxy}</p>
+                    <p className="text-xs text-text-muted truncate">
+                      No proxy: {pool.noProxy}
+                    </p>
                   ) : null}
                   <p className="text-[11px] text-text-muted mt-1">
                     Last tested: {formatDateTime(pool.lastTestedAt)}
@@ -364,7 +419,11 @@ export default function ProxyPoolsPage() {
                   >
                     <span
                       className="material-symbols-outlined text-[18px]"
-                      style={testingId === pool.id ? { animation: "spin 1s linear infinite" } : undefined}
+                      style={
+                        testingId === pool.id
+                          ? { animation: "spin 1s linear infinite" }
+                          : undefined
+                      }
                     >
                       {testingId === pool.id ? "progress_activity" : "science"}
                     </span>
@@ -374,14 +433,18 @@ export default function ProxyPoolsPage() {
                     className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/5 text-text-muted hover:text-primary"
                     title="Edit"
                   >
-                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                    <span className="material-symbols-outlined text-[18px]">
+                      edit
+                    </span>
                   </button>
                   <button
                     onClick={() => handleDelete(pool)}
                     className="p-2 rounded hover:bg-red-500/10 text-red-500"
                     title="Delete"
                   >
-                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                    <span className="material-symbols-outlined text-[18px]">
+                      delete
+                    </span>
                   </button>
                 </div>
               </div>
@@ -397,23 +460,37 @@ export default function ProxyPoolsPage() {
       >
         <div className="flex flex-col gap-4">
           <div>
-            <label className="text-sm font-medium text-text-main mb-1 block">Paste Proxy List (One per line)</label>
+            <label className="text-sm font-medium text-text-main mb-1 block">
+              Paste Proxy List (One per line)
+            </label>
             <textarea
               value={batchImportText}
               onChange={(e) => setBatchImportText(e.target.value)}
-              placeholder={"http://user:pass@127.0.0.1:7897\n127.0.0.1:7897:user:pass"}
+              placeholder={
+                "http://user:pass@127.0.0.1:7897\n127.0.0.1:7897:user:pass"
+              }
               className="w-full min-h-[180px] py-2 px-3 text-sm text-text-main bg-white dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-md focus:ring-1 focus:ring-primary/30 focus:border-primary/50 focus:outline-none transition-all"
             />
             <p className="text-xs text-text-muted mt-1">
-              Supported formats: protocol://user:pass@host:port, host:port:user:pass
+              Supported formats: protocol://user:pass@host:port,
+              host:port:user:pass
             </p>
           </div>
 
           <div className="flex gap-2">
-            <Button fullWidth onClick={handleBatchImport} disabled={!batchImportText.trim() || importing}>
+            <Button
+              fullWidth
+              onClick={handleBatchImport}
+              disabled={!batchImportText.trim() || importing}
+            >
               {importing ? "Importing..." : "Import"}
             </Button>
-            <Button fullWidth variant="ghost" onClick={closeBatchImportModal} disabled={importing}>
+            <Button
+              fullWidth
+              variant="ghost"
+              onClick={closeBatchImportModal}
+              disabled={importing}
+            >
               Cancel
             </Button>
           </div>
@@ -429,19 +506,25 @@ export default function ProxyPoolsPage() {
           <Input
             label="Name"
             value={formData.name}
-            onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, name: e.target.value }))
+            }
             placeholder="Office Proxy"
           />
           <Input
             label="Proxy URL"
             value={formData.proxyUrl}
-            onChange={(e) => setFormData((prev) => ({ ...prev, proxyUrl: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, proxyUrl: e.target.value }))
+            }
             placeholder="http://127.0.0.1:7897"
           />
           <Input
             label="No Proxy"
             value={formData.noProxy}
-            onChange={(e) => setFormData((prev) => ({ ...prev, noProxy: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, noProxy: e.target.value }))
+            }
             placeholder="localhost,127.0.0.1,.internal"
             hint="Comma-separated hosts/domains to bypass proxy"
           />
@@ -449,11 +532,15 @@ export default function ProxyPoolsPage() {
           <div className="rounded-lg border border-border/50 p-3 flex items-center justify-between">
             <div>
               <p className="font-medium text-sm">Active</p>
-              <p className="text-xs text-text-muted">Inactive pools are ignored by runtime resolution.</p>
+              <p className="text-xs text-text-muted">
+                Inactive pools are ignored by runtime resolution.
+              </p>
             </div>
             <Toggle
               checked={formData.isActive === true}
-              onChange={() => setFormData((prev) => ({ ...prev, isActive: !prev.isActive }))}
+              onChange={() =>
+                setFormData((prev) => ({ ...prev, isActive: !prev.isActive }))
+              }
               disabled={saving}
             />
           </div>
@@ -461,11 +548,19 @@ export default function ProxyPoolsPage() {
           <div className="rounded-lg border border-border/50 p-3 flex items-center justify-between">
             <div>
               <p className="font-medium text-sm">Strict Proxy</p>
-              <p className="text-xs text-text-muted">Fail request if proxy is unreachable instead of falling back to direct.</p>
+              <p className="text-xs text-text-muted">
+                Fail request if proxy is unreachable instead of falling back to
+                direct.
+              </p>
             </div>
             <Toggle
               checked={formData.strictProxy === true}
-              onChange={() => setFormData((prev) => ({ ...prev, strictProxy: !prev.strictProxy }))}
+              onChange={() =>
+                setFormData((prev) => ({
+                  ...prev,
+                  strictProxy: !prev.strictProxy,
+                }))
+              }
               disabled={saving}
             />
           </div>
@@ -474,11 +569,18 @@ export default function ProxyPoolsPage() {
             <Button
               fullWidth
               onClick={handleSave}
-              disabled={!formData.name.trim() || !formData.proxyUrl.trim() || saving}
+              disabled={
+                !formData.name.trim() || !formData.proxyUrl.trim() || saving
+              }
             >
               {saving ? "Saving..." : "Save"}
             </Button>
-            <Button fullWidth variant="ghost" onClick={closeFormModal} disabled={saving}>
+            <Button
+              fullWidth
+              variant="ghost"
+              onClick={closeFormModal}
+              disabled={saving}
+            >
               Cancel
             </Button>
           </div>

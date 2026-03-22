@@ -7,7 +7,13 @@
 export function normalizeResponsesInput(input) {
   if (typeof input === "string") {
     const text = input.trim() === "" ? "..." : input;
-    return [{ type: "message", role: "user", content: [{ type: "input_text", text }] }];
+    return [
+      {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text }],
+      },
+    ];
   }
   if (Array.isArray(input)) return input;
   return null;
@@ -58,25 +64,27 @@ export function convertResponsesApiFormat(body) {
 
       // Convert content: input_text → text, output_text → text, input_image → image_url
       const content = Array.isArray(item.content)
-        ? item.content.map(c => {
-          if (c.type === "input_text") return { type: "text", text: c.text };
-          if (c.type === "output_text") return { type: "text", text: c.text };
-          if (c.type === "input_image") {
-            const url = c.image_url || c.file_id || "";
-            return { type: "image_url", image_url: { url, detail: c.detail || "auto" } };
-          }
-          return c;
-        })
+        ? item.content.map((c) => {
+            if (c.type === "input_text") return { type: "text", text: c.text };
+            if (c.type === "output_text") return { type: "text", text: c.text };
+            if (c.type === "input_image") {
+              const url = c.image_url || c.file_id || "";
+              return {
+                type: "image_url",
+                image_url: { url, detail: c.detail || "auto" },
+              };
+            }
+            return c;
+          })
         : item.content;
       result.messages.push({ role: item.role, content });
-    }
-    else if (itemType === "function_call") {
+    } else if (itemType === "function_call") {
       // Start or append to assistant message with tool_calls
       if (!currentAssistantMsg) {
         currentAssistantMsg = {
           role: "assistant",
           content: null,
-          tool_calls: []
+          tool_calls: [],
         };
       }
       currentAssistantMsg.tool_calls.push({
@@ -84,11 +92,10 @@ export function convertResponsesApiFormat(body) {
         type: "function",
         function: {
           name: item.name,
-          arguments: item.arguments
-        }
+          arguments: item.arguments,
+        },
       });
-    }
-    else if (itemType === "function_call_output") {
+    } else if (itemType === "function_call_output") {
       // Flush assistant message first if exists
       if (currentAssistantMsg) {
         result.messages.push(currentAssistantMsg);
@@ -98,10 +105,12 @@ export function convertResponsesApiFormat(body) {
       pendingToolResults.push({
         role: "tool",
         tool_call_id: item.call_id,
-        content: typeof item.output === "string" ? item.output : JSON.stringify(item.output)
+        content:
+          typeof item.output === "string"
+            ? item.output
+            : JSON.stringify(item.output),
       });
-    }
-    else if (itemType === "reasoning") {
+    } else if (itemType === "reasoning") {
       // Skip reasoning items - they are for display only
       continue;
     }

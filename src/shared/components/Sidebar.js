@@ -38,22 +38,28 @@ export default function Sidebar({ onClose }) {
 
   useEffect(() => {
     fetch("/api/settings")
-      .then(res => res.json())
-      .then(data => { if (data.enableTranslator) setEnableTranslator(true); })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.enableTranslator) setEnableTranslator(true);
+      })
       .catch(() => {});
   }, []);
 
   // Lazy check for new npm version on mount
   useEffect(() => {
     fetch("/api/version")
-      .then(res => res.json())
-      .then(data => { if (data.hasUpdate) setUpdateInfo(data); })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.hasUpdate) setUpdateInfo(data);
+      })
       .catch(() => {});
   }, []);
 
   const isActive = (href) => {
     if (href === "/dashboard/endpoint") {
-      return pathname === "/dashboard" || pathname.startsWith("/dashboard/endpoint");
+      return (
+        pathname === "/dashboard" || pathname.startsWith("/dashboard/endpoint")
+      );
     }
     return pathname.startsWith(href);
   };
@@ -84,13 +90,17 @@ export default function Sidebar({ onClose }) {
         <div className="px-6 py-4 flex flex-col gap-2">
           <Link href="/dashboard" className="flex items-center gap-3">
             <div className="flex items-center justify-center size-9 rounded bg-linear-to-br from-[#f97815] to-[#c2590a]">
-              <span className="material-symbols-outlined text-white text-[20px]">hub</span>
+              <span className="material-symbols-outlined text-white text-[20px]">
+                hub
+              </span>
             </div>
             <div className="flex flex-col">
               <h1 className="text-lg font-semibold tracking-tight text-text-main">
                 {APP_CONFIG.name}
               </h1>
-              <span className="text-xs text-text-muted">v{APP_CONFIG.version}</span>
+              <span className="text-xs text-text-muted">
+                v{APP_CONFIG.version}
+              </span>
             </div>
           </Link>
           {updateInfo && (
@@ -116,13 +126,15 @@ export default function Sidebar({ onClose }) {
                 "flex items-center gap-3 px-4 py-2 rounded-lg transition-all group",
                 isActive(item.href)
                   ? "bg-primary/10 text-primary"
-                  : "text-text-muted hover:bg-surface/50 hover:text-text-main"
+                  : "text-text-muted hover:bg-surface/50 hover:text-text-main",
               )}
             >
               <span
                 className={cn(
                   "material-symbols-outlined text-[18px]",
-                  isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
+                  isActive(item.href)
+                    ? "fill-1"
+                    : "group-hover:text-primary transition-colors",
                 )}
               >
                 {item.icon}
@@ -133,50 +145,59 @@ export default function Sidebar({ onClose }) {
 
           {/* Debug section */}
           <div className="pt-4 mt-2">
-              <p className="px-4 text-xs font-semibold text-text-muted/60 uppercase tracking-wider mb-2">
-                Debug
-              </p>
-              {enableTranslator && (
-                <Link
-                  href="/dashboard/translator"
-                  onClick={onClose}
+            <p className="px-4 text-xs font-semibold text-text-muted/60 uppercase tracking-wider mb-2">
+              Debug
+            </p>
+            {enableTranslator && (
+              <Link
+                href="/dashboard/translator"
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2 rounded-lg transition-all group",
+                  isActive("/dashboard/translator")
+                    ? "bg-primary/10 text-primary"
+                    : "text-text-muted hover:bg-surface/50 hover:text-text-main",
+                )}
+              >
+                <span
                   className={cn(
-                    "flex items-center gap-3 px-4 py-2 rounded-lg transition-all group",
+                    "material-symbols-outlined text-[18px]",
                     isActive("/dashboard/translator")
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-muted hover:bg-surface/50 hover:text-text-main"
+                      ? "fill-1"
+                      : "group-hover:text-primary transition-colors",
                   )}
                 >
-                  <span className={cn("material-symbols-outlined text-[18px]", isActive("/dashboard/translator") ? "fill-1" : "group-hover:text-primary transition-colors")}>
-                    translate
-                  </span>
-                  <span className="text-sm font-medium">Translator</span>
-                </Link>
-              )}
-              {debugItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onClose}
+                  translate
+                </span>
+                <span className="text-sm font-medium">Translator</span>
+              </Link>
+            )}
+            {debugItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2 rounded-lg transition-all group",
+                  isActive(item.href)
+                    ? "bg-primary/10 text-primary"
+                    : "text-text-muted hover:bg-surface/50 hover:text-text-main",
+                )}
+              >
+                <span
                   className={cn(
-                    "flex items-center gap-3 px-4 py-2 rounded-lg transition-all group",
+                    "material-symbols-outlined text-[18px]",
                     isActive(item.href)
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-muted hover:bg-surface/50 hover:text-text-main"
+                      ? "fill-1"
+                      : "group-hover:text-primary transition-colors",
                   )}
                 >
-                  <span
-                    className={cn(
-                      "material-symbols-outlined text-[18px]",
-                      isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
-                    )}
-                  >
-                    {item.icon}
-                  </span>
-                  <span className="text-sm font-medium">{item.label}</span>
-                </Link>
-              ))}
-            </div>
+                  {item.icon}
+                </span>
+                <span className="text-sm font-medium">{item.label}</span>
+              </Link>
+            ))}
+          </div>
 
           {/* System section */}
           <div className="pt-4 mt-2">
@@ -192,13 +213,15 @@ export default function Sidebar({ onClose }) {
                   "flex items-center gap-3 px-4 py-2 rounded-lg transition-all group",
                   isActive(item.href)
                     ? "bg-primary/10 text-primary"
-                    : "text-text-muted hover:bg-surface/50 hover:text-text-main"
+                    : "text-text-muted hover:bg-surface/50 hover:text-text-main",
                 )}
               >
                 <span
                   className={cn(
                     "material-symbols-outlined text-[18px]",
-                    isActive(item.href) ? "fill-1" : "group-hover:text-primary transition-colors"
+                    isActive(item.href)
+                      ? "fill-1"
+                      : "group-hover:text-primary transition-colors",
                   )}
                 >
                   {item.icon}
@@ -214,11 +237,14 @@ export default function Sidebar({ onClose }) {
           {/* Info message */}
           <div className="flex items-start gap-2 p-2 rounded-lg bg-surface/50 mb-2">
             <div className="flex items-center justify-center size-6 rounded-md bg-blue-500/10 text-blue-500 shrink-0 mt-0.5">
-              <span className="material-symbols-outlined text-[14px]">info</span>
+              <span className="material-symbols-outlined text-[14px]">
+                info
+              </span>
             </div>
             <div className="flex flex-col">
               <span className="text-xs font-medium text-text-main leading-relaxed">
-                Service is running in terminal. You can close this web page. Shutdown will stop the service.
+                Service is running in terminal. You can close this web page.
+                Shutdown will stop the service.
               </span>
             </div>
           </div>
@@ -254,11 +280,20 @@ export default function Sidebar({ onClose }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="text-center p-8">
             <div className="flex items-center justify-center size-16 rounded-full bg-red-500/20 text-red-500 mx-auto mb-4">
-              <span className="material-symbols-outlined text-[32px]">power_off</span>
+              <span className="material-symbols-outlined text-[32px]">
+                power_off
+              </span>
             </div>
-            <h2 className="text-xl font-semibold text-white mb-2">Server Disconnected</h2>
-            <p className="text-text-muted mb-6">The proxy server has been stopped.</p>
-            <Button variant="secondary" onClick={() => globalThis.location.reload()}>
+            <h2 className="text-xl font-semibold text-white mb-2">
+              Server Disconnected
+            </h2>
+            <p className="text-text-muted mb-6">
+              The proxy server has been stopped.
+            </p>
+            <Button
+              variant="secondary"
+              onClick={() => globalThis.location.reload()}
+            >
               Reload Page
             </Button>
           </div>

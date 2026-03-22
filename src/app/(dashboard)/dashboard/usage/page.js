@@ -2,7 +2,12 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { UsageStats, RequestLogger, CardSkeleton, SegmentedControl } from "@/shared/components";
+import {
+  UsageStats,
+  RequestLogger,
+  CardSkeleton,
+  SegmentedControl,
+} from "@/shared/components";
 import RequestDetailsTab from "./components/RequestDetailsTab";
 
 export default function UsagePage() {
@@ -20,9 +25,10 @@ function UsageContent() {
   const [tabLoading, setTabLoading] = useState(false);
 
   const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl && ["overview", "logs", "details"].includes(tabFromUrl)
-    ? tabFromUrl
-    : "overview";
+  const activeTab =
+    tabFromUrl && ["overview", "logs", "details"].includes(tabFromUrl)
+      ? tabFromUrl
+      : "overview";
 
   const handleTabChange = (value) => {
     if (value === activeTab) return;
@@ -62,4 +68,3 @@ function UsageContent() {
     </div>
   );
 }
-

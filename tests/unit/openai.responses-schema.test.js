@@ -15,7 +15,7 @@ describe("OpenAI Responses schema sanitizer", () => {
         properties: {},
         required: ["missing"],
       },
-      true
+      true,
     );
 
     expect(result.compatible).toBe(true);
@@ -34,10 +34,7 @@ describe("OpenAI Responses schema sanitizer", () => {
         required: ["choice", "missing"],
         properties: {
           choice: {
-            anyOf: [
-              { type: "null" },
-              { type: "string", pattern: "^[a-z]+$" },
-            ],
+            anyOf: [{ type: "null" }, { type: "string", pattern: "^[a-z]+$" }],
           },
           merged: {
             allOf: [
@@ -61,16 +58,13 @@ describe("OpenAI Responses schema sanitizer", () => {
             required: ["child", "ghost"],
             properties: {
               child: {
-                oneOf: [
-                  { type: "null" },
-                  { type: "integer", examples: [1] },
-                ],
+                oneOf: [{ type: "null" }, { type: "integer", examples: [1] }],
               },
             },
           },
         },
       },
-      true
+      true,
     );
 
     expect(result.compatible).toBe(true);
@@ -83,9 +77,15 @@ describe("OpenAI Responses schema sanitizer", () => {
     expect(result.parameters.properties.choice.anyOf).toBeUndefined();
     expect(result.parameters.properties.choice.pattern).toBeUndefined();
     expect(result.parameters.properties.merged.allOf).toBeUndefined();
-    expect(result.parameters.properties.merged.properties.left.enum).toEqual(["1"]);
-    expect(result.parameters.properties.merged.properties.right.default).toBeUndefined();
-    expect(result.parameters.properties.nested.properties.child.oneOf).toBeUndefined();
+    expect(result.parameters.properties.merged.properties.left.enum).toEqual([
+      "1",
+    ]);
+    expect(
+      result.parameters.properties.merged.properties.right.default,
+    ).toBeUndefined();
+    expect(
+      result.parameters.properties.nested.properties.child.oneOf,
+    ).toBeUndefined();
     expect(result.parameters.properties.nested.required).toEqual(["child"]);
   });
 
@@ -98,7 +98,7 @@ describe("OpenAI Responses schema sanitizer", () => {
         },
         required: ["query"],
       },
-      true
+      true,
     );
 
     expect(result.compatible).toBe(true);
@@ -111,12 +111,12 @@ describe("OpenAI Responses schema sanitizer", () => {
       {
         type: "string",
       },
-      true
+      true,
     );
 
     expect(result.compatible).toBe(false);
     expect(result.strict).toBe(false);
-    expect(result.issues[0]).toContain("$.type must be \"object\"");
+    expect(result.issues[0]).toContain('$.type must be "object"');
   });
 
   it("flags function tools without names as incompatible for the Responses path", () => {
@@ -126,7 +126,9 @@ describe("OpenAI Responses schema sanitizer", () => {
       "gpt-5.4",
       {
         model: "gpt-5.4",
-        input: [{ role: "user", content: [{ type: "input_text", text: "hi" }] }],
+        input: [
+          { role: "user", content: [{ type: "input_text", text: "hi" }] },
+        ],
         tools: [
           {
             type: "function",
@@ -138,13 +140,15 @@ describe("OpenAI Responses schema sanitizer", () => {
           },
         ],
       },
-      true
+      true,
     );
 
     expect(translated._schemaIncompatibility).toMatchObject({
       code: OPENAI_RESPONSES_SCHEMA_ERROR_CODE,
     });
-    expect(translated._schemaIncompatibility.message).toContain("function tools must have a non-empty name");
+    expect(translated._schemaIncompatibility.message).toContain(
+      "function tools must have a non-empty name",
+    );
   });
 });
 
@@ -171,7 +175,7 @@ describe("OpenAI Responses translator integration", () => {
           },
         ],
       },
-      true
+      true,
     );
 
     expect(translated.tools).toHaveLength(1);
@@ -188,7 +192,9 @@ describe("OpenAI Responses translator integration", () => {
       "gpt-5.4",
       {
         model: "gpt-5.4",
-        input: [{ role: "user", content: [{ type: "input_text", text: "hi" }] }],
+        input: [
+          { role: "user", content: [{ type: "input_text", text: "hi" }] },
+        ],
         tools: [
           {
             type: "function",
@@ -201,13 +207,15 @@ describe("OpenAI Responses translator integration", () => {
           },
         ],
       },
-      true
+      true,
     );
 
     expect(translated._schemaIncompatibility).toMatchObject({
       code: OPENAI_RESPONSES_SCHEMA_ERROR_CODE,
     });
-    expect(translated._schemaIncompatibility.message).toContain("mcp__pencil__get_style_guide_tags");
+    expect(translated._schemaIncompatibility.message).toContain(
+      "mcp__pencil__get_style_guide_tags",
+    );
   });
 
   it("flags Claude-native built-in tools as incompatible for OpenAI Responses providers", () => {
@@ -218,7 +226,12 @@ describe("OpenAI Responses translator integration", () => {
       {
         model: "claude-sonnet-4-6",
         max_tokens: 32,
-        messages: [{ role: "user", content: [{ type: "text", text: "Reply with exactly OK." }] }],
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "text", text: "Reply with exactly OK." }],
+          },
+        ],
         tools: [
           {
             type: "web_search_20250305",
@@ -227,12 +240,14 @@ describe("OpenAI Responses translator integration", () => {
           },
         ],
       },
-      true
+      true,
     );
 
     expect(translated._schemaIncompatibility).toMatchObject({
       code: OPENAI_RESPONSES_SCHEMA_ERROR_CODE,
     });
-    expect(translated._schemaIncompatibility.message).toContain("web_search_20250305");
+    expect(translated._schemaIncompatibility.message).toContain(
+      "web_search_20250305",
+    );
   });
 });

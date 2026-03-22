@@ -61,7 +61,10 @@ export async function GET() {
     });
   } catch (error) {
     console.log("Error checking opencode settings:", error);
-    return NextResponse.json({ error: "Failed to check opencode settings" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to check opencode settings" },
+      { status: 500 },
+    );
   }
 }
 
@@ -71,7 +74,10 @@ export async function POST(request) {
     const { baseUrl, apiKey, model } = await request.json();
 
     if (!baseUrl || !model) {
-      return NextResponse.json({ error: "baseUrl and model are required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "baseUrl and model are required" },
+        { status: 400 },
+      );
     }
 
     const configDir = getConfigDir();
@@ -84,9 +90,13 @@ export async function POST(request) {
     try {
       const existing = await fs.readFile(configPath, "utf-8");
       config = JSON.parse(existing);
-    } catch { /* No existing config */ }
+    } catch {
+      /* No existing config */
+    }
 
-    const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
+    const normalizedBaseUrl = baseUrl.endsWith("/v1")
+      ? baseUrl
+      : `${baseUrl}/v1`;
     const keyToUse = apiKey || "sk_9router";
 
     // Merge 9router provider
@@ -114,7 +124,10 @@ export async function POST(request) {
     });
   } catch (error) {
     console.log("Error updating opencode settings:", error);
-    return NextResponse.json({ error: "Failed to update opencode settings" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update opencode settings" },
+      { status: 500 },
+    );
   }
 }
 
@@ -129,7 +142,10 @@ export async function DELETE() {
       config = JSON.parse(existing);
     } catch (error) {
       if (error.code === "ENOENT") {
-        return NextResponse.json({ success: true, message: "No config file to reset" });
+        return NextResponse.json({
+          success: true,
+          message: "No config file to reset",
+        });
       }
       throw error;
     }
@@ -148,6 +164,9 @@ export async function DELETE() {
     });
   } catch (error) {
     console.log("Error resetting opencode settings:", error);
-    return NextResponse.json({ error: "Failed to reset opencode settings" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to reset opencode settings" },
+      { status: 500 },
+    );
   }
 }

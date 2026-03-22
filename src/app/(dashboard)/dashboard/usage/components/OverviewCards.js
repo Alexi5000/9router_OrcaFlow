@@ -8,8 +8,10 @@ const fmtCost = (n) => `$${(n || 0).toFixed(2)}`;
 
 function renderKiloHeadline(kiloHourly) {
   if (!kiloHourly) return "Checking...";
-  if (kiloHourly.state === "parked" || kiloHourly.state === "unavailable") return "Temporarily parked";
-  if (kiloHourly.state === "degraded") return `${fmt(kiloHourly.remainingRequests)} left`;
+  if (kiloHourly.state === "parked" || kiloHourly.state === "unavailable")
+    return "Temporarily parked";
+  if (kiloHourly.state === "degraded")
+    return `${fmt(kiloHourly.remainingRequests)} left`;
   if (kiloHourly.state === "unconfigured") return "Not configured";
   return `${fmt(kiloHourly.remainingRequests)} left`;
 }
@@ -41,27 +43,47 @@ export default function OverviewCards({ stats }) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
       <Card className="px-4 py-3 flex flex-col gap-1">
-        <span className="text-text-muted text-sm uppercase font-semibold">Total Requests</span>
+        <span className="text-text-muted text-sm uppercase font-semibold">
+          Total Requests
+        </span>
         <span className="text-2xl font-bold">{fmt(stats.totalRequests)}</span>
         <span className="text-[10px] text-text-muted">
-          {stats.pendingRequestCount > 0 ? `+${fmt(stats.pendingRequestCount)} live right now` : "Live count updates during active streams"}
+          {stats.pendingRequestCount > 0
+            ? `+${fmt(stats.pendingRequestCount)} live right now`
+            : "Live count updates during active streams"}
         </span>
       </Card>
       <Card className="px-4 py-3 flex flex-col gap-1">
-        <span className="text-text-muted text-sm uppercase font-semibold">Total Input Tokens</span>
-        <span className="text-2xl font-bold text-primary">{fmt(stats.totalPromptTokens)}</span>
+        <span className="text-text-muted text-sm uppercase font-semibold">
+          Total Input Tokens
+        </span>
+        <span className="text-2xl font-bold text-primary">
+          {fmt(stats.totalPromptTokens)}
+        </span>
       </Card>
       <Card className="px-4 py-3 flex flex-col gap-1">
-        <span className="text-text-muted text-sm uppercase font-semibold">Output Tokens</span>
-        <span className="text-2xl font-bold text-success">{fmt(stats.totalCompletionTokens)}</span>
+        <span className="text-text-muted text-sm uppercase font-semibold">
+          Output Tokens
+        </span>
+        <span className="text-2xl font-bold text-success">
+          {fmt(stats.totalCompletionTokens)}
+        </span>
       </Card>
       <Card className="px-4 py-3 flex flex-col gap-1">
-        <span className="text-text-muted text-sm uppercase font-semibold">Est. Cost</span>
-        <span className="text-2xl font-bold text-warning">~{fmtCost(stats.totalCost)}</span>
-        <span className="text-[10px] text-text-muted">Estimated, not actual billing</span>
+        <span className="text-text-muted text-sm uppercase font-semibold">
+          Est. Cost
+        </span>
+        <span className="text-2xl font-bold text-warning">
+          ~{fmtCost(stats.totalCost)}
+        </span>
+        <span className="text-[10px] text-text-muted">
+          Estimated, not actual billing
+        </span>
       </Card>
       <Card className="px-4 py-3 flex flex-col gap-1">
-        <span className="text-text-muted text-sm uppercase font-semibold">Kilo This Hour</span>
+        <span className="text-text-muted text-sm uppercase font-semibold">
+          Kilo This Hour
+        </span>
         <span className="text-2xl font-bold text-[#FF6B35]">
           {renderKiloHeadline(stats.kiloHourly)}
         </span>

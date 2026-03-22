@@ -9,7 +9,10 @@ export async function POST(request, { params }) {
     const proxyPool = await getProxyPoolById(id);
 
     if (!proxyPool) {
-      return NextResponse.json({ error: "Proxy pool not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Proxy pool not found" },
+        { status: 404 },
+      );
     }
 
     const result = await testProxyUrl({ proxyUrl: proxyPool.proxyUrl });
@@ -18,7 +21,9 @@ export async function POST(request, { params }) {
     await updateProxyPool(id, {
       testStatus: result.ok ? "active" : "error",
       lastTestedAt: now,
-      lastError: result.ok ? null : (result.error || `Proxy test failed with status ${result.status}`),
+      lastError: result.ok
+        ? null
+        : result.error || `Proxy test failed with status ${result.status}`,
       isActive: result.ok,
     });
 
@@ -32,6 +37,9 @@ export async function POST(request, { params }) {
     });
   } catch (error) {
     console.log("Error testing proxy pool:", error);
-    return NextResponse.json({ error: "Failed to test proxy pool" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to test proxy pool" },
+      { status: 500 },
+    );
   }
 }

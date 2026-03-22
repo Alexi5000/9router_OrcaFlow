@@ -2,16 +2,28 @@ import { FORMATS } from "../translator/formats.js";
 
 // Parse SSE data line
 export function parseSSELine(line) {
-  if (!line || line.charCodeAt(0) !== 100) return null; // 'd' = 100
+  if (!line) return null;
 
-  const data = line.slice(5).trim();
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("event:")) return null;
+
+  const data = trimmed.startsWith("data:") ? trimmed.slice(5).trim() : trimmed;
   if (data === "[DONE]") return { done: true };
+
+  if (!trimmed.startsWith("data:")) {
+    const firstChar = data[0];
+    if (firstChar !== "{" && firstChar !== "[") {
+      return null;
+    }
+  }
 
   try {
     return JSON.parse(data);
   } catch (error) {
     if (data.length > 0 && data.length < 1000) {
-      console.log(`[WARN] Failed to parse SSE line (${data.length} chars): ${data.substring(0, 100)}...`);
+      console.log(
+        `[WARN] Failed to parse SSE line (${data.length} chars): ${data.substring(0, 100)}...`,
+      );
     }
     return null;
   }
@@ -22,11 +34,13 @@ export function hasValuableContent(chunk, format) {
   // OpenAI format
   if (format === FORMATS.OPENAI && chunk.choices?.[0]?.delta) {
     const delta = chunk.choices[0].delta;
-    return delta.content && delta.content !== "" ||
-           delta.reasoning_content && delta.reasoning_content !== "" ||
-           delta.tool_calls && delta.tool_calls.length > 0 ||
-           chunk.choices[0].finish_reason ||
-           delta.role;
+    return (
+      (delta.content && delta.content !== "") ||
+      (delta.reasoning_content && delta.reasoning_content !== "") ||
+      (delta.tool_calls && delta.tool_calls.length > 0) ||
+      chunk.choices[0].finish_reason ||
+      delta.role
+    );
   }
 
   // Claude format
@@ -34,8 +48,9 @@ export function hasValuableContent(chunk, format) {
     const isContentBlockDelta = chunk.type === "content_block_delta";
     const hasText = chunk.delta?.text && chunk.delta.text !== "";
     const hasThinking = chunk.delta?.thinking && chunk.delta.thinking !== "";
-    const hasInputJson = chunk.delta?.partial_json && chunk.delta.partial_json !== "";
-    
+    const hasInputJson =
+      chunk.delta?.partial_json && chunk.delta.partial_json !== "";
+
     if (isContentBlockDelta && !hasText && !hasThinking && !hasInputJson) {
       return false;
     }
@@ -47,10 +62,14 @@ export function hasValuableContent(chunk, format) {
 
 // Fix invalid id (generic or too short)
 export function fixInvalidId(parsed) {
-  if (parsed.id && (parsed.id === "chat" || parsed.id === "completion" || parsed.id.length < 8)) {
-    const fallbackId = parsed.extend_fields?.requestId || 
-                      parsed.extend_fields?.traceId || 
-                      Date.now().toString(36);
+  if (
+    parsed.id &&
+    (parsed.id === "chat" || parsed.id === "completion" || parsed.id.length < 8)
+  ) {
+    const fallbackId =
+      parsed.extend_fields?.requestId ||
+      parsed.extend_fields?.traceId ||
+      Date.now().toString(36);
     parsed.id = `chatcmpl-${fallbackId}`;
     return true;
   }
@@ -68,13 +87,20 @@ function cleanUsagePayload(payload) {
     if (cleaned.usage === null) {
       const { usage, ...payloadWithoutUsage } = cleaned;
       cleaned = payloadWithoutUsage;
-    } else if (typeof cleaned.usage === "object" && cleaned.usage.perf_metrics === null) {
+    } else if (
+      typeof cleaned.usage === "object" &&
+      cleaned.usage.perf_metrics === null
+    ) {
       const { perf_metrics, ...usageWithoutPerf } = cleaned.usage;
       cleaned = { ...cleaned, usage: usageWithoutPerf };
     }
   }
 
-  if (cleaned.response && typeof cleaned.response === "object" && !Array.isArray(cleaned.response)) {
+  if (
+    cleaned.response &&
+    typeof cleaned.response === "object" &&
+    !Array.isArray(cleaned.response)
+  ) {
     const cleanedResponse = cleanUsagePayload(cleaned.response);
     if (cleanedResponse !== cleaned.response) {
       cleaned = { ...cleaned, response: cleanedResponse };

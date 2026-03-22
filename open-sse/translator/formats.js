@@ -9,7 +9,7 @@ export const FORMATS = {
   CODEX: "codex",
   ANTIGRAVITY: "antigravity",
   KIRO: "kiro",
-  CURSOR: "cursor"
+  CURSOR: "cursor",
 };
 
 /**
@@ -21,7 +21,10 @@ export function detectFormatByEndpoint(pathname, body) {
   if (pathname.includes("/v1/responses")) return FORMATS.OPENAI_RESPONSES;
 
   // /v1/messages is Anthropic/Claude-compatible even when the body is ambiguous
-  if (pathname.includes("/v1/messages") && !pathname.includes("/count_tokens")) {
+  if (
+    pathname.includes("/v1/messages") &&
+    !pathname.includes("/count_tokens")
+  ) {
     return FORMATS.CLAUDE;
   }
 
@@ -32,4 +35,3 @@ export function detectFormatByEndpoint(pathname, body) {
 
   return null;
 }
-

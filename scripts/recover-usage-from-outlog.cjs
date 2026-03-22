@@ -12,7 +12,11 @@ function normalizeDataDir(rawPath) {
   if (!winDriveMatch) return rawPath;
 
   const [, drive, remainder] = winDriveMatch;
-  return path.posix.join("/mnt", drive.toLowerCase(), remainder.replace(/\\/g, "/"));
+  return path.posix.join(
+    "/mnt",
+    drive.toLowerCase(),
+    remainder.replace(/\\/g, "/"),
+  );
 }
 
 const dataDir = normalizeDataDir(process.env.DATA_DIR);
@@ -101,7 +105,15 @@ function mergeHistorySets(...sets) {
   return merged;
 }
 
-function makeEntry({ provider, model, timestamp, promptTokens, completionTokens, cacheRead = 0, cost = 0 }) {
+function makeEntry({
+  provider,
+  model,
+  timestamp,
+  promptTokens,
+  completionTokens,
+  cacheRead = 0,
+  cost = 0,
+}) {
   const entry = {
     provider,
     model,
@@ -135,7 +147,9 @@ async function recoverFromStructuredLog(logPath) {
   for await (const rawLine of rl) {
     const line = stripAnsi(rawLine);
 
-    let match = line.match(/\[PENDING\] END(?: \(ERROR\))? \| provider=([^|]+) \| model=(.+)$/);
+    let match = line.match(
+      /\[PENDING\] END(?: \(ERROR\))? \| provider=([^|]+) \| model=(.+)$/,
+    );
     if (match) {
       const provider = String(match[1]).trim().toLowerCase();
       const model = String(match[2]).trim();
@@ -143,12 +157,16 @@ async function recoverFromStructuredLog(logPath) {
       if (!pendingEnds.has(provider)) pendingEnds.set(provider, []);
       pendingEnds.get(provider).push({ model, timestamp });
       if (pendingEnds.get(provider).length > 1000) {
-        pendingEnds.get(provider).splice(0, pendingEnds.get(provider).length - 1000);
+        pendingEnds
+          .get(provider)
+          .splice(0, pendingEnds.get(provider).length - 1000);
       }
       continue;
     }
 
-    match = line.match(/\[USAGE\] ([A-Z0-9-]+) \| in=(\d+) \| out=(\d+) \| account=([^|]+?)(?: \| cache_read=(\d+))?$/);
+    match = line.match(
+      /\[USAGE\] ([A-Z0-9-]+) \| in=(\d+) \| out=(\d+) \| account=([^|]+?)(?: \| cache_read=(\d+))?$/,
+    );
     if (!match) continue;
 
     const provider = normalizeProvider(String(match[1]).trim());
@@ -163,7 +181,9 @@ async function recoverFromStructuredLog(logPath) {
     for (let i = queue.length - 1; i >= 0; i--) {
       const pending = queue[i];
       if (!pending.timestamp) continue;
-      const delta = Math.abs(new Date(timestamp).getTime() - new Date(pending.timestamp).getTime());
+      const delta = Math.abs(
+        new Date(timestamp).getTime() - new Date(pending.timestamp).getTime(),
+      );
       if (delta <= 30000) {
         model = pending.model;
         queue.splice(i, 1);
@@ -179,7 +199,7 @@ async function recoverFromStructuredLog(logPath) {
         promptTokens,
         completionTokens,
         cacheRead,
-      })
+      }),
     );
   }
 
@@ -203,12 +223,21 @@ async function recoverFromLegacyLog(logPath) {
     const timestamp = parseLegacyTimestamp(parts[0]);
     if (!timestamp) continue;
 
-    const [_, model, providerRaw, __account, promptRaw, completionRaw, statusRaw] = parts;
+    const [
+      _,
+      model,
+      providerRaw,
+      __account,
+      promptRaw,
+      completionRaw,
+      statusRaw,
+    ] = parts;
     if (!/200 OK/i.test(statusRaw || "")) continue;
 
     const promptTokens = Number(promptRaw);
     const completionTokens = Number(completionRaw);
-    if (!Number.isFinite(promptTokens) || !Number.isFinite(completionTokens)) continue;
+    if (!Number.isFinite(promptTokens) || !Number.isFinite(completionTokens))
+      continue;
 
     recovered.push(
       makeEntry({
@@ -217,7 +246,7 @@ async function recoverFromLegacyLog(logPath) {
         timestamp,
         promptTokens,
         completionTokens,
-      })
+      }),
     );
   }
 
@@ -230,9 +259,9 @@ async function recoverFromLogs() {
   for (const logPath of logCandidates) {
     if (!fs.existsSync(logPath)) continue;
     if (logPath.endsWith("log.txt")) {
-      recovered.push(...await recoverFromLegacyLog(logPath));
+      recovered.push(...(await recoverFromLegacyLog(logPath)));
     } else {
-      recovered.push(...await recoverFromStructuredLog(logPath));
+      recovered.push(...(await recoverFromStructuredLog(logPath)));
     }
   }
 
@@ -259,13 +288,19 @@ async function recover() {
   const backup = loadUsage(backupUsagePath);
   const recovered = await recoverFromLogs();
 
-  const mergedHistory = mergeHistorySets(backup.history, current.history, recovered);
+  const mergedHistory = mergeHistorySets(
+    backup.history,
+    current.history,
+    recovered,
+  );
 
-  const safetyDir = process.env.NINEROUTER_BACKUP_DIR || path.join(os.tmpdir(), "9router-usage-backups");
+  const safetyDir =
+    process.env.NINEROUTER_BACKUP_DIR ||
+    path.join(os.tmpdir(), "9router-usage-backups");
   fs.mkdirSync(safetyDir, { recursive: true });
   const safetyPath = path.join(
     safetyDir,
-    `usage.restore-safety-${new Date().toISOString().replace(/[:.]/g, "-")}.json`
+    `usage.restore-safety-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
   );
   fs.copyFileSync(usagePath, safetyPath);
 
@@ -289,8 +324,8 @@ async function recover() {
         merged: summarize(mergedHistory),
       },
       null,
-      2
-    )
+      2,
+    ),
   );
 }
 

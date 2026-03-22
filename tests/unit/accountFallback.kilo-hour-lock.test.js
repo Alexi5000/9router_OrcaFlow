@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { getProviderCooldownOverride, getMsUntilNextHour } from "../../open-sse/services/accountFallback.js";
+import {
+  getProviderCooldownOverride,
+  getMsUntilNextHour,
+} from "../../open-sse/services/accountFallback.js";
 
 describe("Kilo hourly cooldown overrides", () => {
   it("locks Kilo free models until the next hour on 429s", () => {
@@ -13,7 +16,7 @@ describe("Kilo hourly cooldown overrides", () => {
         model: "openrouter/healer-alpha",
         status: 429,
         errorText: "Kilo free model limit hit",
-      })
+      }),
     ).toBe(36 * 60 * 1000 + 15 * 1000);
 
     vi.useRealTimers();
@@ -27,7 +30,7 @@ describe("Kilo hourly cooldown overrides", () => {
         status: 429,
         errorText: "Slow down",
         retryAfterMs: 15000,
-      })
+      }),
     ).toBe(15000);
   });
 

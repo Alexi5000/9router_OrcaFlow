@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getProviderNodeById } from "@/models";
-import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
+import {
+  isOpenAICompatibleProvider,
+  isAnthropicCompatibleProvider,
+} from "@/shared/constants/providers";
 import { getDefaultModel } from "open-sse/config/providerModels.js";
 
 // POST /api/providers/validate - Validate API key with provider
@@ -10,7 +13,10 @@ export async function POST(request) {
     const { provider, apiKey } = body;
 
     if (!provider || !apiKey) {
-      return NextResponse.json({ error: "Provider and API key required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Provider and API key required" },
+        { status: 400 },
+      );
     }
 
     let isValid = false;
@@ -21,11 +27,14 @@ export async function POST(request) {
       if (isOpenAICompatibleProvider(provider)) {
         const node = await getProviderNodeById(provider);
         if (!node) {
-          return NextResponse.json({ error: "OpenAI Compatible node not found" }, { status: 404 });
+          return NextResponse.json(
+            { error: "OpenAI Compatible node not found" },
+            { status: 404 },
+          );
         }
         const modelsUrl = `${node.baseUrl?.replace(/\/$/, "")}/models`;
         const res = await fetch(modelsUrl, {
-          headers: { "Authorization": `Bearer ${apiKey}` },
+          headers: { Authorization: `Bearer ${apiKey}` },
         });
         isValid = res.ok;
         return NextResponse.json({
@@ -37,7 +46,10 @@ export async function POST(request) {
       if (isAnthropicCompatibleProvider(provider)) {
         const node = await getProviderNodeById(provider);
         if (!node) {
-          return NextResponse.json({ error: "Anthropic Compatible node not found" }, { status: 404 });
+          return NextResponse.json(
+            { error: "Anthropic Compatible node not found" },
+            { status: 404 },
+          );
         }
 
         let normalizedBase = node.baseUrl?.trim().replace(/\/$/, "") || "";
@@ -51,7 +63,7 @@ export async function POST(request) {
           headers: {
             "x-api-key": apiKey,
             "anthropic-version": "2023-06-01",
-            "Authorization": `Bearer ${apiKey}`
+            Authorization: `Bearer ${apiKey}`,
           },
         });
 
@@ -65,37 +77,45 @@ export async function POST(request) {
       switch (provider) {
         case "openai":
           const openaiRes = await fetch("https://api.openai.com/v1/models", {
-            headers: { "Authorization": `Bearer ${apiKey}` },
+            headers: { Authorization: `Bearer ${apiKey}` },
           });
           isValid = openaiRes.ok;
           break;
 
         case "anthropic":
-          const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: {
-              "x-api-key": apiKey,
-              "anthropic-version": "2023-06-01",
-              "content-type": "application/json",
+          const anthropicRes = await fetch(
+            "https://api.anthropic.com/v1/messages",
+            {
+              method: "POST",
+              headers: {
+                "x-api-key": apiKey,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({
+                model: "claude-3-haiku-20240307",
+                max_tokens: 1,
+                messages: [{ role: "user", content: "test" }],
+              }),
             },
-            body: JSON.stringify({
-              model: "claude-3-haiku-20240307",
-              max_tokens: 1,
-              messages: [{ role: "user", content: "test" }],
-            }),
-          });
+          );
           isValid = anthropicRes.status !== 401;
           break;
 
         case "gemini":
-          const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`);
+          const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`,
+          );
           isValid = geminiRes.ok;
           break;
 
         case "openrouter":
-          const openrouterRes = await fetch("https://openrouter.ai/api/v1/models", {
-            headers: { "Authorization": `Bearer ${apiKey}` },
-          });
+          const openrouterRes = await fetch(
+            "https://openrouter.ai/api/v1/models",
+            {
+              headers: { Authorization: `Bearer ${apiKey}` },
+            },
+          );
           isValid = openrouterRes.ok;
           break;
 
@@ -108,21 +128,28 @@ export async function POST(request) {
         case "alicode": {
           const claudeBaseUrls = {
             glm: "https://api.z.ai/api/anthropic/v1/messages",
-            "glm-cn": "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions",
+            "glm-cn":
+              "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions",
             kimi: "https://api.kimi.com/coding/v1/messages",
             minimax: "https://api.minimax.io/anthropic/v1/messages",
             "minimax-cn": "https://api.minimaxi.com/anthropic/v1/messages",
-            alicode: "https://coding.dashscope.aliyuncs.com/v1/chat/completions",
-            "alicode-intl": "https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions",
+            alicode:
+              "https://coding.dashscope.aliyuncs.com/v1/chat/completions",
+            "alicode-intl":
+              "https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions",
           };
 
           // glm-cn, alicode and alicode-intl use OpenAI format
-          if (provider === "glm-cn" || provider === "alicode" || provider === "alicode-intl") {
+          if (
+            provider === "glm-cn" ||
+            provider === "alicode" ||
+            provider === "alicode-intl"
+          ) {
             const testModel = getDefaultModel(provider);
             const glmCnRes = await fetch(claudeBaseUrls[provider], {
               method: "POST",
               headers: {
-                "Authorization": `Bearer ${apiKey}`,
+                Authorization: `Bearer ${apiKey}`,
                 "content-type": "application/json",
               },
               body: JSON.stringify({
@@ -187,10 +214,10 @@ export async function POST(request) {
             assemblyai: "https://api.assemblyai.com/v1/account",
             nanobanana: "https://api.nanobananaapi.ai/v1/models",
             chutes: "https://llm.chutes.ai/v1/models",
-            nvidia: "https://integrate.api.nvidia.com/v1/models"
+            nvidia: "https://integrate.api.nvidia.com/v1/models",
           };
           const res = await fetch(endpoints[provider], {
-            headers: { "Authorization": `Bearer ${apiKey}` },
+            headers: { Authorization: `Bearer ${apiKey}` },
           });
           isValid = res.ok;
           break;
@@ -198,7 +225,7 @@ export async function POST(request) {
 
         case "deepgram": {
           const res = await fetch("https://api.deepgram.com/v1/projects", {
-            headers: { "Authorization": `Token ${apiKey}` },
+            headers: { Authorization: `Token ${apiKey}` },
           });
           isValid = res.ok;
           break;
@@ -207,15 +234,30 @@ export async function POST(request) {
         case "vertex": {
           // Raw key: probe global endpoint (always 404 for unknown model, never 401)
           // SA JSON: attempt token mint via JWT assertion
-          const saJson = (() => { try { const p = JSON.parse(apiKey); return p.type === "service_account" ? p : null; } catch { return null; } })();
+          const saJson = (() => {
+            try {
+              const p = JSON.parse(apiKey);
+              return p.type === "service_account" ? p : null;
+            } catch {
+              return null;
+            }
+          })();
           if (saJson) {
             // Validate SA JSON has required fields
-            isValid = !!(saJson.client_email && saJson.private_key && saJson.project_id);
+            isValid = !!(
+              saJson.client_email &&
+              saJson.private_key &&
+              saJson.project_id
+            );
           } else {
             // Raw key: probe Vertex — 404 means key is valid (model just doesn't exist), 401 means invalid key
             const probeRes = await fetch(
               `https://aiplatform.googleapis.com/v1/publishers/google/models/__probe__:generateContent?key=${apiKey}`,
-              { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: "{}",
+              },
             );
             isValid = probeRes.status !== 401 && probeRes.status !== 403;
           }
@@ -223,13 +265,28 @@ export async function POST(request) {
         }
 
         case "vertex-partner": {
-          const saJson = (() => { try { const p = JSON.parse(apiKey); return p.type === "service_account" ? p : null; } catch { return null; } })();
+          const saJson = (() => {
+            try {
+              const p = JSON.parse(apiKey);
+              return p.type === "service_account" ? p : null;
+            } catch {
+              return null;
+            }
+          })();
           if (saJson) {
-            isValid = !!(saJson.client_email && saJson.private_key && saJson.project_id);
+            isValid = !!(
+              saJson.client_email &&
+              saJson.private_key &&
+              saJson.project_id
+            );
           } else {
             const probeRes = await fetch(
               `https://aiplatform.googleapis.com/v1/publishers/google/models/__probe__:generateContent?key=${apiKey}`,
-              { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: "{}",
+              },
             );
             isValid = probeRes.status !== 401 && probeRes.status !== 403;
           }
@@ -237,7 +294,10 @@ export async function POST(request) {
         }
 
         default:
-          return NextResponse.json({ error: "Provider validation not supported" }, { status: 400 });
+          return NextResponse.json(
+            { error: "Provider validation not supported" },
+            { status: 400 },
+          );
       }
     } catch (err) {
       error = err.message;
@@ -246,7 +306,7 @@ export async function POST(request) {
 
     return NextResponse.json({
       valid: isValid,
-      error: isValid ? null : (error || "Invalid API key"),
+      error: isValid ? null : error || "Invalid API key",
     });
   } catch (error) {
     console.log("Error validating API key:", error);

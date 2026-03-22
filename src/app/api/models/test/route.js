@@ -5,7 +5,8 @@ import { getApiKeys } from "@/lib/localDb";
 export async function POST(request) {
   try {
     const { model } = await request.json();
-    if (!model) return NextResponse.json({ error: "Model required" }, { status: 400 });
+    if (!model)
+      return NextResponse.json({ error: "Model required" }, { status: 400 });
 
     const url = new URL(request.url);
     const baseUrl = `${url.protocol}//${url.host}`;
@@ -41,18 +42,29 @@ export async function POST(request) {
     } catch {}
 
     if (!res.ok) {
-      const detail = parsed?.error?.message || parsed?.msg || parsed?.message || parsed?.error || rawText;
+      const detail =
+        parsed?.error?.message ||
+        parsed?.msg ||
+        parsed?.message ||
+        parsed?.error ||
+        rawText;
       const error = `HTTP ${res.status}${detail ? `: ${String(detail).slice(0, 240)}` : ""}`;
-      return NextResponse.json({ ok: false, latencyMs, error, status: res.status });
+      return NextResponse.json({
+        ok: false,
+        latencyMs,
+        error,
+        status: res.status,
+      });
     }
 
     // Some providers may return HTTP 200 but not a real completion for invalid models.
     const providerStatus = parsed?.status;
     const providerMsg = parsed?.msg || parsed?.message;
-    const hasProviderErrorStatus = providerStatus !== undefined
-      && providerStatus !== null
-      && String(providerStatus) !== "200"
-      && String(providerStatus) !== "0";
+    const hasProviderErrorStatus =
+      providerStatus !== undefined &&
+      providerStatus !== null &&
+      String(providerStatus) !== "200" &&
+      String(providerStatus) !== "0";
     if (hasProviderErrorStatus && providerMsg) {
       return NextResponse.json({
         ok: false,
@@ -63,7 +75,8 @@ export async function POST(request) {
     }
 
     if (parsed?.error) {
-      const providerError = parsed?.error?.message || parsed?.error || "Provider returned an error";
+      const providerError =
+        parsed?.error?.message || parsed?.error || "Provider returned an error";
       return NextResponse.json({
         ok: false,
         latencyMs,
@@ -72,7 +85,8 @@ export async function POST(request) {
       });
     }
 
-    const hasChoices = Array.isArray(parsed?.choices) && parsed.choices.length > 0;
+    const hasChoices =
+      Array.isArray(parsed?.choices) && parsed.choices.length > 0;
     if (!hasChoices) {
       return NextResponse.json({
         ok: false,
@@ -82,8 +96,16 @@ export async function POST(request) {
       });
     }
 
-    return NextResponse.json({ ok: true, latencyMs, error: null, status: res.status });
+    return NextResponse.json({
+      ok: true,
+      latencyMs,
+      error: null,
+      status: res.status,
+    });
   } catch (err) {
-    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: err.message },
+      { status: 500 },
+    );
   }
 }

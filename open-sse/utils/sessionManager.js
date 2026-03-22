@@ -29,23 +29,23 @@ const runtimeSessionStore = new Map();
  * @returns {string} A stable session ID string matching binary format
  */
 export function deriveSessionId(connectionId) {
-    if (!connectionId) {
-        // Fallback for requests without a connection identifier
-        return generateBinaryStyleId();
-    }
+  if (!connectionId) {
+    // Fallback for requests without a connection identifier
+    return generateBinaryStyleId();
+  }
 
-    // Check if we already have a session ID for this connection in this process run
-    if (runtimeSessionStore.has(connectionId)) {
-        return runtimeSessionStore.get(connectionId);
-    }
+  // Check if we already have a session ID for this connection in this process run
+  if (runtimeSessionStore.has(connectionId)) {
+    return runtimeSessionStore.get(connectionId);
+  }
 
-    // Generate a new ID using the binary's exact logic
-    const newSessionId = generateBinaryStyleId();
+  // Generate a new ID using the binary's exact logic
+  const newSessionId = generateBinaryStyleId();
 
-    // Store it for future requests from this connection
-    runtimeSessionStore.set(connectionId, newSessionId);
+  // Store it for future requests from this connection
+  runtimeSessionStore.set(connectionId, newSessionId);
 
-    return newSessionId;
+  return newSessionId;
 }
 
 /**
@@ -55,12 +55,12 @@ export function deriveSessionId(connectionId) {
  * @returns {string} A session ID in binary format
  */
 export function generateBinaryStyleId() {
-    return crypto.randomUUID() + Date.now().toString();
+  return crypto.randomUUID() + Date.now().toString();
 }
 
 /**
  * Clears all session IDs (e.g. useful for testing or explicit reset)
  */
 export function clearSessionStore() {
-    runtimeSessionStore.clear();
+  runtimeSessionStore.clear();
 }

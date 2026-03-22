@@ -10,8 +10,17 @@ const LINUX_CERT_DIR = "/usr/local/share/ca-certificates";
 // Get SHA1 fingerprint from cert file using Node.js crypto
 function getCertFingerprint(certPath) {
   const pem = fs.readFileSync(certPath, "utf-8");
-  const der = Buffer.from(pem.replace(/-----[^-]+-----/g, "").replace(/\s/g, ""), "base64");
-  return crypto.createHash("sha1").update(der).digest("hex").toUpperCase().match(/.{2}/g).join(":");
+  const der = Buffer.from(
+    pem.replace(/-----[^-]+-----/g, "").replace(/\s/g, ""),
+    "base64",
+  );
+  return crypto
+    .createHash("sha1")
+    .update(der)
+    .digest("hex")
+    .toUpperCase()
+    .match(/.{2}/g)
+    .join(":");
 }
 
 /**
@@ -28,13 +37,19 @@ function checkCertInstalledMac(certPath) {
     try {
       const fingerprint = getCertFingerprint(certPath).replace(/:/g, "");
       // security verify-cert returns 0 only if cert is trusted by system policy
-      exec(`security verify-cert -c "${certPath}" -p ssl -k /Library/Keychains/System.keychain 2>/dev/null`, (error) => {
-        if (!error) return resolve(true);
-        // Fallback: check if fingerprint appears in System keychain with trust
-        exec(`security dump-trust-settings -d 2>/dev/null | grep -i "${fingerprint}"`, (err2, stdout2) => {
-          resolve(!err2 && !!stdout2?.trim());
-        });
-      });
+      exec(
+        `security verify-cert -c "${certPath}" -p ssl -k /Library/Keychains/System.keychain 2>/dev/null`,
+        (error) => {
+          if (!error) return resolve(true);
+          // Fallback: check if fingerprint appears in System keychain with trust
+          exec(
+            `security dump-trust-settings -d 2>/dev/null | grep -i "${fingerprint}"`,
+            (err2, stdout2) => {
+              resolve(!err2 && !!stdout2?.trim());
+            },
+          );
+        },
+      );
     } catch {
       resolve(false);
     }
@@ -44,7 +59,7 @@ function checkCertInstalledMac(certPath) {
 function checkCertInstalledWindows(certPath) {
   return new Promise((resolve) => {
     // Check Root store for our Root CA by common name
-    exec("certutil -store Root \"9Router MITM Root CA\"", (error) => {
+    exec('certutil -store Root "9Router MITM Root CA"', (error) => {
       resolve(!error);
     });
   });
@@ -79,7 +94,9 @@ async function installCertMac(sudoPassword, certPath) {
     await execWithPassword(command, sudoPassword);
     console.log(`✅ Installed certificate to system keychain: ${certPath}`);
   } catch (error) {
-    const msg = error.message?.includes("canceled") ? "User canceled authorization" : "Certificate install failed";
+    const msg = error.message?.includes("canceled")
+      ? "User canceled authorization"
+      : "Certificate install failed";
     throw new Error(msg);
   }
 }
@@ -92,9 +109,13 @@ async function installCertWindows(certPath) {
       `powershell -NonInteractive -WindowStyle Hidden -Command "${psCommand}"`,
       { windowsHide: true },
       (error) => {
-        if (error) reject(new Error(`Failed to install certificate: ${error.message}`));
-        else { console.log("✅ Installed certificate to Windows Root store"); resolve(); }
-      }
+        if (error)
+          reject(new Error(`Failed to install certificate: ${error.message}`));
+        else {
+          console.log("✅ Installed certificate to Windows Root store");
+          resolve();
+        }
+      },
     );
   });
 }
@@ -136,9 +157,15 @@ async function uninstallCertWindows() {
       `powershell -NonInteractive -WindowStyle Hidden -Command "${psCommand}"`,
       { windowsHide: true },
       (error) => {
-        if (error) reject(new Error(`Failed to uninstall certificate: ${error.message}`));
-        else { console.log("✅ Uninstalled certificate from Windows Root store"); resolve(); }
-      }
+        if (error)
+          reject(
+            new Error(`Failed to uninstall certificate: ${error.message}`),
+          );
+        else {
+          console.log("✅ Uninstalled certificate from Windows Root store");
+          resolve();
+        }
+      },
     );
   });
 }

@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 import { getProviderConnectionById } from "@/models";
-import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
+import {
+  isOpenAICompatibleProvider,
+  isAnthropicCompatibleProvider,
+} from "@/shared/constants/providers";
 import { KiroService } from "@/lib/oauth/services/kiro";
 import { GEMINI_CONFIG } from "@/lib/oauth/constants/oauth";
-import { refreshGoogleToken, updateProviderCredentials, refreshKiroToken } from "@/sse/services/tokenRefresh";
+import {
+  refreshGoogleToken,
+  updateProviderCredentials,
+  refreshKiroToken,
+} from "@/sse/services/tokenRefresh";
 
-const GEMINI_CLI_MODELS_URL = "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
+const GEMINI_CLI_MODELS_URL =
+  "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
 
 const parseOpenAIStyleModels = (data) => {
   if (Array.isArray(data)) return data;
@@ -41,7 +49,7 @@ const createOpenAIModelsConfig = (url) => ({
   headers: { "Content-Type": "application/json" },
   authHeader: "Authorization",
   authPrefix: "Bearer ",
-  parseResponse: parseOpenAIStyleModels
+  parseResponse: parseOpenAIStyleModels,
 });
 
 const resolveQwenModelsUrl = (connection) => {
@@ -63,17 +71,17 @@ const PROVIDER_MODELS_CONFIG = {
     method: "GET",
     headers: {
       "Anthropic-Version": "2023-06-01",
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
     authHeader: "x-api-key",
-    parseResponse: (data) => data.data || []
+    parseResponse: (data) => data.data || [],
   },
   gemini: {
     url: "https://generativelanguage.googleapis.com/v1beta/models",
     method: "GET",
     headers: { "Content-Type": "application/json" },
     authQuery: "key", // Use query param for API key
-    parseResponse: (data) => data.models || []
+    parseResponse: (data) => data.models || [],
   },
   qwen: {
     url: "https://portal.qwen.ai/v1/models",
@@ -81,7 +89,7 @@ const PROVIDER_MODELS_CONFIG = {
     headers: { "Content-Type": "application/json" },
     authHeader: "Authorization",
     authPrefix: "Bearer ",
-    parseResponse: (data) => data.data || []
+    parseResponse: (data) => data.data || [],
   },
   antigravity: {
     url: "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:models",
@@ -90,7 +98,7 @@ const PROVIDER_MODELS_CONFIG = {
     authHeader: "Authorization",
     authPrefix: "Bearer ",
     body: {},
-    parseResponse: (data) => data.models || []
+    parseResponse: (data) => data.models || [],
   },
   github: {
     url: "https://api.githubcopilot.com/models",
@@ -100,7 +108,7 @@ const PROVIDER_MODELS_CONFIG = {
       "Copilot-Integration-Id": "vscode-chat",
       "editor-version": "vscode/1.107.1",
       "editor-plugin-version": "copilot-chat/0.26.7",
-      "user-agent": "GitHubCopilotChat/0.26.7"
+      "user-agent": "GitHubCopilotChat/0.26.7",
     },
     authHeader: "Authorization",
     authPrefix: "Bearer ",
@@ -108,16 +116,16 @@ const PROVIDER_MODELS_CONFIG = {
       if (!data?.data) return [];
       // Filter out embeddings, non-chat models, and disabled models
       return data.data
-        .filter(m => m.capabilities?.type === "chat")
-        .filter(m => m.policy?.state !== "disabled") // Only return explicitly enabled models
-        .map(m => ({
+        .filter((m) => m.capabilities?.type === "chat")
+        .filter((m) => m.policy?.state !== "disabled") // Only return explicitly enabled models
+        .map((m) => ({
           id: m.id,
           name: m.name || m.id,
           version: m.version,
           capabilities: m.capabilities,
-          isDefault: m.model_picker_enabled === true
+          isDefault: m.model_picker_enabled === true,
         }));
-    }
+    },
   },
   openai: createOpenAIModelsConfig("https://api.openai.com/v1/models"),
   openrouter: createOpenAIModelsConfig("https://openrouter.ai/api/v1/models"),
@@ -126,10 +134,10 @@ const PROVIDER_MODELS_CONFIG = {
     method: "GET",
     headers: {
       "Anthropic-Version": "2023-06-01",
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
     authHeader: "x-api-key",
-    parseResponse: (data) => data.data || []
+    parseResponse: (data) => data.data || [],
   },
 
   alicode: {
@@ -138,7 +146,7 @@ const PROVIDER_MODELS_CONFIG = {
     headers: { "Content-Type": "application/json" },
     authHeader: "Authorization",
     authPrefix: "Bearer ",
-    parseResponse: (data) => data.data || []
+    parseResponse: (data) => data.data || [],
   },
   "alicode-intl": {
     url: "https://coding-intl.dashscope.aliyuncs.com/v1/models",
@@ -146,7 +154,7 @@ const PROVIDER_MODELS_CONFIG = {
     headers: { "Content-Type": "application/json" },
     authHeader: "Authorization",
     authPrefix: "Bearer ",
-    parseResponse: (data) => data.data || []
+    parseResponse: (data) => data.data || [],
   },
 
   // OpenAI-compatible API key providers
@@ -156,18 +164,26 @@ const PROVIDER_MODELS_CONFIG = {
   mistral: createOpenAIModelsConfig("https://api.mistral.ai/v1/models"),
   perplexity: createOpenAIModelsConfig("https://api.perplexity.ai/models"),
   together: createOpenAIModelsConfig("https://api.together.xyz/v1/models"),
-  fireworks: createOpenAIModelsConfig("https://api.fireworks.ai/inference/v1/models"),
+  fireworks: createOpenAIModelsConfig(
+    "https://api.fireworks.ai/inference/v1/models",
+  ),
   cerebras: createOpenAIModelsConfig("https://api.cerebras.ai/v1/models"),
   cohere: createOpenAIModelsConfig("https://api.cohere.ai/v1/models"),
   nebius: createOpenAIModelsConfig("https://api.studio.nebius.ai/v1/models"),
-  siliconflow: createOpenAIModelsConfig("https://api.siliconflow.com/v1/models"),
+  siliconflow: createOpenAIModelsConfig(
+    "https://api.siliconflow.com/v1/models",
+  ),
   hyperbolic: createOpenAIModelsConfig("https://api.hyperbolic.xyz/v1/models"),
   ollama: createOpenAIModelsConfig("https://ollama.com/api/tags"),
   "ollama-local": createOpenAIModelsConfig("http://localhost:11434/api/tags"),
-  nanobanana: createOpenAIModelsConfig("https://api.nanobananaapi.ai/v1/models"),
+  nanobanana: createOpenAIModelsConfig(
+    "https://api.nanobananaapi.ai/v1/models",
+  ),
   chutes: createOpenAIModelsConfig("https://llm.chutes.ai/v1/models"),
-  nvidia: createOpenAIModelsConfig("https://integrate.api.nvidia.com/v1/models"),
-  assemblyai: createOpenAIModelsConfig("https://api.assemblyai.com/v1/models")
+  nvidia: createOpenAIModelsConfig(
+    "https://integrate.api.nvidia.com/v1/models",
+  ),
+  assemblyai: createOpenAIModelsConfig("https://api.assemblyai.com/v1/models"),
 };
 
 /**
@@ -179,29 +195,38 @@ export async function GET(request, { params }) {
     const connection = await getProviderConnectionById(id);
 
     if (!connection) {
-      return NextResponse.json({ error: "Connection not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Connection not found" },
+        { status: 404 },
+      );
     }
 
     if (isOpenAICompatibleProvider(connection.provider)) {
       const baseUrl = connection.providerSpecificData?.baseUrl;
       if (!baseUrl) {
-        return NextResponse.json({ error: "No base URL configured for OpenAI compatible provider" }, { status: 400 });
+        return NextResponse.json(
+          { error: "No base URL configured for OpenAI compatible provider" },
+          { status: 400 },
+        );
       }
       const url = `${baseUrl.replace(/\/$/, "")}/models`;
       const response = await fetch(url, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${connection.apiKey}`,
+          Authorization: `Bearer ${connection.apiKey}`,
         },
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.log(`Error fetching models from ${connection.provider}:`, errorText);
+        console.log(
+          `Error fetching models from ${connection.provider}:`,
+          errorText,
+        );
         return NextResponse.json(
           { error: `Failed to fetch models: ${response.status}` },
-          { status: response.status }
+          { status: response.status },
         );
       }
 
@@ -211,14 +236,17 @@ export async function GET(request, { params }) {
       return NextResponse.json({
         provider: connection.provider,
         connectionId: connection.id,
-        models
+        models,
       });
     }
 
     if (isAnthropicCompatibleProvider(connection.provider)) {
       let baseUrl = connection.providerSpecificData?.baseUrl;
       if (!baseUrl) {
-        return NextResponse.json({ error: "No base URL configured for Anthropic compatible provider" }, { status: 400 });
+        return NextResponse.json(
+          { error: "No base URL configured for Anthropic compatible provider" },
+          { status: 400 },
+        );
       }
 
       baseUrl = baseUrl.replace(/\/$/, "");
@@ -233,16 +261,19 @@ export async function GET(request, { params }) {
           "Content-Type": "application/json",
           "x-api-key": connection.apiKey,
           "anthropic-version": "2023-06-01",
-          "Authorization": `Bearer ${connection.apiKey}`
+          Authorization: `Bearer ${connection.apiKey}`,
         },
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.log(`Error fetching models from ${connection.provider}:`, errorText);
+        console.log(
+          `Error fetching models from ${connection.provider}:`,
+          errorText,
+        );
         return NextResponse.json(
           { error: `Failed to fetch models: ${response.status}` },
-          { status: response.status }
+          { status: response.status },
         );
       }
 
@@ -252,7 +283,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({
         provider: connection.provider,
         connectionId: connection.id,
-        models
+        models,
       });
     }
 
@@ -267,16 +298,25 @@ export async function GET(request, { params }) {
 
         if (accessToken && profileArn) {
           try {
-            const models = await kiroService.listAvailableModels(accessToken, profileArn);
+            const models = await kiroService.listAvailableModels(
+              accessToken,
+              profileArn,
+            );
             return NextResponse.json({
               provider: connection.provider,
               connectionId: connection.id,
-              models
+              models,
             });
           } catch (error) {
-            if (error.message.includes("AccessDeniedException") && refreshToken) {
+            if (
+              error.message.includes("AccessDeniedException") &&
+              refreshToken
+            ) {
               console.log("Kiro token invalid/expired. Attempting refresh...");
-              const refreshed = await refreshKiroToken(refreshToken, connection.providerSpecificData);
+              const refreshed = await refreshKiroToken(
+                refreshToken,
+                connection.providerSpecificData,
+              );
 
               if (refreshed?.accessToken) {
                 await updateProviderCredentials(connection.id, {
@@ -285,11 +325,14 @@ export async function GET(request, { params }) {
                   expiresIn: refreshed.expiresIn,
                 });
 
-                const models = await kiroService.listAvailableModels(refreshed.accessToken, profileArn);
+                const models = await kiroService.listAvailableModels(
+                  refreshed.accessToken,
+                  profileArn,
+                );
                 return NextResponse.json({
                   provider: connection.provider,
                   connectionId: connection.id,
-                  models
+                  models,
                 });
               }
             }
@@ -298,7 +341,10 @@ export async function GET(request, { params }) {
         }
       } catch (error) {
         warning = `Failed to fetch Kiro models: ${error.message}`;
-        console.log("Failed to fetch Kiro models dynamically, falling back to static:", error.message);
+        console.log(
+          "Failed to fetch Kiro models dynamically, falling back to static:",
+          error.message,
+        );
       }
 
       // Return empty dynamic list so UI falls back to static provider models.
@@ -313,10 +359,14 @@ export async function GET(request, { params }) {
     if (connection.provider === "gemini-cli") {
       const { accessToken, refreshToken } = connection;
       if (!accessToken) {
-        return NextResponse.json({ error: "No valid token found" }, { status: 401 });
+        return NextResponse.json(
+          { error: "No valid token found" },
+          { status: 401 },
+        );
       }
 
-      const projectId = connection.projectId || connection.providerSpecificData?.projectId;
+      const projectId =
+        connection.projectId || connection.providerSpecificData?.projectId;
       const body = projectId ? { project: projectId } : {};
 
       const fetchModels = async (token) => {
@@ -324,11 +374,11 @@ export async function GET(request, { params }) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
             "User-Agent": "google-api-nodejs-client/9.15.1",
-            "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1"
+            "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
           },
-          body: JSON.stringify(body)
+          body: JSON.stringify(body),
         });
         return response;
       };
@@ -339,8 +389,16 @@ export async function GET(request, { params }) {
         let response = await fetchModels(accessToken);
 
         // Attempt refresh on 401/403 when refresh token exists
-        if (!response.ok && (response.status === 401 || response.status === 403) && refreshToken) {
-          const refreshed = await refreshGoogleToken(refreshToken, GEMINI_CONFIG.clientId, GEMINI_CONFIG.clientSecret);
+        if (
+          !response.ok &&
+          (response.status === 401 || response.status === 403) &&
+          refreshToken
+        ) {
+          const refreshed = await refreshGoogleToken(
+            refreshToken,
+            GEMINI_CONFIG.clientId,
+            GEMINI_CONFIG.clientSecret,
+          );
           if (refreshed?.accessToken) {
             await updateProviderCredentials(connection.id, {
               accessToken: refreshed.accessToken,
@@ -358,17 +416,23 @@ export async function GET(request, { params }) {
             return NextResponse.json({
               provider: connection.provider,
               connectionId: connection.id,
-              models
+              models,
             });
           }
         } else {
           const errorText = await response.text();
           warning = `Failed to fetch Gemini CLI models: ${response.status} ${errorText}`;
-          console.log("Failed to fetch Gemini CLI models dynamically, falling back to static:", errorText);
+          console.log(
+            "Failed to fetch Gemini CLI models dynamically, falling back to static:",
+            errorText,
+          );
         }
       } catch (error) {
         warning = `Failed to fetch Gemini CLI models: ${error.message}`;
-        console.log("Failed to fetch Gemini CLI models dynamically, falling back to static:", error.message);
+        console.log(
+          "Failed to fetch Gemini CLI models dynamically, falling back to static:",
+          error.message,
+        );
       }
 
       // Return empty dynamic list so UI falls back to static provider models.
@@ -383,15 +447,23 @@ export async function GET(request, { params }) {
     const config = PROVIDER_MODELS_CONFIG[connection.provider];
     if (!config) {
       return NextResponse.json(
-        { error: `Provider ${connection.provider} does not support models listing` },
-        { status: 400 }
+        {
+          error: `Provider ${connection.provider} does not support models listing`,
+        },
+        { status: 400 },
       );
     }
 
     // Get auth token
-    const token = connection.providerSpecificData?.copilotToken || connection.accessToken || connection.apiKey;
+    const token =
+      connection.providerSpecificData?.copilotToken ||
+      connection.accessToken ||
+      connection.apiKey;
     if (!token) {
-      return NextResponse.json({ error: "No valid token found" }, { status: 401 });
+      return NextResponse.json(
+        { error: "No valid token found" },
+        { status: 401 },
+      );
     }
 
     // Build request URL
@@ -412,7 +484,7 @@ export async function GET(request, { params }) {
     // Make request
     const fetchOptions = {
       method: config.method,
-      headers
+      headers,
     };
 
     if (config.body && config.method === "POST") {
@@ -423,10 +495,13 @@ export async function GET(request, { params }) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.log(`Error fetching models from ${connection.provider}:`, errorText);
+      console.log(
+        `Error fetching models from ${connection.provider}:`,
+        errorText,
+      );
       return NextResponse.json(
         { error: `Failed to fetch models: ${response.status}` },
-        { status: response.status }
+        { status: response.status },
       );
     }
 
@@ -436,10 +511,13 @@ export async function GET(request, { params }) {
     return NextResponse.json({
       provider: connection.provider,
       connectionId: connection.id,
-      models
+      models,
     });
   } catch (error) {
     console.log("Error fetching provider models:", error);
-    return NextResponse.json({ error: "Failed to fetch models" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch models" },
+      { status: 500 },
+    );
   }
 }

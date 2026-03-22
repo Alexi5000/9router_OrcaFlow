@@ -12,10 +12,13 @@ const GITHUB_CONFIG = {
 
 // Antigravity API config (from Quotio)
 const ANTIGRAVITY_CONFIG = {
-  quotaApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
-  loadProjectApiUrl: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+  quotaApiUrl:
+    "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
+  loadProjectApiUrl:
+    "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
   tokenUrl: "https://oauth2.googleapis.com/token",
-  clientId: "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
+  clientId:
+    "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
   clientSecret: "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",
   userAgent: getPlatformUserAgent(),
 };
@@ -75,12 +78,12 @@ function parseResetTime(resetValue) {
     }
 
     // If it's a number (Unix timestamp in milliseconds)
-    if (typeof resetValue === 'number') {
+    if (typeof resetValue === "number") {
       return new Date(resetValue).toISOString();
     }
 
     // If it's a string (ISO date or any parseable date string)
-    if (typeof resetValue === 'string') {
+    if (typeof resetValue === "string") {
       return new Date(resetValue).toISOString();
     }
 
@@ -98,20 +101,25 @@ function parseResetTime(resetValue) {
 async function getGitHubUsage(accessToken, providerSpecificData) {
   try {
     if (!accessToken) {
-      throw new Error("No GitHub access token available. Please re-authorize the connection.");
+      throw new Error(
+        "No GitHub access token available. Please re-authorize the connection.",
+      );
     }
 
     // copilot_internal/user API requires GitHub OAuth token, not copilotToken
-    const response = await fetch("https://api.github.com/copilot_internal/user", {
-      headers: {
-        "Authorization": `token ${accessToken}`,
-        "Accept": "application/json",
-        "X-GitHub-Api-Version": GITHUB_CONFIG.apiVersion,
-        "User-Agent": GITHUB_CONFIG.userAgent,
-        "Editor-Version": "vscode/1.100.0",
-        "Editor-Plugin-Version": "copilot-chat/0.26.7",
+    const response = await fetch(
+      "https://api.github.com/copilot_internal/user",
+      {
+        headers: {
+          Authorization: `token ${accessToken}`,
+          Accept: "application/json",
+          "X-GitHub-Api-Version": GITHUB_CONFIG.apiVersion,
+          "User-Agent": GITHUB_CONFIG.userAgent,
+          "Editor-Version": "vscode/1.100.0",
+          "Editor-Plugin-Version": "copilot-chat/0.26.7",
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       const error = await response.text();
@@ -131,8 +139,14 @@ async function getGitHubUsage(accessToken, providerSpecificData) {
         resetDate: data.quota_reset_date,
         quotas: {
           chat: { ...formatGitHubQuotaSnapshot(snapshots.chat), resetAt },
-          completions: { ...formatGitHubQuotaSnapshot(snapshots.completions), resetAt },
-          premium_interactions: { ...formatGitHubQuotaSnapshot(snapshots.premium_interactions), resetAt },
+          completions: {
+            ...formatGitHubQuotaSnapshot(snapshots.completions),
+            resetAt,
+          },
+          premium_interactions: {
+            ...formatGitHubQuotaSnapshot(snapshots.premium_interactions),
+            resetAt,
+          },
         },
       };
     } else if (data.monthly_quotas || data.limited_user_quotas) {
@@ -192,17 +206,24 @@ async function getGeminiUsage(accessToken) {
           Authorization: `Bearer ${accessToken}`,
           Accept: "application/json",
         },
-      }
+      },
     );
 
     if (!response.ok) {
       // Quota API may not be accessible, return generic message
-      return { message: "Gemini CLI uses Google Cloud quotas. Check Google Cloud Console for details." };
+      return {
+        message:
+          "Gemini CLI uses Google Cloud quotas. Check Google Cloud Console for details.",
+      };
     }
 
-    return { message: "Gemini CLI connected. Usage tracked via Google Cloud Console." };
+    return {
+      message: "Gemini CLI connected. Usage tracked via Google Cloud Console.",
+    };
   } catch (error) {
-    return { message: "Unable to fetch Gemini usage. Check Google Cloud Console." };
+    return {
+      message: "Unable to fetch Gemini usage. Check Google Cloud Console.",
+    };
   }
 }
 
@@ -217,11 +238,11 @@ async function getAntigravityUsage(accessToken, providerSpecificData) {
     // Fetch quota data with timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-    
+
     const response = await fetch(ANTIGRAVITY_CONFIG.quotaApiUrl, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         "User-Agent": ANTIGRAVITY_CONFIG.userAgent,
         "Content-Type": "application/json",
         "X-Client-Name": "antigravity",
@@ -229,24 +250,25 @@ async function getAntigravityUsage(accessToken, providerSpecificData) {
         "x-request-source": "local", // MITM bypass
       },
       body: JSON.stringify({
-        ...(projectId ? { project: projectId } : {})
+        ...(projectId ? { project: projectId } : {}),
       }),
       signal: controller.signal,
     });
-    
+
     clearTimeout(timeoutId);
 
     if (response.status === 403) {
       return {
         message: "Antigravity quota API access forbidden. Chat may still work.",
-        quotas: {}
+        quotas: {},
       };
     }
 
     if (response.status === 401) {
       return {
-        message: "Antigravity quota API authentication expired. Chat may still work.",
-        quotas: {}
+        message:
+          "Antigravity quota API authentication expired. Chat may still work.",
+        quotas: {},
       };
     }
 
@@ -261,12 +283,12 @@ async function getAntigravityUsage(accessToken, providerSpecificData) {
     if (data.models) {
       // Filter only recommended/important models (must match PROVIDER_MODELS ag ids)
       const importantModels = [
-        'claude-opus-4-6-thinking',
-        'claude-sonnet-4-6',
-        'gemini-3.1-pro-high',
-        'gemini-3.1-pro-low',
-        'gemini-3-flash',
-        'gpt-oss-120b-medium',
+        "claude-opus-4-6-thinking",
+        "claude-sonnet-4-6",
+        "gemini-3.1-pro-high",
+        "gemini-3.1-pro-low",
+        "gemini-3-flash",
+        "gpt-oss-120b-medium",
       ];
 
       for (const [modelKey, info] of Object.entries(data.models)) {
@@ -333,11 +355,11 @@ async function getAntigravitySubscriptionInfo(accessToken) {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-    
+
     const response = await fetch(ANTIGRAVITY_CONFIG.loadProjectApiUrl, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         "User-Agent": ANTIGRAVITY_CONFIG.userAgent,
         "Content-Type": "application/json",
         "x-request-source": "local", // MITM bypass
@@ -345,7 +367,7 @@ async function getAntigravitySubscriptionInfo(accessToken) {
       body: JSON.stringify({ metadata: CLIENT_METADATA, mode: 1 }),
       signal: controller.signal,
     });
-    
+
     clearTimeout(timeoutId);
 
     if (!response.ok) return null;
@@ -363,14 +385,17 @@ async function getAntigravitySubscriptionInfo(accessToken) {
 async function getClaudeUsage(accessToken) {
   try {
     // Try to get organization/account settings first
-    const settingsResponse = await fetch("https://api.anthropic.com/v1/settings", {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "anthropic-version": "2023-06-01",
+    const settingsResponse = await fetch(
+      "https://api.anthropic.com/v1/settings",
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "anthropic-version": "2023-06-01",
+        },
       },
-    });
+    );
 
     if (settingsResponse.ok) {
       const settings = await settingsResponse.json();
@@ -382,11 +407,11 @@ async function getClaudeUsage(accessToken) {
           {
             method: "GET",
             headers: {
-              "Authorization": `Bearer ${accessToken}`,
+              Authorization: `Bearer ${accessToken}`,
               "Content-Type": "application/json",
               "anthropic-version": "2023-06-01",
             },
-          }
+          },
         );
 
         if (usageResponse.ok) {
@@ -407,9 +432,13 @@ async function getClaudeUsage(accessToken) {
     }
 
     // If settings API fails, OAuth token may not have required scope
-    return { message: "Claude connected. Usage API requires admin permissions." };
+    return {
+      message: "Claude connected. Usage API requires admin permissions.",
+    };
   } catch (error) {
-    return { message: `Claude connected. Unable to fetch usage: ${error.message}` };
+    return {
+      message: `Claude connected. Unable to fetch usage: ${error.message}`,
+    };
   }
 }
 
@@ -421,8 +450,8 @@ async function getCodexUsage(accessToken) {
     const response = await fetch(CODEX_CONFIG.usageUrl, {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Accept": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
       },
     });
 
@@ -438,8 +467,12 @@ async function getCodexUsage(accessToken) {
     const secondaryWindow = rateLimit.secondary_window || {};
 
     // Parse reset dates (reset_at is Unix timestamp in seconds, multiply by 1000 for ms)
-    const sessionResetAt = parseResetTime(primaryWindow.reset_at ? primaryWindow.reset_at * 1000 : null);
-    const weeklyResetAt = parseResetTime(secondaryWindow.reset_at ? secondaryWindow.reset_at * 1000 : null);
+    const sessionResetAt = parseResetTime(
+      primaryWindow.reset_at ? primaryWindow.reset_at * 1000 : null,
+    );
+    const weeklyResetAt = parseResetTime(
+      secondaryWindow.reset_at ? secondaryWindow.reset_at * 1000 : null,
+    );
 
     return {
       plan: data.plan_type || "unknown",
@@ -471,7 +504,8 @@ async function getCodexUsage(accessToken) {
  */
 async function getKiroUsage(accessToken, providerSpecificData) {
   // Default profileArn fallback
-  const DEFAULT_PROFILE_ARN = "arn:aws:codewhisperer:us-east-1:638616132270:profile/AAAACCCCXXXX";
+  const DEFAULT_PROFILE_ARN =
+    "arn:aws:codewhisperer:us-east-1:638616132270:profile/AAAACCCCXXXX";
   const profileArn = providerSpecificData?.profileArn || DEFAULT_PROFILE_ARN;
 
   try {
@@ -482,16 +516,19 @@ async function getKiroUsage(accessToken, providerSpecificData) {
       resourceType: "AGENTIC_REQUEST",
     };
 
-    const response = await fetch("https://codewhisperer.us-east-1.amazonaws.com", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/x-amz-json-1.0",
-        "x-amz-target": "AmazonCodeWhispererService.GetUsageLimits",
-        "Accept": "application/json",
+    const response = await fetch(
+      "https://codewhisperer.us-east-1.amazonaws.com",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/x-amz-json-1.0",
+          "x-amz-target": "AmazonCodeWhispererService.GetUsageLimits",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-    });
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -499,8 +536,9 @@ async function getKiroUsage(accessToken, providerSpecificData) {
       // Handle authentication errors gracefully
       if (response.status === 403 || response.status === 401) {
         return {
-          message: "Kiro quota API authentication expired. Chat may still work.",
-          quotas: {}
+          message:
+            "Kiro quota API authentication expired. Chat may still work.",
+          quotas: {},
         };
       }
 
@@ -557,13 +595,16 @@ async function getKiroUsage(accessToken, providerSpecificData) {
         resourceType: "AGENTIC_REQUEST",
       });
 
-      const fallbackResponse = await fetch(`https://q.us-east-1.amazonaws.com/getUsageLimits?${params}`, {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Accept": "application/json",
+      const fallbackResponse = await fetch(
+        `https://q.us-east-1.amazonaws.com/getUsageLimits?${params}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: "application/json",
+          },
         },
-      });
+      );
 
       if (!fallbackResponse.ok) {
         throw new Error(`Fallback API error (${fallbackResponse.status})`);
@@ -574,7 +615,9 @@ async function getKiroUsage(accessToken, providerSpecificData) {
       // Parse new API response structure
       const usageList = fallbackData.usageBreakdownList || [];
       const quotaInfo = {};
-      const resetAt = parseResetTime(fallbackData.nextDateReset || fallbackData.resetDate);
+      const resetAt = parseResetTime(
+        fallbackData.nextDateReset || fallbackData.resetDate,
+      );
 
       usageList.forEach((breakdown) => {
         const resourceType = breakdown.resourceType?.toLowerCase() || "unknown";
@@ -591,8 +634,10 @@ async function getKiroUsage(accessToken, providerSpecificData) {
 
         // Add free trial if available
         if (breakdown.freeTrialInfo) {
-          const freeUsed = breakdown.freeTrialInfo.currentUsageWithPrecision || 0;
-          const freeTotal = breakdown.freeTrialInfo.usageLimitWithPrecision || 0;
+          const freeUsed =
+            breakdown.freeTrialInfo.currentUsageWithPrecision || 0;
+          const freeTotal =
+            breakdown.freeTrialInfo.usageLimitWithPrecision || 0;
 
           quotaInfo[`${resourceType}_freetrial`] = {
             used: freeUsed,
@@ -609,7 +654,9 @@ async function getKiroUsage(accessToken, providerSpecificData) {
         quotas: quotaInfo,
       };
     } catch (fallbackError) {
-      throw new Error(`Failed to fetch Kiro usage: ${error.message} | Fallback: ${fallbackError.message}`);
+      throw new Error(
+        `Failed to fetch Kiro usage: ${error.message} | Fallback: ${fallbackError.message}`,
+      );
     }
   }
 }
@@ -642,4 +689,3 @@ async function getIflowUsage(accessToken) {
     return { message: "Unable to fetch iFlow usage." };
   }
 }
-

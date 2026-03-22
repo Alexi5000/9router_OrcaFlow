@@ -24,7 +24,10 @@ function getActiveModelLock(connection, model, now = Date.now()) {
 }
 
 export function getKiloBurstStatus(connections = [], now = Date.now()) {
-  const kiloConnection = connections.find((connection) => connection.provider === "kilocode" && connection.isActive !== false);
+  const kiloConnection = connections.find(
+    (connection) =>
+      connection.provider === "kilocode" && connection.isActive !== false,
+  );
   const nextResetAt = getNextHourIso(now);
   const nextResetInMs = Math.max(new Date(nextResetAt).getTime() - now, 0);
 
@@ -50,9 +53,8 @@ export function getKiloBurstStatus(connections = [], now = Date.now()) {
 
   const lockedModels = modelStates.filter((state) => state.lockUntil);
   const availableModels = modelStates.filter((state) => !state.lockUntil);
-  const resetAt = lockedModels
-    .map((state) => state.lockUntil)
-    .sort()[0] || null;
+  const resetAt =
+    lockedModels.map((state) => state.lockUntil).sort()[0] || null;
 
   return {
     configured: true,

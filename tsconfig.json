@@ -1,0 +1,20 @@
+{
+  "extends": "./jsconfig.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "jsx": "preserve",
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "next-env.d.ts",
+    "src/**/*",
+    "open-sse/**/*",
+    "scripts/**/*",
+    "tests/**/*",
+    "watchdog.mjs"
+  ],
+  "exclude": ["node_modules", ".next", "build", "coverage", "test-results"]
+}

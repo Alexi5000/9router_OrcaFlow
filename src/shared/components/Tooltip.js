@@ -11,7 +11,9 @@ export default function Tooltip({ text, children, position = "top" }) {
   return (
     <div className="relative inline-flex group">
       {children}
-      <div className={`pointer-events-none absolute ${posClass} z-50 w-max max-w-56 rounded px-2 py-1 text-[11px] leading-snug bg-gray-900 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-normal`}>
+      <div
+        className={`pointer-events-none absolute ${posClass} z-50 w-max max-w-56 rounded px-2 py-1 text-[11px] leading-snug bg-gray-900 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-normal`}
+      >
         {text}
       </div>
     </div>

@@ -42,7 +42,7 @@ describe("model alias resolution for prefixed client models", () => {
       {
         "claude-sonnet-4-6": "combo/sonnet",
       },
-      { resolveClientPrefixedAliases: true }
+      { resolveClientPrefixedAliases: true },
     );
 
     expect(result).toEqual({

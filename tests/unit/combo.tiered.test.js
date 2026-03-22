@@ -15,7 +15,7 @@ function makeErrorResponse(status, message, retryAfter = null) {
       headers: {
         "Content-Type": "application/json",
       },
-    }
+    },
   );
 }
 
@@ -39,10 +39,7 @@ describe("tiered combo routing", () => {
         },
         {
           name: "paid-fallback",
-          models: [
-            "codex/gpt-5.4",
-            "claude/claude-sonnet-4-6",
-          ],
+          models: ["codex/gpt-5.4", "claude/claude-sonnet-4-6"],
           trafficShare: {
             "codex/gpt-5.4": 2,
             "claude/claude-sonnet-4-6": 1,

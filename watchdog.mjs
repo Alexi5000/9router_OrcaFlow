@@ -21,13 +21,25 @@ import { fileURLToPath } from "node:url";
 const BASE = "http://localhost:20128";
 const PASSWORD = process.env.INITIAL_PASSWORD || "[REDACTED-ROTATED]";
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = process.env.DATA_DIR || path.join(
-  process.env.APPDATA || path.join(process.env.USERPROFILE || "C:/Users/Admin", "AppData", "Roaming"),
-  "9router"
-);
+const DATA_DIR =
+  process.env.DATA_DIR ||
+  path.join(
+    process.env.APPDATA ||
+      path.join(
+        process.env.USERPROFILE || "C:/Users/Admin",
+        "AppData",
+        "Roaming",
+      ),
+    "9router",
+  );
 const DB_FILE = path.join(DATA_DIR, "db.json");
 const REQUEST_DETAILS_FILE = path.join(DATA_DIR, "request-details.json");
-const STANDALONE_SERVER_FILE = path.join(APP_ROOT, ".next", "standalone", "server.js");
+const STANDALONE_SERVER_FILE = path.join(
+  APP_ROOT,
+  ".next",
+  "standalone",
+  "server.js",
+);
 const MAX_LINES = 50_000; // ~50k log entries max before trim
 const execFileAsync = promisify(execFile);
 
@@ -99,7 +111,9 @@ async function ensureRouterOnline() {
       };
     }
 
-    log(`Router health check failed (${error.message}) — restarting PM2 app...`);
+    log(
+      `Router health check failed (${error.message}) — restarting PM2 app...`,
+    );
     try {
       await restartRouter();
       await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -237,7 +251,9 @@ async function run() {
   for (const conn of connections) {
     if (!conn.isActive) continue;
 
-    const lockKeys = Object.keys(conn).filter((k) => k.startsWith("modelLock_"));
+    const lockKeys = Object.keys(conn).filter((k) =>
+      k.startsWith("modelLock_"),
+    );
     const expiredLocks = lockKeys.filter((k) => {
       const val = conn[k];
       if (!val) return true; // null lock = clear it
@@ -258,7 +274,9 @@ async function run() {
 
       if (expiredLocks.length > 0) {
         clearLocksInDb(conn.id, expiredLocks);
-        log(`${provider} | cleared ${expiredLocks.length} expired lock(s): ${expiredLocks.map(k => k.replace("modelLock_","")).join(", ")}`);
+        log(
+          `${provider} | cleared ${expiredLocks.length} expired lock(s): ${expiredLocks.map((k) => k.replace("modelLock_", "")).join(", ")}`,
+        );
       }
 
       if (isStuckUnavailable) {

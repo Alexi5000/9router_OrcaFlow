@@ -13,7 +13,11 @@ const comboRoutingState = globalThis._comboRoutingState;
 
 function buildWeightedOrder(models, routingConfig, log, routingKey = null) {
   const trafficShare = routingConfig?.trafficShare;
-  if (!trafficShare || typeof trafficShare !== "object" || Array.isArray(trafficShare)) {
+  if (
+    !trafficShare ||
+    typeof trafficShare !== "object" ||
+    Array.isArray(trafficShare)
+  ) {
     return models;
   }
 
@@ -33,7 +37,8 @@ function buildWeightedOrder(models, routingConfig, log, routingKey = null) {
     return models;
   }
 
-  const comboKey = routingKey || routingConfig?.name || routingConfig?.id || models.join("|");
+  const comboKey =
+    routingKey || routingConfig?.name || routingConfig?.id || models.join("|");
   const cursor = comboRoutingState[comboKey] || 0;
   const selected = weightedModels[cursor % weightedModels.length];
   comboRoutingState[comboKey] = (cursor + 1) % weightedModels.length;
@@ -44,7 +49,7 @@ function buildWeightedOrder(models, routingConfig, log, routingKey = null) {
 
   log?.info?.(
     "COMBO",
-    `Weighted primary ${selected} (${(cursor % weightedModels.length) + 1}/${weightedModels.length})`
+    `Weighted primary ${selected} (${(cursor % weightedModels.length) + 1}/${weightedModels.length})`,
   );
 
   return ordered;
@@ -65,7 +70,9 @@ function getComboTiers(combo, models, log) {
   const tiers = configuredTiers
     .map((tier, index) => {
       const tierModels = Array.isArray(tier?.models)
-        ? tier.models.filter((model) => typeof model === "string" && model.length > 0)
+        ? tier.models.filter(
+            (model) => typeof model === "string" && model.length > 0,
+          )
         : [];
 
       if (!tierModels.length) return null;
@@ -77,7 +84,7 @@ function getComboTiers(combo, models, log) {
           tierModels,
           tier,
           log,
-          `${combo?.name || combo?.id || "combo"}:${tierName}`
+          `${combo?.name || combo?.id || "combo"}:${tierName}`,
         ),
       };
     })
@@ -104,11 +111,13 @@ function getComboTiers(combo, models, log) {
 export function getComboModelsFromData(modelStr, combosData) {
   // Don't check if it's in provider/model format
   if (modelStr.includes("/")) return null;
-  
+
   // Handle both array and object formats
-  const combos = Array.isArray(combosData) ? combosData : (combosData?.combos || []);
-  
-  const combo = combos.find(c => c.name === modelStr);
+  const combos = Array.isArray(combosData)
+    ? combosData
+    : combosData?.combos || [];
+
+  const combo = combos.find((c) => c.name === modelStr);
   if (!combo) {
     return null;
   }
@@ -118,7 +127,9 @@ export function getComboModelsFromData(modelStr, combosData) {
   }
 
   if (Array.isArray(combo.tiers)) {
-    const tierModels = combo.tiers.flatMap((tier) => Array.isArray(tier?.models) ? tier.models : []);
+    const tierModels = combo.tiers.flatMap((tier) =>
+      Array.isArray(tier?.models) ? tier.models : [],
+    );
     return tierModels.length > 0 ? tierModels : null;
   }
 
@@ -157,7 +168,10 @@ export async function handleComboChat({
 
     for (const modelStr of tier.models) {
       modelIndex += 1;
-      log.info("COMBO", `Trying model ${modelIndex}/${orderedModels.length}: ${modelStr}`);
+      log.info(
+        "COMBO",
+        `Trying model ${modelIndex}/${orderedModels.length}: ${modelStr}`,
+      );
       onModelAttempt?.({
         modelStr,
         tier,
@@ -168,9 +182,11 @@ export async function handleComboChat({
 
       try {
         const result = await handleSingleModel(body, modelStr);
-        const requestScopedFallback = result.headers?.get?.("x-9router-request-scoped-fallback") === "1";
-        const requestScopedErrorCode = result.headers?.get?.("x-9router-error-code") || null;
-      
+        const requestScopedFallback =
+          result.headers?.get?.("x-9router-request-scoped-fallback") === "1";
+        const requestScopedErrorCode =
+          result.headers?.get?.("x-9router-error-code") || null;
+
         // Success (2xx) - return response
         if (result.ok) {
           log.info("COMBO", `Model ${modelStr} succeeded`);
@@ -182,29 +198,43 @@ export async function handleComboChat({
         let retryAfter = null;
         try {
           const errorBody = await result.clone().json();
-          errorText = errorBody?.error?.message || errorBody?.error || errorBody?.message || errorText;
+          errorText =
+            errorBody?.error?.message ||
+            errorBody?.error ||
+            errorBody?.message ||
+            errorText;
           retryAfter = errorBody?.retryAfter || null;
         } catch {
           // Ignore JSON parse errors
         }
 
         // Track earliest retryAfter across all combo models
-        if (retryAfter && (!earliestRetryAfter || new Date(retryAfter) < new Date(earliestRetryAfter))) {
+        if (
+          retryAfter &&
+          (!earliestRetryAfter ||
+            new Date(retryAfter) < new Date(earliestRetryAfter))
+        ) {
           earliestRetryAfter = retryAfter;
         }
 
         // Normalize error text to string (Worker-safe)
         if (typeof errorText !== "string") {
-          try { errorText = JSON.stringify(errorText); } catch { errorText = String(errorText); }
+          try {
+            errorText = JSON.stringify(errorText);
+          } catch {
+            errorText = String(errorText);
+          }
         }
 
         // Check if should fallback to next model
         const { shouldFallback } = requestScopedFallback
           ? { shouldFallback: true }
           : checkFallbackError(result.status, errorText);
-      
+
         if (!shouldFallback) {
-          log.warn("COMBO", `Model ${modelStr} failed (no fallback)`, { status: result.status });
+          log.warn("COMBO", `Model ${modelStr} failed (no fallback)`, {
+            status: result.status,
+          });
           return result;
         }
 
@@ -220,13 +250,15 @@ export async function handleComboChat({
         // Catch unexpected exceptions to ensure fallback continues
         lastError = error.message || String(error);
         if (!lastStatus) lastStatus = 500;
-        log.warn("COMBO", `Model ${modelStr} threw error, trying next`, { error: lastError });
+        log.warn("COMBO", `Model ${modelStr} threw error, trying next`, {
+          error: lastError,
+        });
       }
     }
   }
 
   // All models failed
-  const status =  406;
+  const status = 406;
   const msg = lastError || "All combo models unavailable";
 
   if (earliestRetryAfter) {
@@ -236,8 +268,8 @@ export async function handleComboChat({
   }
 
   log.warn("COMBO", `All models failed | ${msg}`);
-  return new Response(
-    JSON.stringify({ error: { message: msg } }),
-    { status, headers: { "Content-Type": "application/json" } }
-  );
+  return new Response(JSON.stringify({ error: { message: msg } }), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }

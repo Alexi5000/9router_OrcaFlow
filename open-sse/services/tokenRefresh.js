@@ -1,4 +1,8 @@
-import { PROVIDERS, OAUTH_ENDPOINTS, GITHUB_COPILOT } from "../config/constants.js";
+import {
+  PROVIDERS,
+  OAUTH_ENDPOINTS,
+  GITHUB_COPILOT,
+} from "../config/constants.js";
 
 // Token expiry buffer (refresh if expires within 5 minutes)
 export const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
@@ -6,16 +10,27 @@ export const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 /**
  * Refresh OAuth access token using refresh token
  */
-export async function refreshAccessToken(provider, refreshToken, credentials, log) {
+export async function refreshAccessToken(
+  provider,
+  refreshToken,
+  credentials,
+  log,
+) {
   const config = PROVIDERS[provider];
 
   if (!config || !config.refreshUrl) {
-    log?.warn?.("TOKEN_REFRESH", `No refresh URL configured for provider: ${provider}`);
+    log?.warn?.(
+      "TOKEN_REFRESH",
+      `No refresh URL configured for provider: ${provider}`,
+    );
     return null;
   }
 
   if (!refreshToken) {
-    log?.warn?.("TOKEN_REFRESH", `No refresh token available for provider: ${provider}`);
+    log?.warn?.(
+      "TOKEN_REFRESH",
+      `No refresh token available for provider: ${provider}`,
+    );
     return null;
   }
 
@@ -45,11 +60,15 @@ export async function refreshAccessToken(provider, refreshToken, credentials, lo
 
     const tokens = await response.json();
 
-    log?.info?.("TOKEN_REFRESH", `Successfully refreshed token for ${provider}`, {
-      hasNewAccessToken: !!tokens.access_token,
-      hasNewRefreshToken: !!tokens.refresh_token,
-      expiresIn: tokens.expires_in,
-    });
+    log?.info?.(
+      "TOKEN_REFRESH",
+      `Successfully refreshed token for ${provider}`,
+      {
+        hasNewAccessToken: !!tokens.access_token,
+        hasNewRefreshToken: !!tokens.refresh_token,
+        expiresIn: tokens.expires_in,
+      },
+    );
 
     return {
       accessToken: tokens.access_token,
@@ -108,7 +127,12 @@ export async function refreshClaudeOAuthToken(refreshToken, log) {
 /**
  * Specialized refresh for Google providers (Gemini, Antigravity)
  */
-export async function refreshGoogleToken(refreshToken, clientId, clientSecret, log) {
+export async function refreshGoogleToken(
+  refreshToken,
+  clientId,
+  clientSecret,
+  log,
+) {
   const response = await fetch(OAUTH_ENDPOINTS.google.token, {
     method: "POST",
     headers: {
@@ -247,7 +271,11 @@ export async function refreshCodexToken(refreshToken, log) {
  * Specialized refresh for Kiro (AWS CodeWhisperer) tokens
  * Supports both AWS SSO OIDC (Builder ID/IDC) and Social Auth (Google/GitHub)
  */
-export async function refreshKiroToken(refreshToken, providerSpecificData, log) {
+export async function refreshKiroToken(
+  refreshToken,
+  providerSpecificData,
+  log,
+) {
   const authMethod = providerSpecificData?.authMethod;
   const clientId = providerSpecificData?.clientId;
   const clientSecret = providerSpecificData?.clientSecret;
@@ -257,9 +285,10 @@ export async function refreshKiroToken(refreshToken, providerSpecificData, log) 
   // If clientId and clientSecret exist, assume AWS SSO OIDC (default to builder-id if authMethod not specified)
   if (clientId && clientSecret) {
     const isIDC = authMethod === "idc";
-    const endpoint = isIDC && region
-      ? `https://oidc.${region}.amazonaws.com/token`
-      : "https://oidc.us-east-1.amazonaws.com/token";
+    const endpoint =
+      isIDC && region
+        ? `https://oidc.${region}.amazonaws.com/token`
+        : "https://oidc.us-east-1.amazonaws.com/token";
 
     const response = await fetch(endpoint, {
       method: "POST",
@@ -338,7 +367,9 @@ export async function refreshKiroToken(refreshToken, providerSpecificData, log) 
  * Specialized refresh for iFlow OAuth tokens
  */
 export async function refreshIflowToken(refreshToken, log) {
-  const basicAuth = btoa(`${PROVIDERS.iflow.clientId}:${PROVIDERS.iflow.clientSecret}`);
+  const basicAuth = btoa(
+    `${PROVIDERS.iflow.clientId}:${PROVIDERS.iflow.clientSecret}`,
+  );
 
   const response = await fetch(OAUTH_ENDPOINTS.iflow.token, {
     method: "POST",
@@ -426,22 +457,25 @@ export async function refreshGitHubToken(refreshToken, log) {
  */
 export async function refreshCopilotToken(githubAccessToken, log) {
   try {
-    const response = await fetch("https://api.github.com/copilot_internal/v2/token", {
-      headers: {
-        "Authorization": `token ${githubAccessToken}`,
-        "User-Agent": GITHUB_COPILOT.USER_AGENT,
-        "Editor-Version": `vscode/${GITHUB_COPILOT.VSCODE_VERSION}`,
-        "Editor-Plugin-Version": `copilot-chat/${GITHUB_COPILOT.COPILOT_CHAT_VERSION}`,
-        "Accept": "application/json",
-        "x-github-api-version": GITHUB_COPILOT.API_VERSION
-      }
-    });
+    const response = await fetch(
+      "https://api.github.com/copilot_internal/v2/token",
+      {
+        headers: {
+          Authorization: `token ${githubAccessToken}`,
+          "User-Agent": GITHUB_COPILOT.USER_AGENT,
+          "Editor-Version": `vscode/${GITHUB_COPILOT.VSCODE_VERSION}`,
+          "Editor-Plugin-Version": `copilot-chat/${GITHUB_COPILOT.COPILOT_CHAT_VERSION}`,
+          Accept: "application/json",
+          "x-github-api-version": GITHUB_COPILOT.API_VERSION,
+        },
+      },
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
       log?.error?.("TOKEN_REFRESH", "Failed to refresh Copilot token", {
         status: response.status,
-        error: errorText
+        error: errorText,
       });
       return null;
     }
@@ -450,16 +484,16 @@ export async function refreshCopilotToken(githubAccessToken, log) {
 
     log?.info?.("TOKEN_REFRESH", "Successfully refreshed Copilot token", {
       hasToken: !!data.token,
-      expiresAt: data.expires_at
+      expiresAt: data.expires_at,
     });
 
     return {
       token: data.token,
-      expiresAt: data.expires_at
+      expiresAt: data.expires_at,
     };
   } catch (error) {
     log?.error?.("TOKEN_REFRESH", "Error refreshing Copilot token", {
-      error: error.message
+      error: error.message,
     });
     return null;
   }
@@ -470,7 +504,10 @@ export async function refreshCopilotToken(githubAccessToken, log) {
  */
 export async function getAccessToken(provider, credentials, log) {
   if (!credentials || !credentials.refreshToken) {
-    log?.warn?.("TOKEN_REFRESH", `No refresh token available for provider: ${provider}`);
+    log?.warn?.(
+      "TOKEN_REFRESH",
+      `No refresh token available for provider: ${provider}`,
+    );
     return null;
   }
 
@@ -482,7 +519,7 @@ export async function getAccessToken(provider, credentials, log) {
         credentials.refreshToken,
         PROVIDERS[provider].clientId,
         PROVIDERS[provider].clientSecret,
-        log
+        log,
       );
 
     case "claude":
@@ -504,11 +541,14 @@ export async function getAccessToken(provider, credentials, log) {
       return await refreshKiroToken(
         credentials.refreshToken,
         credentials.providerSpecificData,
-        log
+        log,
       );
 
     default:
-      log?.warn?.("TOKEN_REFRESH", `Unsupported provider for token refresh: ${provider}`);
+      log?.warn?.(
+        "TOKEN_REFRESH",
+        `Unsupported provider for token refresh: ${provider}`,
+      );
       return null;
   }
 }
@@ -526,7 +566,7 @@ export async function refreshTokenByProvider(provider, credentials, log) {
         credentials.refreshToken,
         PROVIDERS[provider].clientId,
         PROVIDERS[provider].clientSecret,
-        log
+        log,
       );
     case "claude":
       return refreshClaudeOAuthToken(credentials.refreshToken, log);
@@ -542,10 +582,15 @@ export async function refreshTokenByProvider(provider, credentials, log) {
       return refreshKiroToken(
         credentials.refreshToken,
         credentials.providerSpecificData,
-        log
+        log,
       );
     default:
-      return refreshAccessToken(provider, credentials.refreshToken, credentials, log);
+      return refreshAccessToken(
+        provider,
+        credentials.refreshToken,
+        credentials,
+        log,
+      );
   }
 }
 
@@ -555,7 +600,10 @@ export async function refreshTokenByProvider(provider, credentials, log) {
 export function formatProviderCredentials(provider, credentials, log) {
   const config = PROVIDERS[provider];
   if (!config) {
-    log?.warn?.("TOKEN_REFRESH", `No configuration found for provider: ${provider}`);
+    log?.warn?.(
+      "TOKEN_REFRESH",
+      `No configuration found for provider: ${provider}`,
+    );
     return null;
   }
 
@@ -564,13 +612,13 @@ export function formatProviderCredentials(provider, credentials, log) {
       return {
         apiKey: credentials.apiKey,
         accessToken: credentials.accessToken,
-        projectId: credentials.projectId
+        projectId: credentials.projectId,
       };
 
     case "claude":
       return {
         apiKey: credentials.apiKey,
-        accessToken: credentials.accessToken
+        accessToken: credentials.accessToken,
       };
 
     case "codex":
@@ -580,7 +628,7 @@ export function formatProviderCredentials(provider, credentials, log) {
     case "openrouter":
       return {
         apiKey: credentials.apiKey,
-        accessToken: credentials.accessToken
+        accessToken: credentials.accessToken,
       };
 
     case "antigravity":
@@ -588,14 +636,14 @@ export function formatProviderCredentials(provider, credentials, log) {
       return {
         accessToken: credentials.accessToken,
         refreshToken: credentials.refreshToken,
-        projectId: credentials.projectId
+        projectId: credentials.projectId,
       };
 
     default:
       return {
         apiKey: credentials.apiKey,
         accessToken: credentials.accessToken,
-        refreshToken: credentials.refreshToken
+        refreshToken: credentials.refreshToken,
       };
   }
 }
@@ -609,9 +657,13 @@ export async function getAllAccessTokens(userInfo, log) {
   if (userInfo.connections && Array.isArray(userInfo.connections)) {
     for (const connection of userInfo.connections) {
       if (connection.isActive && connection.provider) {
-        const token = await getAccessToken(connection.provider, {
-          refreshToken: connection.refreshToken
-        }, log);
+        const token = await getAccessToken(
+          connection.provider,
+          {
+            refreshToken: connection.refreshToken,
+          },
+          log,
+        );
 
         if (token) {
           results[connection.provider] = token;
@@ -635,19 +687,24 @@ export async function refreshWithRetry(refreshFn, maxRetries = 3, log = null) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     if (attempt > 0) {
       const delay = attempt * 1000;
-      log?.debug?.("TOKEN_REFRESH", `Retry ${attempt}/${maxRetries} after ${delay}ms`);
-      await new Promise(r => setTimeout(r, delay));
+      log?.debug?.(
+        "TOKEN_REFRESH",
+        `Retry ${attempt}/${maxRetries} after ${delay}ms`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
     }
 
     try {
       const result = await refreshFn();
       if (result) return result;
     } catch (error) {
-      log?.warn?.("TOKEN_REFRESH", `Attempt ${attempt + 1}/${maxRetries} failed: ${error.message}`);
+      log?.warn?.(
+        "TOKEN_REFRESH",
+        `Attempt ${attempt + 1}/${maxRetries} failed: ${error.message}`,
+      );
     }
   }
 
   log?.error?.("TOKEN_REFRESH", `All ${maxRetries} retry attempts failed`);
   return null;
 }
-

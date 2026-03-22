@@ -4,7 +4,7 @@ const LOG_LEVELS = {
   DEBUG: 0,
   INFO: 1,
   WARN: 2,
-  ERROR: 3
+  ERROR: 3,
 };
 
 const LEVEL = LOG_LEVELS.INFO;
@@ -16,18 +16,24 @@ const COLORS = {
   green: "\x1b[32m",
   yellow: "\x1b[33m",
   blue: "\x1b[34m",
-  cyan: "\x1b[36m"
+  cyan: "\x1b[36m",
 };
 
 function formatTime() {
-  return new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
+  return new Date().toLocaleTimeString("en-US", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function formatInline(data) {
   if (!data) return "";
   if (typeof data === "string") return data;
   try {
-    return Object.entries(data).map(([k, v]) => `${k}=${v}`).join(" | ");
+    return Object.entries(data)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(" | ");
   } catch {
     return String(data);
   }
@@ -50,14 +56,18 @@ export function info(tag, message, data) {
 export function warn(tag, message, data) {
   if (LEVEL <= LOG_LEVELS.WARN) {
     const extra = data ? ` | ${formatInline(data)}` : "";
-    console.warn(`${COLORS.yellow}[${formatTime()}] ⚠️  [${tag}] ${message}${extra}${COLORS.reset}`);
+    console.warn(
+      `${COLORS.yellow}[${formatTime()}] ⚠️  [${tag}] ${message}${extra}${COLORS.reset}`,
+    );
   }
 }
 
 export function error(tag, message, data) {
   if (LEVEL <= LOG_LEVELS.ERROR) {
     const extra = data ? ` | ${formatInline(data)}` : "";
-    console.error(`${COLORS.red}[${formatTime()}] ❌ [${tag}] ${message}${extra}${COLORS.reset}`);
+    console.error(
+      `${COLORS.red}[${formatTime()}] ❌ [${tag}] ${message}${extra}${COLORS.reset}`,
+    );
   }
 }
 

@@ -35,7 +35,10 @@ export async function GET() {
     });
   } catch (error) {
     console.log("Error getting MITM status:", error.message);
-    return NextResponse.json({ error: "Failed to get MITM status" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to get MITM status" },
+      { status: 500 },
+    );
   }
 }
 
@@ -43,22 +46,30 @@ export async function GET() {
 export async function POST(request) {
   try {
     const { apiKey, sudoPassword } = await request.json();
-    const pwd = getPassword(sudoPassword) || await loadEncryptedPassword() || "";
+    const pwd =
+      getPassword(sudoPassword) || (await loadEncryptedPassword()) || "";
 
     if (!apiKey || (!isWin && !pwd)) {
       return NextResponse.json(
         { error: isWin ? "Missing apiKey" : "Missing apiKey or sudoPassword" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const result = await startServer(apiKey, pwd);
     if (!isWin) setCachedPassword(pwd);
 
-    return NextResponse.json({ success: true, running: result.running, pid: result.pid });
+    return NextResponse.json({
+      success: true,
+      running: result.running,
+      pid: result.pid,
+    });
   } catch (error) {
     console.log("Error starting MITM server:", error.message);
-    return NextResponse.json({ error: error.message || "Failed to start MITM server" }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Failed to start MITM server" },
+      { status: 500 },
+    );
   }
 }
 
@@ -67,10 +78,14 @@ export async function DELETE(request) {
   try {
     const body = await request.json().catch(() => ({}));
     const { sudoPassword } = body;
-    const pwd = getPassword(sudoPassword) || await loadEncryptedPassword() || "";
+    const pwd =
+      getPassword(sudoPassword) || (await loadEncryptedPassword()) || "";
 
     if (!isWin && !pwd) {
-      return NextResponse.json({ error: "Missing sudoPassword" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing sudoPassword" },
+        { status: 400 },
+      );
     }
 
     await stopServer(pwd);
@@ -79,7 +94,10 @@ export async function DELETE(request) {
     return NextResponse.json({ success: true, running: false });
   } catch (error) {
     console.log("Error stopping MITM server:", error.message);
-    return NextResponse.json({ error: error.message || "Failed to stop MITM server" }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Failed to stop MITM server" },
+      { status: 500 },
+    );
   }
 }
 
@@ -87,13 +105,20 @@ export async function DELETE(request) {
 export async function PATCH(request) {
   try {
     const { tool, action, sudoPassword } = await request.json();
-    const pwd = getPassword(sudoPassword) || await loadEncryptedPassword() || "";
+    const pwd =
+      getPassword(sudoPassword) || (await loadEncryptedPassword()) || "";
 
     if (!tool || !action) {
-      return NextResponse.json({ error: "tool and action required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "tool and action required" },
+        { status: 400 },
+      );
     }
     if (!isWin && !pwd) {
-      return NextResponse.json({ error: "Missing sudoPassword" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing sudoPassword" },
+        { status: 400 },
+      );
     }
 
     if (action === "enable") {
@@ -101,7 +126,10 @@ export async function PATCH(request) {
     } else if (action === "disable") {
       await disableToolDNS(tool, pwd);
     } else {
-      return NextResponse.json({ error: "action must be enable or disable" }, { status: 400 });
+      return NextResponse.json(
+        { error: "action must be enable or disable" },
+        { status: 400 },
+      );
     }
 
     if (!isWin && sudoPassword) setCachedPassword(sudoPassword);
@@ -110,6 +138,9 @@ export async function PATCH(request) {
     return NextResponse.json({ success: true, dnsStatus: status.dnsStatus });
   } catch (error) {
     console.log("Error toggling DNS:", error.message);
-    return NextResponse.json({ error: error.message || "Failed to toggle DNS" }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Failed to toggle DNS" },
+      { status: 500 },
+    );
   }
 }

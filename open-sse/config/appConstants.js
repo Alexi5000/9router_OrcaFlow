@@ -22,7 +22,7 @@ export const IDE_TYPE = {
   UNSPECIFIED: 0,
   JETSKI: 10,
   ANTIGRAVITY: 9,
-  PLUGINS: 7
+  PLUGINS: 7,
 };
 
 export const PLATFORM = {
@@ -31,20 +31,26 @@ export const PLATFORM = {
   DARWIN_ARM64: 2,
   LINUX_AMD64: 3,
   LINUX_ARM64: 4,
-  WINDOWS_AMD64: 5
+  WINDOWS_AMD64: 5,
 };
 
 export const PLUGIN_TYPE = {
   UNSPECIFIED: 0,
   CLOUD_CODE: 1,
-  GEMINI: 2
+  GEMINI: 2,
 };
 
 export function getPlatformEnum() {
   const os = platform();
   const architecture = arch();
-  if (os === "darwin") return architecture === "arm64" ? PLATFORM.DARWIN_ARM64 : PLATFORM.DARWIN_AMD64;
-  if (os === "linux") return architecture === "arm64" ? PLATFORM.LINUX_ARM64 : PLATFORM.LINUX_AMD64;
+  if (os === "darwin")
+    return architecture === "arm64"
+      ? PLATFORM.DARWIN_ARM64
+      : PLATFORM.DARWIN_AMD64;
+  if (os === "linux")
+    return architecture === "arm64"
+      ? PLATFORM.LINUX_ARM64
+      : PLATFORM.LINUX_AMD64;
   if (os === "win32") return PLATFORM.WINDOWS_AMD64;
   return PLATFORM.UNSPECIFIED;
 }
@@ -56,23 +62,27 @@ export function getPlatformUserAgent() {
 export const CLIENT_METADATA = {
   ideType: IDE_TYPE.ANTIGRAVITY,
   platform: getPlatformEnum(),
-  pluginType: PLUGIN_TYPE.GEMINI
+  pluginType: PLUGIN_TYPE.GEMINI,
 };
 
 // Internal anti-loop header
-export const INTERNAL_REQUEST_HEADER = { name: "x-request-source", value: "local" };
+export const INTERNAL_REQUEST_HEADER = {
+  name: "x-request-source",
+  value: "local",
+};
 
 // Antigravity chat/stream headers
 export const ANTIGRAVITY_HEADERS = {
   "X-Client-Name": "antigravity",
   "X-Client-Version": "1.107.0",
   "x-goog-api-client": "gl-node/18.18.2 fire/0.8.6 grpc/1.10.x",
-  "User-Agent": "antigravity/1.107.0 darwin/arm64"
+  "User-Agent": "antigravity/1.107.0 darwin/arm64",
 };
 
 // Cloud Code Assist API
 export const CLOUD_CODE_API = {
-  loadCodeAssist: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+  loadCodeAssist:
+    "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
   onboardUser: "https://cloudcode-pa.googleapis.com/v1internal:onboardUser",
 };
 
@@ -80,7 +90,11 @@ export const LOAD_CODE_ASSIST_HEADERS = {
   "Content-Type": "application/json",
   "User-Agent": "google-api-nodejs-client/9.15.1",
   "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
-  "Client-Metadata": JSON.stringify({ ideType: "IDE_UNSPECIFIED", platform: "PLATFORM_UNSPECIFIED", pluginType: "GEMINI" }),
+  "Client-Metadata": JSON.stringify({
+    ideType: "IDE_UNSPECIFIED",
+    platform: "PLATFORM_UNSPECIFIED",
+    pluginType: "GEMINI",
+  }),
 };
 
 export const LOAD_CODE_ASSIST_METADATA = {
@@ -90,36 +104,38 @@ export const LOAD_CODE_ASSIST_METADATA = {
 };
 
 // System prompts
-export const CLAUDE_SYSTEM_PROMPT = "You are a Claude agent, built on Anthropic's Claude Agent SDK.";
-export const ANTIGRAVITY_DEFAULT_SYSTEM = "You are Antigravity, a powerful agentic AI coding assistant designed by the Google Deepmind team working on Advanced Agentic Coding.You are pair programming with a USER to solve their coding task. The task may require creating a new codebase, modifying or debugging an existing codebase, or simply answering a question.**Absolute paths only****Proactiveness**";
+export const CLAUDE_SYSTEM_PROMPT =
+  "You are a Claude agent, built on Anthropic's Claude Agent SDK.";
+export const ANTIGRAVITY_DEFAULT_SYSTEM =
+  "You are Antigravity, a powerful agentic AI coding assistant designed by the Google Deepmind team working on Advanced Agentic Coding.You are pair programming with a USER to solve their coding task. The task may require creating a new codebase, modifying or debugging an existing codebase, or simply answering a question.**Absolute paths only****Proactiveness**";
 
 // OAuth endpoints
 export const OAUTH_ENDPOINTS = {
   google: {
     token: "https://oauth2.googleapis.com/token",
-    auth: "https://accounts.google.com/o/oauth2/auth"
+    auth: "https://accounts.google.com/o/oauth2/auth",
   },
   openai: {
     token: "https://auth.openai.com/oauth/token",
-    auth: "https://auth.openai.com/oauth/authorize"
+    auth: "https://auth.openai.com/oauth/authorize",
   },
   anthropic: {
     token: "https://api.anthropic.com/v1/oauth/token",
-    auth: "https://api.anthropic.com/v1/oauth/authorize"
+    auth: "https://api.anthropic.com/v1/oauth/authorize",
   },
   qwen: {
     token: "https://chat.qwen.ai/api/v1/oauth2/token",
-    auth: "https://chat.qwen.ai/api/v1/oauth2/device/code"
+    auth: "https://chat.qwen.ai/api/v1/oauth2/device/code",
   },
   iflow: {
     token: "https://iflow.cn/oauth/token",
-    auth: "https://iflow.cn/oauth"
+    auth: "https://iflow.cn/oauth",
   },
   github: {
     token: "https://github.com/login/oauth/access_token",
     auth: "https://github.com/login/oauth/authorize",
-    deviceCode: "https://github.com/login/device/code"
-  }
+    deviceCode: "https://github.com/login/device/code",
+  },
 };
 
 // Generate Kimi OAuth custom headers
@@ -127,7 +143,10 @@ export function buildKimiHeaders() {
   return {
     "X-Msh-Platform": "9router",
     "X-Msh-Version": "2.1.2",
-    "X-Msh-Device-Model": typeof process !== "undefined" ? `${process.platform} ${process.arch}` : "unknown",
-    "X-Msh-Device-Id": `kimi-${Date.now()}`
+    "X-Msh-Device-Model":
+      typeof process !== "undefined"
+        ? `${process.platform} ${process.arch}`
+        : "unknown",
+    "X-Msh-Device-Id": `kimi-${Date.now()}`,
   };
 }

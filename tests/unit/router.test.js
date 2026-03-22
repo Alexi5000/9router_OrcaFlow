@@ -23,10 +23,12 @@ describe("Combo Resolution", () => {
           object: "chat.completion",
           created: Date.now(),
           model: "anthropic/claude-sonnet-4",
-          choices: [{
-            message: { role: "assistant", content: "Hello!" },
-            finish_reason: "stop",
-          }],
+          choices: [
+            {
+              message: { role: "assistant", content: "Hello!" },
+              finish_reason: "stop",
+            },
+          ],
           usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
         }),
       });
@@ -54,10 +56,12 @@ describe("Combo Resolution", () => {
           object: "chat.completion",
           created: Date.now(),
           model: "anthropic/claude-sonnet-4",
-          choices: [{
-            message: { role: "assistant", content: "Hello!" },
-            finish_reason: "stop",
-          }],
+          choices: [
+            {
+              message: { role: "assistant", content: "Hello!" },
+              finish_reason: "stop",
+            },
+          ],
           usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
         }),
       });
@@ -83,10 +87,12 @@ describe("Combo Resolution", () => {
           object: "chat.completion",
           created: Date.now(),
           model: "llama-3.3-70b-versatile",
-          choices: [{
-            message: { role: "assistant", content: "Hello!" },
-            finish_reason: "stop",
-          }],
+          choices: [
+            {
+              message: { role: "assistant", content: "Hello!" },
+              finish_reason: "stop",
+            },
+          ],
           usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
         }),
       });
@@ -112,10 +118,12 @@ describe("Combo Resolution", () => {
           object: "chat.completion",
           created: Date.now(),
           model: "anthropic/claude-sonnet-4",
-          choices: [{
-            message: { role: "assistant", content: "Hello!" },
-            finish_reason: "stop",
-          }],
+          choices: [
+            {
+              message: { role: "assistant", content: "Hello!" },
+              finish_reason: "stop",
+            },
+          ],
           usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
         }),
       });
@@ -141,10 +149,12 @@ describe("Combo Resolution", () => {
           object: "chat.completion",
           created: Date.now(),
           model: "deepseek/deepseek-chat",
-          choices: [{
-            message: { role: "assistant", content: "Hello!" },
-            finish_reason: "stop",
-          }],
+          choices: [
+            {
+              message: { role: "assistant", content: "Hello!" },
+              finish_reason: "stop",
+            },
+          ],
           usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
         }),
       });
@@ -172,10 +182,12 @@ describe("Combo Resolution", () => {
           object: "chat.completion",
           created: Date.now(),
           model: "llama-3.3-70b-versatile",
-          choices: [{
-            message: { role: "assistant", content: "Hello!" },
-            finish_reason: "stop",
-          }],
+          choices: [
+            {
+              message: { role: "assistant", content: "Hello!" },
+              finish_reason: "stop",
+            },
+          ],
           usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
         }),
       });
@@ -201,10 +213,12 @@ describe("Combo Resolution", () => {
           object: "chat.completion",
           created: Date.now(),
           model: "anthropic/claude-sonnet-4",
-          choices: [{
-            message: { role: "assistant", content: "Hello!" },
-            finish_reason: "stop",
-          }],
+          choices: [
+            {
+              message: { role: "assistant", content: "Hello!" },
+              finish_reason: "stop",
+            },
+          ],
           usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
         }),
       });
@@ -230,10 +244,12 @@ describe("Combo Resolution", () => {
           object: "chat.completion",
           created: Date.now(),
           model: "deepseek/deepseek-r1",
-          choices: [{
-            message: { role: "assistant", content: "Hello!" },
-            finish_reason: "stop",
-          }],
+          choices: [
+            {
+              message: { role: "assistant", content: "Hello!" },
+              finish_reason: "stop",
+            },
+          ],
           usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
         }),
       });
@@ -458,14 +474,16 @@ describe("Response Transformation", () => {
         object: "chat.completion",
         created: 1234567890,
         model: "llama-3.3-70b-versatile",
-        choices: [{
-          index: 0,
-          message: {
-            role: "assistant",
-            content: "Hello, I'm working!",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: "Hello, I'm working!",
+            },
+            finish_reason: "stop",
           },
-          finish_reason: "stop",
-        }],
+        ],
         usage: {
           prompt_tokens: 10,
           completion_tokens: 5,
@@ -486,7 +504,7 @@ describe("Response Transformation", () => {
 
     expect(res.ok).toBe(true);
     const data = await res.json();
-    
+
     expect(data.id).toBeDefined();
     expect(data.object).toBe("chat.completion");
     expect(data.created).toBeDefined();
@@ -501,8 +519,12 @@ describe("Response Transformation", () => {
   it("should handle streaming response transformation", async () => {
     const mockStream = new ReadableStream({
       start(controller) {
-        controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n'));
-        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+        controller.enqueue(
+          new TextEncoder().encode(
+            'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n',
+          ),
+        );
+        controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
         controller.close();
       },
     });

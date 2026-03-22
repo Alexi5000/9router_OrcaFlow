@@ -1,8 +1,16 @@
 // CF headers to remove
 const CF_HEADERS = [
-  "cf-connecting-ip", "cf-connecting-ip6", "cf-ray", "cf-visitor",
-  "cf-ipcountry", "cf-tracking-id", "cf-connecting-ip6-policy",
-  "x-real-ip", "x-forwarded-for", "x-forwarded-proto", "x-forwarded-host"
+  "cf-connecting-ip",
+  "cf-connecting-ip6",
+  "cf-ray",
+  "cf-visitor",
+  "cf-ipcountry",
+  "cf-tracking-id",
+  "cf-connecting-ip6-policy",
+  "x-real-ip",
+  "x-forwarded-for",
+  "x-forwarded-proto",
+  "x-forwarded-host",
 ];
 
 // Forward request to any endpoint
@@ -11,11 +19,11 @@ export async function handleForward(request) {
     const url = new URL(request.url);
     const clientIp = request.headers.get("CF-Connecting-IP") || "";
     const { targetUrl, headers = {}, body } = await request.json();
-    
+
     if (!targetUrl) {
       return new Response(JSON.stringify({ error: "targetUrl is required" }), {
         status: 400,
-        headers: { "Content-Type": "application/json" }
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -41,9 +49,9 @@ export async function handleForward(request) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...cleanHeaders
+        ...cleanHeaders,
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
 
     // Use fetch with cf options to minimize auto-added headers
@@ -53,23 +61,24 @@ export async function handleForward(request) {
         scrapeShield: false,
         minify: false,
         mirage: false,
-        polish: "off"
-      }
+        polish: "off",
+      },
     });
 
     // Stream response back to client
     return new Response(response.body, {
       status: response.status,
       headers: {
-        "Content-Type": response.headers.get("Content-Type") || "application/json",
-        "Access-Control-Allow-Origin": "*"
-      }
+        "Content-Type":
+          response.headers.get("Content-Type") || "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
     });
   } catch (error) {
     console.error("[FORWARD] Error:", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { "Content-Type": "application/json" }
+      headers: { "Content-Type": "application/json" },
     });
   }
 }

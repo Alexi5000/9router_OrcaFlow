@@ -1,6 +1,12 @@
 import crypto from "crypto";
 import { BaseExecutor } from "./base.js";
-import { PROVIDERS, OAUTH_ENDPOINTS, HTTP_STATUS, ANTIGRAVITY_HEADERS, INTERNAL_REQUEST_HEADER } from "../config/constants.js";
+import {
+  PROVIDERS,
+  OAUTH_ENDPOINTS,
+  HTTP_STATUS,
+  ANTIGRAVITY_HEADERS,
+  INTERNAL_REQUEST_HEADER,
+} from "../config/constants.js";
 import { deriveSessionId } from "../utils/sessionManager.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 
@@ -10,9 +16,9 @@ const MAX_RETRY_AFTER_MS = 10000;
 // The antigravity endpoint is an internal Google API — high-volume or concurrent
 // access from the same token is the most likely cause of account suspension.
 const SELF_RATE_LIMIT = {
-  MAX_PER_HOUR: 80,        // Max requests per account per hour
-  MIN_GAP_MS: 5000,        // Minimum ms between consecutive requests per account
-  WINDOW_MS: 60 * 60 * 1000
+  MAX_PER_HOUR: 80, // Max requests per account per hour
+  MIN_GAP_MS: 5000, // Minimum ms between consecutive requests per account
+  WINDOW_MS: 60 * 60 * 1000,
 };
 
 export class AntigravityExecutor extends BaseExecutor {
@@ -41,7 +47,7 @@ export class AntigravityExecutor extends BaseExecutor {
     // Prune timestamps outside the rolling window
     const timestamps = AntigravityExecutor.requestTracker
       .get(key)
-      .filter(ts => now - ts < SELF_RATE_LIMIT.WINDOW_MS);
+      .filter((ts) => now - ts < SELF_RATE_LIMIT.WINDOW_MS);
     AntigravityExecutor.requestTracker.set(key, timestamps);
 
     if (timestamps.length >= SELF_RATE_LIMIT.MAX_PER_HOUR) {
@@ -70,12 +76,14 @@ export class AntigravityExecutor extends BaseExecutor {
   buildHeaders(credentials, stream = true, sessionId = null) {
     return {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${credentials.accessToken}`,
-      "User-Agent": this.config.headers?.["User-Agent"] || ANTIGRAVITY_HEADERS['User-Agent'],
+      Authorization: `Bearer ${credentials.accessToken}`,
+      "User-Agent":
+        this.config.headers?.["User-Agent"] ||
+        ANTIGRAVITY_HEADERS["User-Agent"],
       [INTERNAL_REQUEST_HEADER.name]: INTERNAL_REQUEST_HEADER.value,
       ...ANTIGRAVITY_HEADERS,
       ...(sessionId && { "X-Machine-Session-Id": sessionId }),
-      "Accept": stream ? "text/event-stream" : "application/json"
+      Accept: stream ? "text/event-stream" : "application/json",
     };
   }
 
@@ -83,14 +91,14 @@ export class AntigravityExecutor extends BaseExecutor {
     const projectId = credentials?.projectId || this.generateProjectId();
 
     // Fix contents for Claude models via Antigravity
-    const contents = body.request?.contents?.map(c => {
+    const contents = body.request?.contents?.map((c) => {
       let role = c.role;
       // functionResponse must be role "user" for Claude models
-      if (c.parts?.some(p => p.functionResponse)) {
+      if (c.parts?.some((p) => p.functionResponse)) {
         role = "user";
       }
       // Strip thought-only parts, keep thoughtSignature on functionCall parts (Gemini 3+ requires it)
-      const parts = c.parts?.filter(p => {
+      const parts = c.parts?.filter((p) => {
         if (p.thought && !p.functionCall) return false;
         if (p.thoughtSignature && !p.functionCall && !p.text) return false;
         return true;
@@ -104,11 +112,14 @@ export class AntigravityExecutor extends BaseExecutor {
     const transformedRequest = {
       ...body.request,
       ...(contents && { contents }),
-      sessionId: body.request?.sessionId || deriveSessionId(credentials?.email || credentials?.connectionId),
+      sessionId:
+        body.request?.sessionId ||
+        deriveSessionId(credentials?.email || credentials?.connectionId),
       safetySettings: undefined,
-      toolConfig: body.request?.tools?.length > 0
-        ? { functionCallingConfig: { mode: "VALIDATED" } }
-        : body.request?.toolConfig
+      toolConfig:
+        body.request?.tools?.length > 0
+          ? { functionCallingConfig: { mode: "VALIDATED" } }
+          : body.request?.toolConfig,
     };
 
     return {
@@ -118,7 +129,7 @@ export class AntigravityExecutor extends BaseExecutor {
       userAgent: "antigravity",
       requestType: "agent",
       requestId: `agent-${crypto.randomUUID()}`,
-      request: transformedRequest
+      request: transformedRequest,
     };
   }
 
@@ -128,13 +139,16 @@ export class AntigravityExecutor extends BaseExecutor {
     try {
       const response = await fetch(OAUTH_ENDPOINTS.google.token, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
         body: new URLSearchParams({
           grant_type: "refresh_token",
           refresh_token: credentials.refreshToken,
           client_id: this.config.clientId,
-          client_secret: this.config.clientSecret
-        })
+          client_secret: this.config.clientSecret,
+        }),
       });
 
       if (!response.ok) return null;
@@ -146,7 +160,7 @@ export class AntigravityExecutor extends BaseExecutor {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token || credentials.refreshToken,
         expiresIn: tokens.expires_in,
-        projectId: credentials.projectId
+        projectId: credentials.projectId,
       };
     } catch (error) {
       log?.error?.("TOKEN", `Antigravity refresh error: ${error.message}`);
@@ -155,8 +169,12 @@ export class AntigravityExecutor extends BaseExecutor {
   }
 
   generateProjectId() {
-    const adj = ["useful", "bright", "swift", "calm", "bold"][Math.floor(Math.random() * 5)];
-    const noun = ["fuze", "wave", "spark", "flow", "core"][Math.floor(Math.random() * 5)];
+    const adj = ["useful", "bright", "swift", "calm", "bold"][
+      Math.floor(Math.random() * 5)
+    ];
+    const noun = ["fuze", "wave", "spark", "flow", "core"][
+      Math.floor(Math.random() * 5)
+    ];
     return `${adj}-${noun}-${crypto.randomUUID().slice(0, 5)}`;
   }
 
@@ -167,7 +185,7 @@ export class AntigravityExecutor extends BaseExecutor {
   parseRetryHeaders(headers) {
     if (!headers?.get) return null;
 
-    const retryAfter = headers.get('retry-after');
+    const retryAfter = headers.get("retry-after");
     if (retryAfter) {
       const seconds = parseInt(retryAfter, 10);
       if (!isNaN(seconds) && seconds > 0) return seconds * 1000;
@@ -179,13 +197,13 @@ export class AntigravityExecutor extends BaseExecutor {
       }
     }
 
-    const resetAfter = headers.get('x-ratelimit-reset-after');
+    const resetAfter = headers.get("x-ratelimit-reset-after");
     if (resetAfter) {
       const seconds = parseInt(resetAfter, 10);
       if (!isNaN(seconds) && seconds > 0) return seconds * 1000;
     }
 
-    const resetTimestamp = headers.get('x-ratelimit-reset');
+    const resetTimestamp = headers.get("x-ratelimit-reset");
     if (resetTimestamp) {
       const ts = parseInt(resetTimestamp, 10) * 1000;
       const diff = ts - Date.now();
@@ -211,111 +229,163 @@ export class AntigravityExecutor extends BaseExecutor {
     return totalMs > 0 ? totalMs : null;
   }
 
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
-    const connKey = credentials?.connectionId || credentials?.email || "default";
+  async execute({
+    model,
+    body,
+    stream,
+    credentials,
+    signal,
+    log,
+    proxyOptions = null,
+  }) {
+    const connKey =
+      credentials?.connectionId || credentials?.email || "default";
 
     // Concurrency lock — one in-flight request per account at a time.
     // Multiple tools routing through the same Google token concurrently is a
     // primary abuse signal. Throw so 9Router routes to the next provider.
     if (AntigravityExecutor.inFlight.has(connKey)) {
-      throw new Error("ANTIGRAVITY_CONCURRENT_LIMIT: request already in flight for this account");
+      throw new Error(
+        "ANTIGRAVITY_CONCURRENT_LIMIT: request already in flight for this account",
+      );
     }
 
     // Self rate limit — check hourly cap and minimum gap.
     const waitMs = this.checkRateLimit(connKey);
     if (waitMs > 0) {
-      log?.debug?.("RATE", `Antigravity self-limit: waiting ${waitMs}ms before request`);
-      await new Promise(resolve => setTimeout(resolve, waitMs));
+      log?.debug?.(
+        "RATE",
+        `Antigravity self-limit: waiting ${waitMs}ms before request`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
 
     AntigravityExecutor.inFlight.add(connKey);
 
     try {
-    const fallbackCount = this.getFallbackCount();
-    let lastError = null;
-    let lastStatus = 0;
-    const MAX_AUTO_RETRIES = 3;
-    const retryAttemptsByUrl = {}; // Track retry attempts per URL
+      const fallbackCount = this.getFallbackCount();
+      let lastError = null;
+      let lastStatus = 0;
+      const MAX_AUTO_RETRIES = 3;
+      const retryAttemptsByUrl = {}; // Track retry attempts per URL
 
-    for (let urlIndex = 0; urlIndex < fallbackCount; urlIndex++) {
-      const url = this.buildUrl(model, stream, urlIndex);
-      const transformedBody = this.transformRequest(model, body, stream, credentials);
-      const sessionId = transformedBody.request?.sessionId;
-      const headers = this.buildHeaders(credentials, stream, sessionId);
+      for (let urlIndex = 0; urlIndex < fallbackCount; urlIndex++) {
+        const url = this.buildUrl(model, stream, urlIndex);
+        const transformedBody = this.transformRequest(
+          model,
+          body,
+          stream,
+          credentials,
+        );
+        const sessionId = transformedBody.request?.sessionId;
+        const headers = this.buildHeaders(credentials, stream, sessionId);
 
-      // Initialize retry counter for this URL
-      if (!retryAttemptsByUrl[urlIndex]) {
-        retryAttemptsByUrl[urlIndex] = 0;
-      }
+        // Initialize retry counter for this URL
+        if (!retryAttemptsByUrl[urlIndex]) {
+          retryAttemptsByUrl[urlIndex] = 0;
+        }
 
-      try {
-        const response = await proxyAwareFetch(url, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(transformedBody),
-          signal
-        }, proxyOptions);
+        try {
+          const response = await proxyAwareFetch(
+            url,
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify(transformedBody),
+              signal,
+            },
+            proxyOptions,
+          );
 
-        if (response.status === HTTP_STATUS.RATE_LIMITED || response.status === HTTP_STATUS.SERVICE_UNAVAILABLE) {
-          // Try to get retry time from headers first
-          let retryMs = this.parseRetryHeaders(response.headers);
+          if (
+            response.status === HTTP_STATUS.RATE_LIMITED ||
+            response.status === HTTP_STATUS.SERVICE_UNAVAILABLE
+          ) {
+            // Try to get retry time from headers first
+            let retryMs = this.parseRetryHeaders(response.headers);
 
-          // If no retry time in headers, try to parse from error message body
-          if (!retryMs) {
-            try {
-              const errorBody = await response.clone().text();
-              const errorJson = JSON.parse(errorBody);
-              const errorMessage = errorJson?.error?.message || errorJson?.message || "";
-              retryMs = this.parseRetryFromErrorMessage(errorMessage);
-            } catch (e) {
-              // Ignore parse errors, will fall back to exponential backoff
+            // If no retry time in headers, try to parse from error message body
+            if (!retryMs) {
+              try {
+                const errorBody = await response.clone().text();
+                const errorJson = JSON.parse(errorBody);
+                const errorMessage =
+                  errorJson?.error?.message || errorJson?.message || "";
+                retryMs = this.parseRetryFromErrorMessage(errorMessage);
+              } catch (e) {
+                // Ignore parse errors, will fall back to exponential backoff
+              }
+            }
+
+            if (retryMs && retryMs <= MAX_RETRY_AFTER_MS) {
+              log?.debug?.(
+                "RETRY",
+                `${response.status} with Retry-After: ${Math.ceil(retryMs / 1000)}s, waiting...`,
+              );
+              await new Promise((resolve) => setTimeout(resolve, retryMs));
+              urlIndex--;
+              continue;
+            }
+
+            // Auto retry only for 429 when retryMs is 0 or undefined
+            if (
+              response.status === HTTP_STATUS.RATE_LIMITED &&
+              (!retryMs || retryMs === 0) &&
+              retryAttemptsByUrl[urlIndex] < MAX_AUTO_RETRIES
+            ) {
+              retryAttemptsByUrl[urlIndex]++;
+              // Exponential backoff: 2s, 4s, 8s...
+              const backoffMs = Math.min(
+                1000 * 2 ** retryAttemptsByUrl[urlIndex],
+                MAX_RETRY_AFTER_MS,
+              );
+              log?.debug?.(
+                "RETRY",
+                `429 auto retry ${retryAttemptsByUrl[urlIndex]}/${MAX_AUTO_RETRIES} after ${backoffMs / 1000}s`,
+              );
+              await new Promise((resolve) => setTimeout(resolve, backoffMs));
+              urlIndex--;
+              continue;
+            }
+
+            log?.debug?.(
+              "RETRY",
+              `${response.status}, Retry-After ${retryMs ? `too long (${Math.ceil(retryMs / 1000)}s)` : "missing"}, trying fallback`,
+            );
+            lastStatus = response.status;
+
+            if (urlIndex + 1 < fallbackCount) {
+              continue;
             }
           }
 
-          if (retryMs && retryMs <= MAX_RETRY_AFTER_MS) {
-            log?.debug?.("RETRY", `${response.status} with Retry-After: ${Math.ceil(retryMs / 1000)}s, waiting...`);
-            await new Promise(resolve => setTimeout(resolve, retryMs));
-            urlIndex--;
+          if (this.shouldRetry(response.status, urlIndex)) {
+            log?.debug?.(
+              "RETRY",
+              `${response.status} on ${url}, trying fallback ${urlIndex + 1}`,
+            );
+            lastStatus = response.status;
             continue;
           }
 
-          // Auto retry only for 429 when retryMs is 0 or undefined
-          if (response.status === HTTP_STATUS.RATE_LIMITED && (!retryMs || retryMs === 0) && retryAttemptsByUrl[urlIndex] < MAX_AUTO_RETRIES) {
-            retryAttemptsByUrl[urlIndex]++;
-            // Exponential backoff: 2s, 4s, 8s...
-            const backoffMs = Math.min(1000 * (2 ** retryAttemptsByUrl[urlIndex]), MAX_RETRY_AFTER_MS);
-            log?.debug?.("RETRY", `429 auto retry ${retryAttemptsByUrl[urlIndex]}/${MAX_AUTO_RETRIES} after ${backoffMs / 1000}s`);
-            await new Promise(resolve => setTimeout(resolve, backoffMs));
-            urlIndex--;
-            continue;
-          }
-
-          log?.debug?.("RETRY", `${response.status}, Retry-After ${retryMs ? `too long (${Math.ceil(retryMs / 1000)}s)` : 'missing'}, trying fallback`);
-          lastStatus = response.status;
-
+          return { response, url, headers, transformedBody };
+        } catch (error) {
+          lastError = error;
           if (urlIndex + 1 < fallbackCount) {
+            log?.debug?.(
+              "RETRY",
+              `Error on ${url}, trying fallback ${urlIndex + 1}`,
+            );
             continue;
           }
+          throw error;
         }
-
-        if (this.shouldRetry(response.status, urlIndex)) {
-          log?.debug?.("RETRY", `${response.status} on ${url}, trying fallback ${urlIndex + 1}`);
-          lastStatus = response.status;
-          continue;
-        }
-
-        return { response, url, headers, transformedBody };
-      } catch (error) {
-        lastError = error;
-        if (urlIndex + 1 < fallbackCount) {
-          log?.debug?.("RETRY", `Error on ${url}, trying fallback ${urlIndex + 1}`);
-          continue;
-        }
-        throw error;
       }
-    }
 
-    throw lastError || new Error(`All ${fallbackCount} URLs failed with status ${lastStatus}`);
+      throw (
+        lastError ||
+        new Error(`All ${fallbackCount} URLs failed with status ${lastStatus}`)
+      );
     } finally {
       AntigravityExecutor.inFlight.delete(connKey);
     }

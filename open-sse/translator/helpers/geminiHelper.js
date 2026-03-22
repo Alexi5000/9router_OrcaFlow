@@ -4,23 +4,54 @@
 // Reference: CLIProxyAPI/internal/util/gemini_schema.go (removeUnsupportedKeywords)
 export const UNSUPPORTED_SCHEMA_CONSTRAINTS = [
   // Basic constraints (not supported by Gemini API)
-  "minLength", "maxLength", "exclusiveMinimum", "exclusiveMaximum",
-  "pattern", "minItems", "maxItems", "format",
+  "minLength",
+  "maxLength",
+  "exclusiveMinimum",
+  "exclusiveMaximum",
+  "pattern",
+  "minItems",
+  "maxItems",
+  "format",
   // Claude rejects these in VALIDATED mode
-  "default", "examples",
+  "default",
+  "examples",
   // JSON Schema meta keywords
-  "$schema", "$defs", "definitions", "const", "$ref",
+  "$schema",
+  "$defs",
+  "definitions",
+  "const",
+  "$ref",
   // Object validation keywords (not supported)
-  "additionalProperties", "propertyNames", "patternProperties",
+  "additionalProperties",
+  "propertyNames",
+  "patternProperties",
   // Complex schema keywords (handled by flattenAnyOfOneOf/mergeAllOf)
-  "anyOf", "oneOf", "allOf", "not",
+  "anyOf",
+  "oneOf",
+  "allOf",
+  "not",
   // Dependency keywords (not supported)
-  "dependencies", "dependentSchemas", "dependentRequired",
+  "dependencies",
+  "dependentSchemas",
+  "dependentRequired",
   // Other unsupported keywords
-  "title", "if", "then", "else", "contentMediaType", "contentEncoding",
+  "title",
+  "if",
+  "then",
+  "else",
+  "contentMediaType",
+  "contentEncoding",
   // UI/Styling properties (from Cursor tools - NOT JSON Schema standard)
-  "cornerRadius", "fillColor", "fontFamily", "fontSize", "fontWeight",
-  "gap", "padding", "strokeColor", "strokeThickness", "textColor"
+  "cornerRadius",
+  "fillColor",
+  "fontFamily",
+  "fontSize",
+  "fontWeight",
+  "gap",
+  "padding",
+  "strokeColor",
+  "strokeThickness",
+  "textColor",
 ];
 
 // Default safety settings
@@ -29,7 +60,7 @@ export const DEFAULT_SAFETY_SETTINGS = [
   { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "OFF" },
   { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "OFF" },
   { category: "HARM_CATEGORY_HARASSMENT", threshold: "OFF" },
-  { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "OFF" }
+  { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "OFF" },
 ];
 
 // Convert OpenAI content to Gemini parts
@@ -42,7 +73,10 @@ export function convertOpenAIContentToParts(content) {
     for (const item of content) {
       if (item.type === "text") {
         parts.push({ text: item.text });
-      } else if (item.type === "image_url" && item.image_url?.url?.startsWith("data:")) {
+      } else if (
+        item.type === "image_url" &&
+        item.image_url?.url?.startsWith("data:")
+      ) {
         const url = item.image_url.url;
         const commaIndex = url.indexOf(",");
         if (commaIndex !== -1) {
@@ -51,7 +85,7 @@ export function convertOpenAIContentToParts(content) {
           const mimeType = mimePart.split(";")[0];
 
           parts.push({
-            inlineData: { mime_type: mimeType, data: data }
+            inlineData: { mime_type: mimeType, data: data },
           });
         }
       }
@@ -65,7 +99,10 @@ export function convertOpenAIContentToParts(content) {
 export function extractTextContent(content) {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
-    return content.filter(c => c.type === "text").map(c => c.text).join("");
+    return content
+      .filter((c) => c.type === "text")
+      .map((c) => c.text)
+      .join("");
   }
   return "";
 }
@@ -143,7 +180,7 @@ function convertEnumValuesToStrings(obj) {
   if (!obj || typeof obj !== "object") return;
 
   if (obj.enum && Array.isArray(obj.enum)) {
-    obj.enum = obj.enum.map(v => String(v));
+    obj.enum = obj.enum.map((v) => String(v));
   }
 
   for (const value of Object.values(obj)) {
@@ -176,8 +213,10 @@ function mergeAllOf(obj) {
     }
 
     delete obj.allOf;
-    if (merged.properties) obj.properties = { ...obj.properties, ...merged.properties };
-    if (merged.required) obj.required = [...(obj.required || []), ...merged.required];
+    if (merged.properties)
+      obj.properties = { ...obj.properties, ...merged.properties };
+    if (merged.required)
+      obj.required = [...(obj.required || []), ...merged.required];
   }
 
   for (const value of Object.values(obj)) {
@@ -219,7 +258,7 @@ function flattenAnyOfOneOf(obj) {
   if (!obj || typeof obj !== "object") return;
 
   if (obj.anyOf && Array.isArray(obj.anyOf) && obj.anyOf.length > 0) {
-    const nonNullSchemas = obj.anyOf.filter(s => s && s.type !== "null");
+    const nonNullSchemas = obj.anyOf.filter((s) => s && s.type !== "null");
     if (nonNullSchemas.length > 0) {
       const bestIdx = selectBest(nonNullSchemas);
       const selected = nonNullSchemas[bestIdx];
@@ -229,7 +268,7 @@ function flattenAnyOfOneOf(obj) {
   }
 
   if (obj.oneOf && Array.isArray(obj.oneOf) && obj.oneOf.length > 0) {
-    const nonNullSchemas = obj.oneOf.filter(s => s && s.type !== "null");
+    const nonNullSchemas = obj.oneOf.filter((s) => s && s.type !== "null");
     if (nonNullSchemas.length > 0) {
       const bestIdx = selectBest(nonNullSchemas);
       const selected = nonNullSchemas[bestIdx];
@@ -250,7 +289,7 @@ function flattenTypeArrays(obj) {
   if (!obj || typeof obj !== "object") return;
 
   if (obj.type && Array.isArray(obj.type)) {
-    const nonNullTypes = obj.type.filter(t => t !== "null");
+    const nonNullTypes = obj.type.filter((t) => t !== "null");
     obj.type = nonNullTypes.length > 0 ? nonNullTypes[0] : "string";
   }
 
@@ -286,8 +325,8 @@ export function cleanJSONSchemaForAntigravity(schema) {
     if (!obj || typeof obj !== "object") return;
 
     if (obj.required && Array.isArray(obj.required) && obj.properties) {
-      const validRequired = obj.required.filter(field =>
-        Object.prototype.hasOwnProperty.call(obj.properties, field)
+      const validRequired = obj.required.filter((field) =>
+        Object.prototype.hasOwnProperty.call(obj.properties, field),
       );
       if (validRequired.length === 0) {
         delete obj.required;
@@ -315,8 +354,8 @@ export function cleanJSONSchemaForAntigravity(schema) {
         obj.properties = {
           reason: {
             type: "string",
-            description: "Brief explanation of why you are calling this tool"
-          }
+            description: "Brief explanation of why you are calling this tool",
+          },
         };
         obj.required = ["reason"];
       }
@@ -334,4 +373,3 @@ export function cleanJSONSchemaForAntigravity(schema) {
 
   return cleaned;
 }
-

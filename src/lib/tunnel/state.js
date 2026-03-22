@@ -17,7 +17,9 @@ export function loadState() {
     if (fs.existsSync(STATE_FILE)) {
       return JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
     }
-  } catch (e) { /* ignore corrupt state */ }
+  } catch (e) {
+    /* ignore corrupt state */
+  }
   return null;
 }
 
@@ -29,7 +31,9 @@ export function saveState(state) {
 export function clearState() {
   try {
     if (fs.existsSync(STATE_FILE)) fs.unlinkSync(STATE_FILE);
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    /* ignore */
+  }
 }
 
 export function savePid(pid) {
@@ -42,12 +46,16 @@ export function loadPid() {
     if (fs.existsSync(PID_FILE)) {
       return parseInt(fs.readFileSync(PID_FILE, "utf8"));
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    /* ignore */
+  }
   return null;
 }
 
 export function clearPid() {
   try {
     if (fs.existsSync(PID_FILE)) fs.unlinkSync(PID_FILE);
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    /* ignore */
+  }
 }

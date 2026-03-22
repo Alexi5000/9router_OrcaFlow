@@ -1,6 +1,14 @@
 // Re-export from open-sse with localDb integration
-import { getModelAliases, getComboByName, getProviderNodes } from "@/lib/localDb";
-import { parseModel, resolveModelAliasFromMap, getModelInfoCore } from "open-sse/services/model.js";
+import {
+  getModelAliases,
+  getComboByName,
+  getProviderNodes,
+} from "@/lib/localDb";
+import {
+  parseModel,
+  resolveModelAliasFromMap,
+  getModelInfoCore,
+} from "open-sse/services/model.js";
 
 export { parseModel };
 
@@ -13,7 +21,9 @@ function flattenComboModels(combo) {
     return [];
   }
 
-  return combo.tiers.flatMap((tier) => Array.isArray(tier?.models) ? tier.models : []);
+  return combo.tiers.flatMap((tier) =>
+    Array.isArray(tier?.models) ? tier.models : [],
+  );
 }
 
 /**
@@ -36,16 +46,17 @@ export async function getModelInfoWithOptions(modelStr, options = {}) {
   const aliases = await getModelAliases();
 
   if (!parsed.isAlias) {
-    const resolvedPrefixedAlias = resolveModelAliasFromMap(parsed.model, aliases);
+    const resolvedPrefixedAlias = resolveModelAliasFromMap(
+      parsed.model,
+      aliases,
+    );
     if (
       resolvedPrefixedAlias &&
-      (
-        (parsed.providerAlias && parsed.providerAlias !== parsed.provider) ||
-        (
-          options.resolveClientPrefixedAliases === true &&
-          (parsed.providerAlias === "claude" || parsed.providerAlias === "cc" || parsed.provider === "claude")
-        )
-      )
+      ((parsed.providerAlias && parsed.providerAlias !== parsed.provider) ||
+        (options.resolveClientPrefixedAliases === true &&
+          (parsed.providerAlias === "claude" ||
+            parsed.providerAlias === "cc" ||
+            parsed.provider === "claude")))
     ) {
       return resolvedPrefixedAlias;
     }
@@ -53,21 +64,27 @@ export async function getModelInfoWithOptions(modelStr, options = {}) {
     if (parsed.provider === parsed.providerAlias) {
       // Check OpenAI Compatible nodes
       const openaiNodes = await getProviderNodes({ type: "openai-compatible" });
-      const matchedOpenAI = openaiNodes.find((node) => node.prefix === parsed.providerAlias);
+      const matchedOpenAI = openaiNodes.find(
+        (node) => node.prefix === parsed.providerAlias,
+      );
       if (matchedOpenAI) {
         return { provider: matchedOpenAI.id, model: parsed.model };
       }
 
       // Check Anthropic Compatible nodes
-      const anthropicNodes = await getProviderNodes({ type: "anthropic-compatible" });
-      const matchedAnthropic = anthropicNodes.find((node) => node.prefix === parsed.providerAlias);
+      const anthropicNodes = await getProviderNodes({
+        type: "anthropic-compatible",
+      });
+      const matchedAnthropic = anthropicNodes.find(
+        (node) => node.prefix === parsed.providerAlias,
+      );
       if (matchedAnthropic) {
         return { provider: matchedAnthropic.id, model: parsed.model };
       }
     }
     return {
       provider: parsed.provider,
-      model: parsed.model
+      model: parsed.model,
     };
   }
 

@@ -3,9 +3,9 @@ export const DEFAULT_LOCALE = "en";
 export const LOCALE_COOKIE = "locale";
 
 export const LOCALE_NAMES = {
-  "en": "English",
-  "vi": "Tiếng Việt",
-  "zh-CN": "简体中文"
+  en: "English",
+  vi: "Tiếng Việt",
+  "zh-CN": "简体中文",
 };
 
 export function normalizeLocale(locale) {

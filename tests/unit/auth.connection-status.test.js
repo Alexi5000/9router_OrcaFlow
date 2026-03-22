@@ -18,9 +18,15 @@ vi.mock("@/lib/network/connectionProxy", () => ({
 
 vi.mock("open-sse/services/accountFallback.js", () => ({
   formatRetryAfter: vi.fn(() => "reset after 30s"),
-  checkFallbackError: vi.fn(() => ({ shouldFallback: true, cooldownMs: 1000, newBackoffLevel: 1 })),
+  checkFallbackError: vi.fn(() => ({
+    shouldFallback: true,
+    cooldownMs: 1000,
+    newBackoffLevel: 1,
+  })),
   isModelLockActive: vi.fn(() => false),
-  buildModelLockUpdate: vi.fn(() => ({ modelLock___all: new Date(Date.now() + 1000).toISOString() })),
+  buildModelLockUpdate: vi.fn(() => ({
+    modelLock___all: new Date(Date.now() + 1000).toISOString(),
+  })),
   getEarliestModelLockUntil: vi.fn(() => null),
   getProviderCooldownOverride: vi.fn(() => null),
 }));
@@ -46,7 +52,9 @@ import { getProviderConnections, getSettings } from "@/lib/localDb";
 describe("provider credential selection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getSettings).mockResolvedValue({ fallbackStrategy: "fill-first" });
+    vi.mocked(getSettings).mockResolvedValue({
+      fallbackStrategy: "fill-first",
+    });
   });
 
   it("skips connections that are globally unavailable even when they are active", async () => {
@@ -72,7 +80,11 @@ describe("provider credential selection", () => {
       },
     ]);
 
-    const credentials = await getProviderCredentials("claude", null, "claude-sonnet-4-6");
+    const credentials = await getProviderCredentials(
+      "claude",
+      null,
+      "claude-sonnet-4-6",
+    );
 
     expect(credentials.connectionId).toBe("good-conn");
   });
