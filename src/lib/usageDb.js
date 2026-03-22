@@ -57,6 +57,7 @@ const DATA_DIR = getUserDataDir();
 const DB_FILE = isCloud ? null : path.join(DATA_DIR, "usage.json");
 const LOG_FILE = isCloud ? null : path.join(DATA_DIR, "log.txt");
 const KILO_HOURLY_REQUEST_LIMIT = 200;
+const PENDING_LINGER_MS = Math.max(0, parseInt(process.env.PENDING_LINGER_MS || "4000", 10) || 0);
 
 // Ensure data directory exists
 function ensureDataDir() {
@@ -137,8 +138,19 @@ async function getConnectionNameMap() {
 }
 
 function getLivePendingRequests(connectionMap = {}) {
-  return Object.values(pendingRequestEntries)
-    .filter((entry) => entry && entry.provider && entry.model)
+  const now = Date.now();
+  const entries = [];
+
+  for (const [key, entry] of Object.entries(pendingRequestEntries)) {
+    if (!entry || !entry.provider || !entry.model) continue;
+    if (entry.endedAt && (now - entry.endedAt) > PENDING_LINGER_MS) {
+      delete pendingRequestEntries[key];
+      continue;
+    }
+    entries.push(entry);
+  }
+
+  return entries
     .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0))
     .map((entry) => ({
       requestId: entry.requestId,
@@ -349,16 +361,33 @@ export function trackPendingRequest(model, provider, connectionId, started, erro
       routeSummary: buildRequestRouteSummary(route),
       count: 1,
     };
-  } else if (pendingRequestEntries[requestKey]) {
-    delete pendingRequestEntries[requestKey];
+  } else if (PENDING_LINGER_MS === 0) {
+    if (pendingRequestEntries[requestKey]) {
+      delete pendingRequestEntries[requestKey];
+    } else {
+      for (const [key, entry] of Object.entries(pendingRequestEntries)) {
+        if (
+          entry?.connectionId === (connectionId || null) &&
+          entry?.provider === provider &&
+          entry?.model === model
+        ) {
+          delete pendingRequestEntries[key];
+        }
+      }
+    }
   } else {
-    for (const [key, entry] of Object.entries(pendingRequestEntries)) {
-      if (
-        entry?.connectionId === (connectionId || null) &&
-        entry?.provider === provider &&
-        entry?.model === model
-      ) {
-        delete pendingRequestEntries[key];
+    const now = Date.now();
+    if (pendingRequestEntries[requestKey]) {
+      pendingRequestEntries[requestKey].endedAt = now;
+    } else {
+      for (const entry of Object.values(pendingRequestEntries)) {
+        if (
+          entry?.connectionId === (connectionId || null) &&
+          entry?.provider === provider &&
+          entry?.model === model
+        ) {
+          entry.endedAt = now;
+        }
       }
     }
   }

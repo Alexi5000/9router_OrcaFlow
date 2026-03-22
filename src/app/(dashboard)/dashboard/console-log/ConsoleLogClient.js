@@ -13,8 +13,8 @@ const LOG_LEVEL_COLORS = {
 };
 
 function colorLine(line) {
-  const match = line.match(/\[(\w+)\]/g);
-  const levelTag = match ? match[1]?.replace(/\[|\]/g, "") : null;
+  const match = line.match(/\[(LOG|INFO|WARN|ERROR|DEBUG)\]/);
+  const levelTag = match ? match[1] : null;
   const color = LOG_LEVEL_COLORS[levelTag] || "text-green-400";
   return <span className={color}>{line}</span>;
 }
@@ -23,6 +23,23 @@ export default function ConsoleLogClient() {
   const [logs, setLogs] = useState([]);
   const [connected, setConnected] = useState(false);
   const logRef = useRef(null);
+
+  const applyLogs = (incomingLogs) => {
+    setLogs(incomingLogs.slice(-CONSOLE_LOG_CONFIG.maxLines));
+  };
+
+  const refreshLogs = async () => {
+    try {
+      const response = await fetch("/api/translator/console-logs", { cache: "no-store" });
+      if (!response.ok) return;
+      const payload = await response.json();
+      if (payload?.success && Array.isArray(payload.logs)) {
+        applyLogs(payload.logs);
+      }
+    } catch (err) {
+      console.error("Failed to refresh console logs:", err);
+    }
+  };
 
   const handleClear = async () => {
     try {
@@ -34,14 +51,23 @@ export default function ConsoleLogClient() {
   };
 
   useEffect(() => {
-    const es = new EventSource("/api/translator/console-logs/stream");
+    refreshLogs();
 
-    es.onopen = () => setConnected(true);
+    const es = new EventSource("/api/translator/console-logs/stream");
+    let fallbackPoll = null;
+
+    es.onopen = () => {
+      setConnected(true);
+      if (fallbackPoll) {
+        clearInterval(fallbackPoll);
+        fallbackPoll = null;
+      }
+    };
 
     es.onmessage = (e) => {
       const msg = JSON.parse(e.data);
       if (msg.type === "init") {
-        setLogs(msg.logs.slice(-CONSOLE_LOG_CONFIG.maxLines));
+        applyLogs(msg.logs);
       } else if (msg.type === "line") {
         setLogs((prev) => {
           const next = [...prev, msg.line];
@@ -52,9 +78,19 @@ export default function ConsoleLogClient() {
       }
     };
 
-    es.onerror = () => setConnected(false);
+    es.onerror = () => {
+      setConnected(false);
+      if (!fallbackPoll) {
+        fallbackPoll = setInterval(refreshLogs, 5000);
+      }
+    };
 
-    return () => es.close();
+    return () => {
+      es.close();
+      if (fallbackPoll) {
+        clearInterval(fallbackPoll);
+      }
+    };
   }, []);
 
   // Auto-scroll to bottom on new logs
@@ -67,6 +103,9 @@ export default function ConsoleLogClient() {
     <div className="">
       <Card>
         <div className="flex items-center justify-end px-4 pt-3 pb-2">
+          <span className={`mr-auto text-xs ${connected ? "text-green-500" : "text-yellow-500"}`}>
+            {connected ? "Live stream connected" : "Polling fallback"}
+          </span>
           <Button size="sm" variant="outline" icon="delete" onClick={handleClear}>
             Clear
           </Button>

@@ -1,4 +1,4 @@
-export const TOPOLOGY_RECENT_WINDOW_MS = 90 * 1000;
+export const TOPOLOGY_RECENT_WINDOW_MS = 10 * 60 * 1000;
 
 function getTimestampMs(timestamp) {
   if (!timestamp) return 0;

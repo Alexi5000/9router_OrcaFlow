@@ -66,7 +66,7 @@ const defaultData = {
     tunnelEnabled: false,
     tunnelUrl: "",
     stickyRoundRobinLimit: 3,
-    requireLogin: true,
+    requireLogin: false,
     observabilityEnabled: true,
     observabilityMaxRecords: 1000,
     observabilityBatchSize: 20,
@@ -93,7 +93,7 @@ function cloneDefaultData() {
       tunnelEnabled: false,
       tunnelUrl: "",
       stickyRoundRobinLimit: 3,
-      requireLogin: true,
+      requireLogin: false,
       observabilityEnabled: true,
       observabilityMaxRecords: 1000,
       observabilityBatchSize: 20,
@@ -926,19 +926,31 @@ export async function importDb(payload) {
     throw new Error("Invalid database payload");
   }
 
+  const db = await getDb();
+  const currentSettings =
+    db.data?.settings && typeof db.data.settings === "object" && !Array.isArray(db.data.settings)
+      ? db.data.settings
+      : {};
+  const incomingSettings =
+    payload.settings && typeof payload.settings === "object" && !Array.isArray(payload.settings)
+      ? payload.settings
+      : {};
+  const incomingHasPassword = Object.prototype.hasOwnProperty.call(incomingSettings, "password");
+
   const nextData = {
     ...cloneDefaultData(),
     ...payload,
     settings: {
       ...cloneDefaultData().settings,
-      ...(payload.settings && typeof payload.settings === "object" && !Array.isArray(payload.settings)
-        ? payload.settings
-        : {}),
+      ...incomingSettings,
     },
   };
 
+  if (!incomingHasPassword && currentSettings.password) {
+    nextData.settings.password = currentSettings.password;
+  }
+
   const { data: normalized } = ensureDbShape(nextData);
-  const db = await getDb();
   db.data = normalized;
   await db.write();
 

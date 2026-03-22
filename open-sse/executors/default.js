@@ -7,6 +7,32 @@ export class DefaultExecutor extends BaseExecutor {
     super(provider, PROVIDERS[provider] || PROVIDERS.openai);
   }
 
+  transformRequest(model, body) {
+    if (this.provider !== "deepseek") {
+      return body;
+    }
+
+    const transformed = { ...body };
+    const maxTokens = Number(transformed.max_tokens);
+    const maxCompletionTokens = Number(transformed.max_completion_tokens);
+    const deepseekModel = String(model || transformed.model || "");
+    const maxAllowedTokens = deepseekModel.includes("reasoner") ? 64000 : 8192;
+
+    if ("max_tokens" in transformed && (!Number.isFinite(maxTokens) || maxTokens <= 0)) {
+      delete transformed.max_tokens;
+    } else if ("max_tokens" in transformed && maxTokens > maxAllowedTokens) {
+      transformed.max_tokens = maxAllowedTokens;
+    }
+
+    if ("max_completion_tokens" in transformed && (!Number.isFinite(maxCompletionTokens) || maxCompletionTokens <= 0)) {
+      delete transformed.max_completion_tokens;
+    } else if ("max_completion_tokens" in transformed && maxCompletionTokens > maxAllowedTokens) {
+      transformed.max_completion_tokens = maxAllowedTokens;
+    }
+
+    return transformed;
+  }
+
   buildUrl(model, stream, urlIndex = 0, credentials = null) {
     if (this.provider?.startsWith?.("openai-compatible-")) {
       const baseUrl = credentials?.providerSpecificData?.baseUrl || "https://api.openai.com/v1";

@@ -18,6 +18,18 @@ export class BaseExecutor {
     this.timeoutMs = config?.timeoutMs || TIMEOUT_CONFIG.defaultMs;
   }
 
+  getTimeoutMs(model, stream = false) {
+    if (stream) {
+      return this.config?.streamingTimeoutMs || TIMEOUT_CONFIG.streamingMs;
+    }
+
+    if (model && this.config?.timeoutMsByModel?.[model]) {
+      return this.config.timeoutMsByModel[model];
+    }
+
+    return this.timeoutMs;
+  }
+
   getProvider() {
     return this.provider;
   }
@@ -89,9 +101,10 @@ export class BaseExecutor {
     let lastError = null;
     let lastStatus = 0;
     const retryAttemptsByUrl = {};
+    const requestTimeoutMs = this.getTimeoutMs(model, stream);
 
     // Create timeout controller (can be aborted by client signal too)
-    const timeoutController = createTimeoutController(this.timeoutMs);
+    const timeoutController = createTimeoutController(requestTimeoutMs);
     const combinedSignal = signal 
       ? this._combineSignals([signal, timeoutController.controller.signal], log)
       : timeoutController.controller.signal;
@@ -147,7 +160,7 @@ export class BaseExecutor {
         
         // Handle timeout errors specifically
         if (error.name === "AbortError" && error.message?.includes("timeout")) {
-          log?.warn?.("TIMEOUT", `Request to ${url} timed out after ${this.timeoutMs}ms`);
+          log?.warn?.("TIMEOUT", `Request to ${url} timed out after ${requestTimeoutMs}ms`);
         }
         
         if (urlIndex + 1 < fallbackCount) {

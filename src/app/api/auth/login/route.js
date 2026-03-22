@@ -13,7 +13,7 @@ export async function POST(request) {
     const { password } = await request.json();
     const settings = await getSettings();
 
-    // Default password is '123456' if not set
+    // Fall back to the deployment bootstrap password when no stored hash exists.
     const storedHash = settings.password;
 
     let isValid = false;

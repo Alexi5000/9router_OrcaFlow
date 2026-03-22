@@ -20,6 +20,7 @@ describe("E2E: Combo Tests", () => {
           model: combo,
           messages: [{ role: "user", content: "Say 'Hello, I am working!' in exactly those words." }],
           max_tokens: 20,
+          stream: false,
         }),
       });
 
@@ -87,6 +88,7 @@ describe("E2E: Combo Tests", () => {
             { role: "user", content: "What's my name?" },
           ],
           max_tokens: 30,
+          stream: false,
         }),
       });
 
@@ -116,6 +118,7 @@ describe("E2E: Provider Tests", () => {
           model: `${provider}/${model}`,
           messages: [{ role: "user", content: "Say 'OK'" }],
           max_tokens: 10,
+          stream: false,
         }),
       });
 
@@ -142,6 +145,7 @@ describe("E2E: Performance Tests", () => {
         model: "fast",
         messages: [{ role: "user", content: "Hello" }],
         max_tokens: 10,
+        stream: false,
       }),
     });
 
@@ -161,6 +165,7 @@ describe("E2E: Performance Tests", () => {
           model: "fast",
           messages: [{ role: "user", content: `Request ${i + 1}` }],
           max_tokens: 10,
+          stream: false,
         }),
       })
     );
@@ -188,6 +193,7 @@ describe("E2E: Performance Tests", () => {
           model: combo,
           messages: [{ role: "user", content: "Say 'OK'" }],
           max_tokens: 5,
+          stream: false,
         }),
       });
 
@@ -235,6 +241,7 @@ describe("E2E: Error Recovery", () => {
         model: "invalid-model",
         messages: [],
         max_tokens: 10,
+        stream: false,
       }),
     });
 
@@ -246,6 +253,7 @@ describe("E2E: Error Recovery", () => {
         model: "fast",
         messages: [{ role: "user", content: "Hello" }],
         max_tokens: 10,
+        stream: false,
       }),
     });
 
@@ -275,6 +283,7 @@ describe("E2E: Feature Tests", () => {
           { role: "user", content: "Hello" },
         ],
         max_tokens: 20,
+        stream: false,
       }),
     });
 
@@ -292,6 +301,7 @@ describe("E2E: Feature Tests", () => {
         messages: [{ role: "user", content: "Hello" }],
         max_tokens: 10,
         temperature: 0.5,
+        stream: false,
       }),
     });
 
@@ -307,6 +317,7 @@ describe("E2E: Feature Tests", () => {
         messages: [{ role: "user", content: "Count from 1 to 10" }],
         max_tokens: 50,
         stop: ["5"],
+        stream: false,
       }),
     });
 
@@ -323,6 +334,7 @@ describe("E2E: Feature Tests", () => {
         model: "fast",
         messages: [{ role: "user", content: "Hello" }],
         max_tokens: 10,
+        stream: false,
       }),
     });
 

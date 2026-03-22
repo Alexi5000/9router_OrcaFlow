@@ -9,6 +9,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [hasPassword, setHasPassword] = useState(null);
+  const [authMode, setAuthMode] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -31,13 +32,16 @@ export default function LoginPage() {
             return;
           }
           setHasPassword(!!data.hasPassword);
+          setAuthMode(data.authMode || (!!data.hasPassword ? "persisted-password" : "initial-password"));
         } else {
           // Safe fallback on non-OK response to avoid infinite loading state.
           setHasPassword(true);
+          setAuthMode("persisted-password");
         }
       } catch (err) {
         clearTimeout(timeoutId);
         setHasPassword(true);
+        setAuthMode("persisted-password");
       }
     }
     checkAuth();
@@ -113,9 +117,15 @@ export default function LoginPage() {
               Login
             </Button>
 
-            <p className="text-xs text-center text-text-muted mt-2">
-              Default password is <code className="bg-sidebar px-1 rounded">123456</code>
-            </p>
+            <div className="text-xs text-center text-text-muted mt-2">
+              {authMode === "initial-password" ? (
+                <p>
+                  No persisted dashboard password is set. Login currently uses the deployment initial password.
+                </p>
+              ) : (
+                <p>Login is using the persisted dashboard password.</p>
+              )}
+            </div>
           </form>
         </Card>
       </div>

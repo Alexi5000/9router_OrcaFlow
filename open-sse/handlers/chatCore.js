@@ -157,30 +157,38 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     finalBody = result.transformedBody;
     reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
   } catch (error) {
+    const errorMessage = error?.message || String(error);
+    const isTimeoutError = /timeout/i.test(errorMessage);
+    const errorStatus = isTimeoutError
+      ? HTTP_STATUS.GATEWAY_TIMEOUT
+      : error.name === "AbortError"
+        ? 499
+        : HTTP_STATUS.BAD_GATEWAY;
+
     trackPendingRequest(model, provider, connectionId, false, true, pendingEndMetadata);
-    appendRequestLog({ model, provider, connectionId, status: `FAILED ${error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY}` }).catch(() => {});
+    appendRequestLog({ model, provider, connectionId, status: `FAILED ${errorStatus}` }).catch(() => {});
     saveRequestDetail(buildRequestDetail({
       provider, model, connectionId,
       latency: { ttft: 0, total: Date.now() - requestStartTime },
       tokens: { prompt_tokens: 0, completion_tokens: 0 },
       request: extractRequestConfig(body, stream),
       providerRequest: translatedBody || null,
-      response: { error: error.message || String(error), status: error.name === "AbortError" ? 499 : 502, thinking: null },
+      response: { error: errorMessage, status: errorStatus, thinking: null },
       status: "error",
       route: clientRawRequest?.routing,
       errorClass: classifyRequestFailure({
-        status: error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY,
-        message: error.message || String(error),
+        status: errorStatus,
+        message: errorMessage,
       }),
     }, { endpoint: clientRawRequest?.endpoint || null })).catch(() => {});
 
-    if (error.name === "AbortError") {
+    if (error.name === "AbortError" && !isTimeoutError) {
       streamController.handleError(error);
       return createErrorResult(499, "Request aborted");
     }
-    const errMsg = formatProviderError(error, provider, model, HTTP_STATUS.BAD_GATEWAY);
+    const errMsg = formatProviderError(error, provider, model, errorStatus);
     console.log(`${COLORS.red}[ERROR] ${errMsg}${COLORS.reset}`);
-    return createErrorResult(HTTP_STATUS.BAD_GATEWAY, errMsg);
+    return createErrorResult(errorStatus, errMsg);
   }
 
   // Handle 401/403 - try token refresh
@@ -244,8 +252,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   }
 
   // Streaming response
-  const { onStreamComplete } = buildOnStreamComplete({ ...sharedCtx });
-  return handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete });
+  const { onStreamComplete, streamDetailId } = buildOnStreamComplete({ ...sharedCtx });
+  return handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId });
 }
 
 export function isTokenExpiringSoon(expiresAt, bufferMs = 5 * 60 * 1000) {

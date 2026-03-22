@@ -134,7 +134,7 @@ export function printResults(title, results) {
   results.forEach(r => {
     const status = r.success ? "OK" : "FAIL";
     const latency = `${r.latency}ms`.padStart(7);
-    console.log(`${status} ${r.combo || r.provider}`.padEnd(15)} -> ${(r.model || r.actualModel).padEnd(30)} ${latency}`);
+    console.log(`${`${status} ${r.combo || r.provider}`.padEnd(15)} -> ${(r.model || r.actualModel).padEnd(30)} ${latency}`);
   });
   
   const successCount = results.filter(r => r.success).length;

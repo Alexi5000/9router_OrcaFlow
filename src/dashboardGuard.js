@@ -29,7 +29,8 @@ export async function proxy(request) {
         return NextResponse.next();
       }
     } catch (err) {
-      // On error, require login
+      // Default to direct dashboard access when login settings are unavailable.
+      return NextResponse.next();
     }
     return NextResponse.redirect(new URL("/login", request.url));
   }

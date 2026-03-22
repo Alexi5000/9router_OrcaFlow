@@ -11,6 +11,9 @@ const standaloneDir = path.join(nextDir, "standalone");
 const staticDir = path.join(nextDir, "static");
 const isWsl = process.platform === "linux" && fs.existsSync("/proc/sys/fs/binfmt_misc/WSLInterop");
 const windowsAppRoot = "C:\\Users\\Admin\\TechTide\\Tools\\9router";
+const windowsNextDir = `${windowsAppRoot}\\.next`;
+const windowsStandaloneDir = `${windowsNextDir}\\standalone`;
+const windowsStaticDir = `${windowsNextDir}\\static`;
 
 function runCommand(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -63,6 +66,25 @@ function parsePm2Json(stdout) {
 }
 
 function cleanPreviousBuild() {
+  if (isWsl) {
+    runCapture("powershell.exe", [
+      "-NoProfile",
+      "-Command",
+      [
+        "$paths = @(",
+        `  '${windowsStandaloneDir}',`,
+        `  '${windowsStaticDir}',`,
+        `  '${windowsNextDir}'`,
+        ");",
+        "foreach ($path in $paths) {",
+        "  if (Test-Path $path) {",
+        "    try { Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop } catch {}",
+        "  }",
+        "}",
+      ].join(" "),
+    ]);
+  }
+
   fs.rmSync(nextDir, { recursive: true, force: true });
 }
 
@@ -92,9 +114,12 @@ function killOrphanRouterProcesses() {
         "$procs = Get-CimInstance Win32_Process | Where-Object {",
         "  ($_.Name -match 'node|pnpm|cmd') -and (",
         "    $_.CommandLine -like '*TechTide\\\\Tools\\\\9router*' -or",
+        "    $_.CommandLine -like '*Users\\\\Admin\\\\TechTide\\\\Tools\\\\9router*' -or",
         "    $_.CommandLine -like '*start-standalone.cjs*' -or",
+        "    $_.CommandLine -like '*\\\\.next\\\\standalone\\\\server.js*' -or",
         "    $_.CommandLine -like '*next dev --webpack --port 20128*' -or",
-        "    $_.CommandLine -like '*next build --webpack*'",
+        "    $_.CommandLine -like '*next build --webpack*' -or",
+        "    $_.CommandLine -like '*next-server*20128*'",
         "  )",
         "};",
         "foreach ($proc in $procs) {",
@@ -150,9 +175,10 @@ function sleep(ms) {
 async function verifyLiveApp() {
   const loginUrl = `http://127.0.0.1:${port}/login`;
   const versionUrl = `http://127.0.0.1:${port}/api/version`;
+  const maxAttempts = 60;
 
   let html = "";
-  for (let attempt = 1; attempt <= 20; attempt++) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const login = await fetch(loginUrl).catch(() => null);
     const version = await fetch(versionUrl).catch(() => null);
     if (login?.ok && version?.ok) {

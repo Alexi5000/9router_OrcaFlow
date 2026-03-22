@@ -356,7 +356,12 @@ export const PROVIDERS = {
   },
   deepseek: {
     baseUrl: "https://api.deepseek.com/chat/completions",
-    format: "openai"
+    format: "openai",
+    timeoutMs: 300000,
+    streamingTimeoutMs: 600000,
+    timeoutMsByModel: {
+      "deepseek-reasoner": 600000
+    }
   },
   groq: {
     baseUrl: "https://api.groq.com/openai/v1/chat/completions",

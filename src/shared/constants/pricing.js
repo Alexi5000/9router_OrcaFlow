@@ -816,6 +816,27 @@ export const DEFAULT_PRICING = {
       cached: 1.00,
       reasoning: 12.00,
       cache_creation: 2.00
+    },
+    "minimax/minimax-m2.5": {
+      input: 0.20,
+      output: 1.20,
+      cached: 0.20,
+      reasoning: 1.20,
+      cache_creation: 0.20
+    },
+    "minimax/minimax-m2.5-20260211": {
+      input: 0.20,
+      output: 1.20,
+      cached: 0.20,
+      reasoning: 1.20,
+      cache_creation: 0.20
+    },
+    "openrouter/hunter-alpha": {
+      input: 0.00,
+      output: 0.00,
+      cached: 0.00,
+      reasoning: 0.00,
+      cache_creation: 0.00
     }
   },
 
@@ -871,6 +892,13 @@ export const DEFAULT_PRICING = {
 
   // MiniMax
   minimax: {
+    "MiniMax-M2.5": {
+      input: 0.20,
+      output: 1.20,
+      cached: 0.20,
+      reasoning: 1.20,
+      cache_creation: 0.20
+    },
     "MiniMax-M2.1": {
       input: 0.50,
       output: 2.00,

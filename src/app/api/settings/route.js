@@ -7,6 +7,7 @@ export async function GET() {
   try {
     const settings = await getSettings();
     const { password, ...safeSettings } = settings;
+    const hasPassword = !!password;
     
     const enableRequestLogs = process.env.ENABLE_REQUEST_LOGS === "true";
     const enableTranslator = process.env.ENABLE_TRANSLATOR === "true";
@@ -15,7 +16,8 @@ export async function GET() {
       ...safeSettings, 
       enableRequestLogs,
       enableTranslator,
-      hasPassword: !!password
+      hasPassword,
+      authMode: hasPassword ? "persisted-password" : "initial-password"
     });
   } catch (error) {
     console.log("Error getting settings:", error);
@@ -26,6 +28,7 @@ export async function GET() {
 export async function PATCH(request) {
   try {
     const body = await request.json();
+    const initialPassword = process.env.INITIAL_PASSWORD || "123456";
 
     // If updating password, hash it
     if (body.newPassword) {
@@ -42,10 +45,13 @@ export async function PATCH(request) {
           return NextResponse.json({ error: "Invalid current password" }, { status: 401 });
         }
       } else {
-        // First time setting password, no current password needed
-        // Allow empty currentPassword or default "123456"
-        if (body.currentPassword && body.currentPassword !== "123456") {
-           return NextResponse.json({ error: "Invalid current password" }, { status: 401 });
+        // Bootstrap password changes must validate against the active initial password.
+        if (!body.currentPassword) {
+          return NextResponse.json({ error: "Current deployment password required" }, { status: 400 });
+        }
+
+        if (body.currentPassword !== initialPassword) {
+          return NextResponse.json({ error: "Invalid current password" }, { status: 401 });
         }
       }
 

@@ -82,6 +82,7 @@ describe("Edge Cases", () => {
           model: "fast",
           messages: [{ role: "user", content: specialChars }],
           max_tokens: 20,
+          stream: false,
         }),
       });
 
@@ -100,6 +101,7 @@ describe("Edge Cases", () => {
           model: "fast",
           messages: [{ role: "user", content: unicodePrompt }],
           max_tokens: 20,
+          stream: false,
         }),
       });
 
@@ -226,6 +228,7 @@ describe("Edge Cases", () => {
         expect([200, 429]).toContain(res.status);
       });
     });
+  });
 
   describe("Provider Failover", () => {
     it("should fallback to next provider on failure", async () => {
@@ -237,6 +240,7 @@ describe("Edge Cases", () => {
           model: "build", // Has multiple fallback providers
           messages: [{ role: "user", content: "Hello" }],
           max_tokens: 20,
+          stream: false,
         }),
       });
 
@@ -379,6 +383,7 @@ describe("Edge Cases", () => {
           messages: [{ role: "user", content: "Count from 1 to 10" }],
           max_tokens: 50,
           stop: ["5"],
+          stream: false,
         }),
       });
 
@@ -418,6 +423,7 @@ describe("Edge Cases", () => {
             { role: "user", content: "What's my name?" },
           ],
           max_tokens: 20,
+          stream: false,
         }),
       });
 
@@ -437,6 +443,7 @@ describe("Edge Cases", () => {
             { role: "user", content: "Hello" },
           ],
           max_tokens: 10,
+          stream: false,
         }),
       });
 
@@ -455,6 +462,7 @@ describe("Edge Cases", () => {
           model: "fast",
           messages: [{ role: "user", content: "test" }],
           max_tokens: 10,
+          stream: false,
         }),
       });
 
@@ -486,6 +494,7 @@ describe("Edge Cases", () => {
           model: "fast",
           messages: [{ role: "user", content: "test" }],
           max_tokens: 10,
+          stream: false,
         }),
       });
 

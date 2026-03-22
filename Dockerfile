@@ -1,13 +1,13 @@
-FROM node:20-alpine AS builder
+FROM node:20-alpine3.22 AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+RUN npm install --no-audit --no-fund
 
 COPY . ./
 RUN npm run build
 
-FROM node:20-alpine AS runner
+FROM node:20-alpine3.22 AS runner
 WORKDIR /app
 
 LABEL org.opencontainers.image.title="9router"

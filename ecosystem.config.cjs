@@ -17,6 +17,8 @@ module.exports = {
         DATA_DIR: dataDir,
         INITIAL_PASSWORD: '[REDACTED-ROTATED]',
         REQUIRE_API_KEY: 'false',
+        STANDALONE_AUTOBUILD: 'true',
+        STANDALONE_AUTOBUILD_COOLDOWN_MS: '300000',
       },
       watch: false,
       max_memory_restart: '512M',
