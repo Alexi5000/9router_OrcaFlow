@@ -15,7 +15,7 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: '20128',
         DATA_DIR: dataDir,
-        INITIAL_PASSWORD: '[REDACTED-ROTATED]',
+        INITIAL_PASSWORD: process.env.INITIAL_PASSWORD || '',
         REQUIRE_API_KEY: 'false',
       },
       watch: false,
@@ -33,7 +33,7 @@ module.exports = {
       script: 'watchdog.mjs',
       env_file: '.env',
       env: {
-        INITIAL_PASSWORD: '[REDACTED-ROTATED]',
+        INITIAL_PASSWORD: process.env.INITIAL_PASSWORD || '',
         DATA_DIR: dataDir,
       },
       // Run every 5 minutes via cron_restart

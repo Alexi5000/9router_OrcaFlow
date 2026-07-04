@@ -19,7 +19,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const BASE = "http://localhost:20128";
-const PASSWORD = process.env.INITIAL_PASSWORD || "[REDACTED-ROTATED]";
+const PASSWORD = process.env.INITIAL_PASSWORD || "";
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || path.join(
   process.env.APPDATA || path.join(process.env.USERPROFILE || "C:/Users/Admin", "AppData", "Roaming"),
