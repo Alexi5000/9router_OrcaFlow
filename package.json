@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack --port 20128",
-    "build": "node scripts/verify-braces.cjs && NODE_ENV=production next build --webpack",
+    "build": "node scripts/verify-braces.cjs && node scripts/verify-forge.cjs && NODE_ENV=production next build --webpack",
     "start": "NODE_ENV=production next start",
     "deploy:prod": "node scripts/redeploy-production.cjs",
     "validate:deepseek-route": "node scripts/validate-deepseek-route.mjs",
@@ -28,7 +28,7 @@
     "lowdb": "^7.0.1",
     "monaco-editor": "^0.55.1",
     "next": "^16.4.2",
-    "node-forge": "^1.4.0",
+    "node-forge": "file:vendor/node-forge-1.4.0.tgz",
     "node-machine-id": "^1.1.12",
     "open": "^11.0.4",
     "ora": "^9.4.1",
@@ -58,7 +58,8 @@
   "pnpm": {
     "overrides": {
       "dompurify": "^3.4.16",
-      "braces": "file:vendor/braces-3.0.3.tgz"
+      "braces": "file:vendor/braces-3.0.3.tgz",
+      "node-forge": "file:vendor/node-forge-1.4.0.tgz"
     },
     "onlyBuiltDependencies": [
       "better-sqlite3",
