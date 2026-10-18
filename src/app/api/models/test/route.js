@@ -1,14 +1,22 @@
 import { NextResponse } from "next/server";
 import { getApiKeys } from "@/lib/localDb";
+import { POST as completeChat } from "@/app/api/v1/chat/completions/route.js";
+
+function withTimeout(completion) {
+  let timer;
+  return Promise.race([
+    completion,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("Model test timed out")), 15000);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
 
 // POST /api/models/test - Ping a single model via internal completions
 export async function POST(request) {
   try {
     const { model } = await request.json();
     if (!model) return NextResponse.json({ error: "Model required" }, { status: 400 });
-
-    const url = new URL(request.url);
-    const baseUrl = `${url.protocol}//${url.host}`;
 
     // Get an active internal API key for auth (if requireApiKey is enabled)
     let apiKey = null;
@@ -21,7 +29,7 @@ export async function POST(request) {
     if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
 
     const start = Date.now();
-    const res = await fetch(`${baseUrl}/api/v1/chat/completions`, {
+    const res = await withTimeout(completeChat(new Request("http://localhost/api/v1/chat/completions", {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -31,7 +39,7 @@ export async function POST(request) {
         messages: [{ role: "user", content: "hi" }],
       }),
       signal: AbortSignal.timeout(15000),
-    });
+    })));
     const latencyMs = Date.now() - start;
 
     const rawText = await res.text().catch(() => "");
