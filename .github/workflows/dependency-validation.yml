@@ -1,0 +1,46 @@
+name: Dependency validation
+
+on:
+  pull_request:
+    paths:
+      - package.json
+      - pnpm-lock.yaml
+      - vendor/**
+      - scripts/verify-braces.cjs
+      - Dockerfile
+      - .github/workflows/dependency-validation.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production container without publishing
+        run: docker build -t orcaflow-security-check .
+      - name: Verify native database binding in production container
+        run: |
+          docker run --rm --entrypoint node orcaflow-security-check -e '
+            const assert = require("node:assert/strict");
+            const Database = require("better-sqlite3");
+            const db = new Database(":memory:");
+            db.exec("CREATE TABLE probe (value INTEGER)");
+            db.prepare("INSERT INTO probe VALUES (?)").run(42);
+            assert.equal(db.prepare("SELECT value FROM probe").get().value, 42);
+            db.close();
+          '
+      - name: Smoke-test production startup
+        run: |
+          docker run -d --name orcaflow-security-check -p 20128:20128 orcaflow-security-check
+          trap 'docker logs orcaflow-security-check; docker rm -f orcaflow-security-check' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:20128/api/version > version.json; then
+              node -e 'const assert = require("node:assert/strict"); assert.ok(require("./version.json").currentVersion)'
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
