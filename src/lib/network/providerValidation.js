@@ -64,11 +64,16 @@ export async function validateProvider(baseUrl, apiKey, type) {
   if (type === "anthropic-compatible" && path.endsWith("/messages")) path = path.slice(0, -9);
   url.pathname = path + "/models";
 
-  const selected = addresses[0];
   const dispatcher = new Agent({
     connect: {
       lookup(_hostname, options, callback) {
-        callback(null, options.all ? [selected] : selected.address, selected.family);
+        const matching = options.family ? addresses.filter(item => item.family === options.family) : addresses;
+        if (!matching.length) {
+          callback(new Error("Provider has no address for the requested family"));
+          return;
+        }
+        const selected = matching[0];
+        callback(null, options.all ? matching : selected.address, selected.family);
       },
     },
   });

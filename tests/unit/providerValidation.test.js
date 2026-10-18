@@ -71,6 +71,22 @@ describe("provider validation destination policy", () => {
     expect(mocks.destroy).toHaveBeenCalledOnce();
   });
 
+  it("preserves checked IPv4 and IPv6 fallback without another DNS lookup", async () => {
+    const addresses = [
+      { address: "2001:4860:4860::8888", family: 6 },
+      { address: "93.184.216.34", family: 4 },
+    ];
+    mocks.lookup.mockResolvedValue(addresses);
+    await validateProvider("https://provider.example", "key");
+    const callback = vi.fn();
+    const lookup = mocks.agents[0].options.connect.lookup;
+    lookup("provider.example", { all: true }, callback);
+    expect(callback).toHaveBeenLastCalledWith(null, addresses, 6);
+    lookup("provider.example", { family: 4 }, callback);
+    expect(callback).toHaveBeenLastCalledWith(null, "93.184.216.34", 4);
+    expect(mocks.lookup).toHaveBeenCalledOnce();
+  });
+
   it("allows exact server-configured local origins and preserves Anthropic headers", async () => {
     vi.stubEnv("PROVIDER_VALIDATION_ALLOWED_ORIGINS", "http://127.0.0.1:11434");
     await expect(validateProvider("http://127.0.0.1:11434/v1/messages", "key", "anthropic-compatible"))

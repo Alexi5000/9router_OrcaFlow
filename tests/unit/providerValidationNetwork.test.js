@@ -59,6 +59,13 @@ describe("provider validation network boundary", () => {
     expect(received).toEqual([{ url: "/v1/models", key: "Bearer test-key" }]);
   });
 
+  it("uses the checked DNS addresses for an explicitly configured localhost provider", async () => {
+    const port = await listen(httpServer((_request, response) => response.end("{}")));
+    const origin = "http://localhost:" + port;
+    vi.stubEnv("PROVIDER_VALIDATION_ALLOWED_ORIGINS", origin);
+    await expect(validateProvider(origin + "/v1", "test-key")).resolves.toBe(true);
+  });
+
   it("does not follow redirects or forward credentials to another origin", async () => {
     let destinationRequests = 0;
     const destination = await listen(httpServer((_request, response) => {
