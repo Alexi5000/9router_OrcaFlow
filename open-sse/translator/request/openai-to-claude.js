@@ -100,6 +100,12 @@ export function openaiToClaudeRequest(model, body, stream) {
     }
   }
 
+  if (body.response_format?.type === "json_schema" && body.response_format.json_schema?.schema) {
+    systemParts.push(`You must respond with valid JSON matching this schema:\n${JSON.stringify(body.response_format.json_schema.schema)}\nRespond ONLY with the JSON object.`);
+  } else if (body.response_format?.type === "json_object") {
+    systemParts.push("You must respond with valid JSON. Respond ONLY with a JSON object.");
+  }
+
   // System with Claude Code prompt and cache_control
   const claudeCodePrompt = { type: "text", text: CLAUDE_SYSTEM_PROMPT };
 

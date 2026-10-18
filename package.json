@@ -7,12 +7,14 @@
     "dev": "next dev --webpack --port 20128",
     "build": "node scripts/verify-braces.cjs && node scripts/verify-forge.cjs && NODE_ENV=production next build --webpack",
     "start": "NODE_ENV=production next start",
-    "deploy:prod": "node scripts/redeploy-production.cjs",
-    "validate:deepseek-route": "node scripts/validate-deepseek-route.mjs",
+    "deploy:prod": "npm run test:deployment && node scripts/redeploy-production.cjs",
+    "validate:deepseek-route": "npm run test:deployment && node scripts/validate-deepseek-route.mjs",
     "dev:bun": "bun --bun next dev --webpack --port 20128",
     "build:bun": "NODE_ENV=production bun --bun next build --webpack",
     "start:bun": "NODE_ENV=production bun ./.next/standalone/server.js",
-    "security:backport": "node scripts/verify-braces.cjs"
+    "security:backport": "node scripts/verify-braces.cjs",
+    "test:unit": "vitest run --root tests --config vitest.config.js unit",
+    "test:deployment": "vitest run --root tests --config vitest.config.js deployment"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fsPromises from "fs/promises";
+vi.mock("child_process", () => ({
+  execFile: vi.fn((_file, _args, _options, callback) => callback(new Error("sqlite3 unavailable"))),
+  execSync: vi.fn(() => { throw new Error("Global lookup disabled in unit tests"); }),
+}));
 
 // Mock next/server
 vi.mock("next/server", () => ({
@@ -71,7 +75,9 @@ describe("GET /api/oauth/cursor/auto-import", () => {
     const response = await GET();
 
     expect(response.body.found).toBe(false);
-    expect(response.body.error).toContain("Cursor database not found in known macOS locations");
+    expect(response.body.error).toContain("Cursor database not found");
+    expect(response.body.error).toContain("Library/Application Support/Cursor");
+    expect(fsPromises.access).toHaveBeenCalledTimes(2);
   });
 
   it("returns descriptive error if macOS db file exists but cannot be opened", async () => {
@@ -156,9 +162,7 @@ describe("GET /api/oauth/cursor/auto-import", () => {
     expect(response.body.error).toContain("Please login to Cursor IDE first");
   });
 
-  // ── Backwards-compatible: linux/win32 keep original single-path logic ─
-
-  it("linux uses single hardcoded path and original error message", async () => {
+  it("linux probes both supported Cursor paths", async () => {
     Object.defineProperty(process, "platform", { value: "linux", writable: true });
     vi.mocked(fsPromises.access).mockRejectedValue(new Error("ENOENT"));
     mockDbInstance.__throwOnConstruct = true;
@@ -166,11 +170,9 @@ describe("GET /api/oauth/cursor/auto-import", () => {
     const response = await GET();
 
     expect(response.body.found).toBe(false);
-    expect(response.body.error).toBe(
-      "Cursor database not found. Make sure Cursor IDE is installed and you are logged in."
-    );
-    // fs/promises.access should NOT have been called (linux skips probing)
-    expect(fsPromises.access).not.toHaveBeenCalled();
+    expect(response.body.error).toContain("Cursor database not found");
+    expect(fsPromises.access).toHaveBeenNthCalledWith(1, "/mock/home/.config/Cursor/User/globalStorage/state.vscdb", 4);
+    expect(fsPromises.access).toHaveBeenNthCalledWith(2, "/mock/home/.config/cursor/User/globalStorage/state.vscdb", 4);
   });
 
   it("unsupported platform returns 400", async () => {

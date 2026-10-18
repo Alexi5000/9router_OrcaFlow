@@ -49,3 +49,9 @@ npm test
 - Rate limiting: all accounts rate-limited → 503 + Retry-After, no credentials → 400
 - Error propagation: non-fallback errors passed through, 429 exhausts accounts
 - machineId override: validates key, rejects wrong key
+
+## Offline and deployment checks
+
+From the repository root, run `npm run test:unit` for offline unit tests. DeepSeek pricing remains part of this suite.
+
+Run `npm run test:deployment` to validate the real deployment configuration in `data/db.json`. This command fails when that ignored file is absent or its DeepSeek aliases and fallback tiers are incorrect. Do not substitute a fixture for the actual deployment database. Both `npm run deploy:prod` and `npm run validate:deepseek-route` require this check to pass before starting their existing operations. The full tests-directory suite retains these deployment assertions.

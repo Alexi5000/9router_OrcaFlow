@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { FORMATS } from "../../open-sse/translator/formats.js";
 import { translateRequest } from "../../open-sse/translator/index.js";
+import "../../open-sse/translator/request/openai-responses.js";
+import "../../open-sse/translator/request/claude-to-openai.js";
 import {
   OPENAI_RESPONSES_SCHEMA_ERROR_CODE,
   sanitizeOpenAIResponsesParameters,

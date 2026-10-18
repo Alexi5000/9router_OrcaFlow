@@ -7,6 +7,9 @@ on:
       - pnpm-lock.yaml
       - vendor/**
       - scripts/verify-braces.cjs
+      - tests/**
+      - open-sse/**
+      - src/**
       - Dockerfile
       - .github/workflows/dependency-validation.yml
   workflow_dispatch:
@@ -15,6 +18,20 @@ permissions:
   contents: read
 
 jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:unit
+
   container:
     runs-on: ubuntu-latest
     steps:
