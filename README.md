@@ -178,6 +178,8 @@ OpenRouter, GLM, Kimi, MiniMax, OpenAI, Anthropic, Gemini, DeepSeek, Groq, xAI, 
 
 See `.env.example` for all available variables.
 
+Provider validation accepts public HTTP(S) endpoints and rejects redirects and private network destinations. To validate a trusted local or self-hosted provider, set `PROVIDER_VALIDATION_ALLOWED_ORIGINS` on the server to exact comma-separated origins, including ports, for example `http://localhost:11434,http://192.168.1.20:8000`, then restart the service. Only list origins you trust to receive provider API keys. Request bodies cannot override this setting. TLS certificate verification stays enabled.
+
 ---
 
 ## API Reference

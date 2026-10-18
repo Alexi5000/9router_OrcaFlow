@@ -1,24 +1,5 @@
 import { NextResponse } from "next/server";
-
-// Fetch with timeout wrapper
-const fetchWithTimeout = (url, options, timeout = 10000) => {
-  return Promise.race([
-    fetch(url, options),
-    new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Request timeout")), timeout)
-    )
-  ]);
-};
-
-// Validate URL format
-const isValidUrl = (url) => {
-  try {
-    new URL(url);
-    return true;
-  } catch {
-    return false;
-  }
-};
+import { ProviderUrlError, validateProvider } from "@/lib/network/providerValidation";
 
 // Parse error details for user-friendly messages
 const getErrorMessage = (error) => {
@@ -42,42 +23,12 @@ export async function POST(request) {
       return NextResponse.json({ error: "Base URL and API key required" }, { status: 400 });
     }
 
-    // Validate URL format
-    if (!isValidUrl(baseUrl)) {
-      return NextResponse.json({ error: "Invalid URL format" }, { status: 400 });
-    }
-
-    // Anthropic Compatible Validation
-    if (type === "anthropic-compatible") {
-      // Robustly construct URL: remove trailing slash, and remove trailing /messages if user added it
-      let normalizedBase = baseUrl.trim().replace(/\/$/, "");
-      if (normalizedBase.endsWith("/messages")) {
-        normalizedBase = normalizedBase.slice(0, -9); // remove /messages
-      }
-      
-      // Use /models endpoint for validation as many compatible providers support it (like OpenAI)
-      const modelsUrl = `${normalizedBase}/models`;
-      
-      const res = await fetchWithTimeout(modelsUrl, {
-        method: "GET",
-        headers: { 
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "Authorization": `Bearer ${apiKey}` // Add Bearer token for hybrid proxies
-        }
-      });
-
-      return NextResponse.json({ valid: res.ok, error: res.ok ? null : "Invalid API key or unauthorized" });
-    }
-
-    // OpenAI Compatible Validation (Default)
-    const modelsUrl = `${baseUrl.replace(/\/$/, "")}/models`;
-    const res = await fetchWithTimeout(modelsUrl, {
-      headers: { "Authorization": `Bearer ${apiKey}` },
-    });
-
-    return NextResponse.json({ valid: res.ok, error: res.ok ? null : "Invalid API key or unauthorized" });
+    const valid = await validateProvider(baseUrl, apiKey, type);
+    return NextResponse.json({ valid, error: valid ? null : "Invalid API key or unauthorized" });
   } catch (error) {
+    if (error instanceof ProviderUrlError) {
+      return NextResponse.json({ valid: false, error: error.message }, { status: 400 });
+    }
     const errorMessage = getErrorMessage(error);
     console.error("Error validating provider node:", {
       message: error.message,
@@ -85,9 +36,9 @@ export async function POST(request) {
       code: error.cause?.code,
       userMessage: errorMessage
     });
-    return NextResponse.json({ 
+    return NextResponse.json({
       valid: false,
-      error: errorMessage 
+      error: errorMessage
     }, { status: 500 });
   }
 }
