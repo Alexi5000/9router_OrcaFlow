@@ -5,7 +5,7 @@ vi.mock("@/app/api/v1/chat/completions/route.js", () => ({ POST: vi.fn() }));
 import { POST as completeChat } from "@/app/api/v1/chat/completions/route.js";
 import { POST } from "@/app/api/models/test/route.js";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
 it("never forwards the internal credential to the incoming host", async () => {
   const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network must not be used"));
@@ -29,4 +29,16 @@ it("preserves local provider error reporting", async () => {
     body: JSON.stringify({ model: "missing" }),
   }));
   expect(await result.json()).toMatchObject({ ok: false, status: 404, error: "HTTP 404: Unavailable model" });
+});
+
+
+it("times out a stalled local completion", async () => {
+  vi.useFakeTimers();
+  completeChat.mockReturnValue(new Promise(() => {}));
+  const result = POST(new Request("https://attacker.invalid/api/models/test", {
+    method: "POST",
+    body: JSON.stringify({ model: "stalled" }),
+  }));
+  await vi.advanceTimersByTimeAsync(15001);
+  expect(await (await result).json()).toMatchObject({ ok: false, error: "Model test timed out" });
 });
