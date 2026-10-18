@@ -1,6 +1,7 @@
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
 import { adjustMaxTokens } from "../helpers/maxTokensHelper.js";
+import { filterToOpenAIFormat } from "../helpers/openaiHelper.js";
 
 // Convert Claude request to OpenAI format
 export function claudeToOpenAIRequest(model, body, stream) {
@@ -78,7 +79,7 @@ export function claudeToOpenAIRequest(model, body, stream) {
     result.tool_choice = convertToolChoice(body.tool_choice);
   }
 
-  return result;
+  return filterToOpenAIFormat(result);
 }
 
 // Fix missing tool responses - add empty responses for tool_calls without responses

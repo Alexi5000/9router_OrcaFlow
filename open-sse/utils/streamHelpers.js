@@ -2,9 +2,10 @@ import { FORMATS } from "../translator/formats.js";
 
 // Parse SSE data line
 export function parseSSELine(line) {
-  if (!line || line.charCodeAt(0) !== 100) return null; // 'd' = 100
-
-  const data = line.slice(5).trim();
+  if (typeof line !== "string") return null;
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("data:") && !trimmed.startsWith("{")) return null;
+  const data = trimmed.startsWith("data:") ? trimmed.slice(5).trim() : trimmed;
   if (data === "[DONE]") return { done: true };
 
   try {

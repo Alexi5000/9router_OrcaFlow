@@ -227,6 +227,8 @@ describe("Edge Cases", () => {
       });
     });
 
+  });
+
   describe("Provider Failover", () => {
     it("should fallback to next provider on failure", async () => {
       // Test with a combo that has multiple fallback options

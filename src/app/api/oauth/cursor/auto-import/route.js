@@ -134,6 +134,9 @@ async function extractTokensViaCLI(dbPath) {
 export async function GET() {
   try {
     const platform = process.platform;
+    if (!["darwin", "win32", "linux"].includes(platform)) {
+      return NextResponse.json({ found: false, error: "Unsupported platform" }, { status: 400 });
+    }
     const candidates = getCandidatePaths(platform);
 
     let dbPath = null;
@@ -179,6 +182,7 @@ export async function GET() {
       }
     }
 
+    let databaseError = null;
     if (Database) {
       let db;
       try {
@@ -189,7 +193,8 @@ export async function GET() {
         if (tokens.accessToken && tokens.machineId) {
           return NextResponse.json({ found: true, accessToken: tokens.accessToken, machineId: tokens.machineId });
         }
-      } catch {
+      } catch (error) {
+        databaseError = error;
         db?.close();
       }
     }
@@ -203,7 +208,14 @@ export async function GET() {
     } catch { /* sqlite3 CLI not available */ }
 
     // Strategy 3: ask user to paste manually
-    return NextResponse.json({ found: false, windowsManual: true, dbPath });
+    return NextResponse.json({
+      found: false,
+      windowsManual: platform === "win32",
+      dbPath,
+      error: databaseError
+        ? `Found Cursor database but could not open it: ${databaseError.message}`
+        : "Please login to Cursor IDE first, then retry importing tokens.",
+    });
   } catch (error) {
     console.log("Cursor auto-import error:", error);
     return NextResponse.json({ found: false, error: error.message }, { status: 500 });
