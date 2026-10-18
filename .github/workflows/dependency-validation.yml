@@ -1,6 +1,9 @@
 name: Dependency validation
 
 on:
+  push:
+    branches:
+      - orcaflow
   pull_request:
     paths:
       - package.json
