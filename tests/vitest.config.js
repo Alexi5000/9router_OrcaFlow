@@ -10,6 +10,7 @@ export default defineConfig({
     globals: true,
     include: [
       "unit/**/*.test.js",
+      "deployment/**/*.test.js",
       "edge-cases/**/*.test.js",
       "e2e/**/*.test.js",
     ],
