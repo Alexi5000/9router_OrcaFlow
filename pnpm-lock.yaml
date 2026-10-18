@@ -7,6 +7,7 @@ settings:
 overrides:
   dompurify: ^3.4.16
   braces: file:vendor/braces-3.0.3.tgz
+  node-forge: file:vendor/node-forge-1.4.0.tgz
 
 importers:
 
@@ -52,8 +53,8 @@ importers:
         specifier: ^16.4.2
         version: 16.4.2(@babel/core@7.29.7)(@playwright/test@1.64.1)(@types/node@26.6.5)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       node-forge:
-        specifier: ^1.4.0
-        version: 1.4.0
+        specifier: file:vendor/node-forge-1.4.0.tgz
+        version: file:vendor/node-forge-1.4.0.tgz
       node-machine-id:
         specifier: ^1.1.12
         version: 1.1.12
@@ -2612,8 +2613,9 @@ packages:
     resolution: {integrity: sha512-kXs9Go0cah0qHVV2v389IXQLdLCeE1xfFtjOAF+iobu0OIoG1pje8At2vMHyaPMiPMnG/LWP50twML21eMcAag==}
     engines: {node: '>= 0.4'}
 
-  node-forge@1.4.0:
-    resolution: {integrity: sha512-LarFH0+6VfriEhqMMcLX2F7SwSXeWwnEAJEsYm5QKWchiVYVvJyV9v7UDvUv+w5HO23ZpQTXDv/GxdDdMyOuoQ==}
+  node-forge@file:vendor/node-forge-1.4.0.tgz:
+    resolution: {integrity: sha512-xL71evkzfyT4AGifJa1GIl7otUNcJcX6WZV/AMJFJzzai0Yf1ANhGnXl7p1fBupuWgWQQK6JAsi+5UNKJskqoA==, tarball: file:vendor/node-forge-1.4.0.tgz}
+    version: 1.4.0
     engines: {node: '>= 6.13.0'}
 
   node-machine-id@1.1.12:
@@ -5909,7 +5911,7 @@ snapshots:
       object.entries: 1.1.9
       semver: 6.3.1
 
-  node-forge@1.4.0: {}
+  node-forge@file:vendor/node-forge-1.4.0.tgz: {}
 
   node-machine-id@1.1.12: {}
 
