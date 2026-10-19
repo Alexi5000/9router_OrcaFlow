@@ -70,7 +70,10 @@ export async function POST(request) {
   try {
     const { baseUrl, apiKey, model } = await request.json();
 
-    if (!baseUrl || !model) {
+    if (typeof baseUrl !== "string" || !baseUrl.trim() ||
+        typeof model !== "string" || !model.trim() ||
+        ["__proto__", "constructor", "prototype"].includes(model) ||
+        (apiKey !== undefined && typeof apiKey !== "string")) {
       return NextResponse.json({ error: "baseUrl and model are required" }, { status: 400 });
     }
 
@@ -84,7 +87,15 @@ export async function POST(request) {
     try {
       const existing = await fs.readFile(configPath, "utf-8");
       config = JSON.parse(existing);
-    } catch { /* No existing config */ }
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+
+    if (!config || typeof config !== "object" || Array.isArray(config) ||
+        (config.provider !== undefined &&
+         (!config.provider || typeof config.provider !== "object" || Array.isArray(config.provider)))) {
+      return NextResponse.json({ error: "Existing OpenCode configuration is invalid" }, { status: 409 });
+    }
 
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
     const keyToUse = apiKey || "sk_9router";
