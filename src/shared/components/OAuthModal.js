@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
+import { matchesOAuthState, trustedOAuthMessage } from "@/shared/utils/oauthCallback";
 import { Modal, Button, Input } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
@@ -43,6 +44,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
   const exchangeTokens = useCallback(async (code, state) => {
     if (!authData) return;
     try {
+      if (!matchesOAuthState({ state }, authData)) throw new Error("OAuth state mismatch; restart authorization");
       const res = await fetch(`/api/oauth/${provider}/exchange`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -214,7 +216,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
 
     // Handler for callback data - only process once
     const handleCallback = async (data) => {
-      if (callbackProcessedRef.current) return; // Already processed
+      if (callbackProcessedRef.current || !matchesOAuthState(data, authData)) return;
 
       const { code, state, error: callbackError, errorDescription } = data;
 
@@ -233,12 +235,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
 
     // Method 1: postMessage from popup
     const handleMessage = (event) => {
-      // Allow messages from same origin or localhost (any port)
-      const isLocalhost = event.origin.includes("localhost") || event.origin.includes("127.0.0.1");
-      const isSameOrigin = event.origin === window.location.origin;
-      if (!isLocalhost && !isSameOrigin) return;
-      
-      if (event.data?.type === "oauth_callback") {
+      if (trustedOAuthMessage(event, authData, popupRef.current)) {
         handleCallback(event.data.data);
       }
     };

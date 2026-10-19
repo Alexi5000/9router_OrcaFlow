@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { callbackTargetOrigins } from "@/shared/utils/oauthCallback";
 
 /**
  * OAuth Callback Page Content
@@ -26,16 +27,12 @@ function CallbackContent() {
 
     let relayed = false;
 
-    // Check if this callback is from expected origin/port
-    const expectedOrigins = [
-      window.location.origin, // Same origin (for most providers)
-      "http://localhost:1455", // Codex specific port
-    ];
-    
     // Method 1: postMessage to opener (popup mode)
     if (window.opener) {
       try {
-        window.opener.postMessage({ type: "oauth_callback", data: callbackData }, "*");
+        for (const origin of callbackTargetOrigins(window.location.origin)) {
+          window.opener.postMessage({ type: "oauth_callback", data: callbackData }, origin);
+        }
         relayed = true;
       } catch (e) {
         console.log("postMessage failed:", e);
