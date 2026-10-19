@@ -1,23 +1,67 @@
 const path = require("path");
 const fs = require("fs");
 const forge = require("node-forge");
+const { randomBytes } = require("crypto");
 const { MITM_DIR } = require("../paths");
 
 const ROOT_CA_KEY_PATH = path.join(MITM_DIR, "rootCA.key");
 const ROOT_CA_CERT_PATH = path.join(MITM_DIR, "rootCA.crt");
+
+function readCertificateFile(filePath) {
+  const fd = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK | (fs.constants.O_NOFOLLOW || 0));
+  try {
+    const opened = fs.fstatSync(fd);
+    const current = fs.lstatSync(filePath);
+    if (!opened.isFile() || opened.nlink !== 1 || current.isSymbolicLink()
+      || opened.dev !== current.dev || opened.ino !== current.ino) {
+      throw new Error("Root CA must use regular, unlinked files");
+    }
+    if (filePath === ROOT_CA_KEY_PATH && process.platform !== "win32") {
+      fs.fchmodSync(fd, 0o600);
+    }
+    return fs.readFileSync(fd, "utf8");
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function validateCertificateDirectory() {
+  const directory = fs.lstatSync(MITM_DIR);
+  if (!directory.isDirectory() || directory.isSymbolicLink()
+    || (process.platform !== "win32" && ((directory.mode & 0o022) !== 0 || directory.uid !== process.getuid()))) {
+    throw new Error("Root CA directory must be owned by the current user and not writable by other users");
+  }
+}
 
 /**
  * Generate Root CA certificate (only once)
  * This Root CA will sign all dynamic leaf certificates
  */
 async function generateRootCA() {
-  if (fs.existsSync(ROOT_CA_KEY_PATH) && fs.existsSync(ROOT_CA_CERT_PATH)) {
+  fs.mkdirSync(MITM_DIR, { recursive: true, mode: 0o700 });
+  validateCertificateDirectory();
+  let existingKey;
+  let existingCert;
+  for (const filePath of [ROOT_CA_KEY_PATH, ROOT_CA_CERT_PATH]) {
+    try {
+      const pem = readCertificateFile(filePath);
+      if (filePath === ROOT_CA_KEY_PATH) existingKey = pem;
+      else existingCert = pem;
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+  if (existingKey !== undefined || existingCert !== undefined) {
+    if (existingKey === undefined || existingCert === undefined) {
+      throw new Error("Incomplete Root CA pair; restore the missing file before retrying");
+    }
+    const key = forge.pki.privateKeyFromPem(existingKey);
+    const cert = forge.pki.certificateFromPem(existingCert);
+    if (key.n.compareTo(cert.publicKey.n) !== 0 || key.e.compareTo(cert.publicKey.e) !== 0) {
+      throw new Error("Root CA key and certificate do not match");
+    }
     console.log("✅ Root CA already exists");
     return { key: ROOT_CA_KEY_PATH, cert: ROOT_CA_CERT_PATH };
-  }
-
-  if (!fs.existsSync(MITM_DIR)) {
-    fs.mkdirSync(MITM_DIR, { recursive: true });
   }
 
   console.log("🔐 Generating Root CA certificate...");
@@ -66,8 +110,8 @@ async function generateRootCA() {
   const privateKeyPem = forge.pki.privateKeyToPem(keys.privateKey);
   const certPem = forge.pki.certificateToPem(cert);
 
-  fs.writeFileSync(ROOT_CA_KEY_PATH, privateKeyPem);
-  fs.writeFileSync(ROOT_CA_CERT_PATH, certPem);
+  fs.writeFileSync(ROOT_CA_KEY_PATH, privateKeyPem, { flag: "wx", mode: 0o600 });
+  fs.writeFileSync(ROOT_CA_CERT_PATH, certPem, { flag: "wx", mode: 0o600 });
 
   console.log("✅ Root CA generated successfully");
   return { key: ROOT_CA_KEY_PATH, cert: ROOT_CA_CERT_PATH };
@@ -77,12 +121,9 @@ async function generateRootCA() {
  * Load Root CA from disk
  */
 function loadRootCA() {
-  if (!fs.existsSync(ROOT_CA_KEY_PATH) || !fs.existsSync(ROOT_CA_CERT_PATH)) {
-    throw new Error("Root CA not found. Generate it first.");
-  }
-
-  const keyPem = fs.readFileSync(ROOT_CA_KEY_PATH, "utf8");
-  const certPem = fs.readFileSync(ROOT_CA_CERT_PATH, "utf8");
+  validateCertificateDirectory();
+  const keyPem = readCertificateFile(ROOT_CA_KEY_PATH);
+  const certPem = readCertificateFile(ROOT_CA_CERT_PATH);
 
   return {
     key: forge.pki.privateKeyFromPem(keyPem),
@@ -100,7 +141,7 @@ function generateLeafCert(domain, rootCA) {
   // Create leaf certificate
   const cert = forge.pki.createCertificate();
   cert.publicKey = keys.publicKey;
-  cert.serialNumber = Math.floor(Math.random() * 1000000).toString();
+  cert.serialNumber = `01${randomBytes(15).toString("hex")}`;
   cert.validity.notBefore = new Date();
   cert.validity.notAfter = new Date();
   cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 1);
