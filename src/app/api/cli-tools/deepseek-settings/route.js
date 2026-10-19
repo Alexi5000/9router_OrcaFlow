@@ -6,6 +6,7 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import {
+  isLocalDeepSeekRouterUrl,
   normalizeDeepSeekCliApiUrl,
   normalizeDeepSeekCliBaseUrl,
   resolveDeepSeekCliConfigPath,
@@ -48,7 +49,7 @@ const readConfig = async () => {
 
 const has9RouterConfig = (config) => {
   const baseUrl = config?.baseUrl || config?.apiUrl || "";
-  return baseUrl.includes("localhost:20128") || baseUrl.includes("127.0.0.1:20128");
+  return isLocalDeepSeekRouterUrl(baseUrl);
 };
 
 export async function GET() {
@@ -81,8 +82,17 @@ export async function POST(request) {
   try {
     const { baseUrl, apiKey, model } = await request.json();
 
-    if (!baseUrl || !model) {
+    if (typeof baseUrl !== "string" || !baseUrl.trim() ||
+        typeof model !== "string" || !model.trim() ||
+        (apiKey !== undefined && typeof apiKey !== "string")) {
       return NextResponse.json({ error: "baseUrl and model are required" }, { status: 400 });
+    }
+
+    let normalizedBaseUrl;
+    try {
+      normalizedBaseUrl = normalizeDeepSeekCliBaseUrl(baseUrl);
+    } catch {
+      return NextResponse.json({ error: "Invalid API URL" }, { status: 400 });
     }
 
     const configPath = resolveDeepSeekCliConfigPath();
@@ -93,11 +103,13 @@ export async function POST(request) {
     try {
       const existing = await fs.readFile(configPath, "utf-8");
       config = JSON.parse(existing);
-    } catch {
-      // Start fresh.
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
     }
 
-    const normalizedBaseUrl = normalizeDeepSeekCliBaseUrl(baseUrl);
+    if (!config || typeof config !== "object" || Array.isArray(config)) {
+      return NextResponse.json({ error: "Existing DeepSeek configuration is invalid" }, { status: 409 });
+    }
     const keyToUse = apiKey || "sk_9router";
 
     config.baseUrl = normalizedBaseUrl;

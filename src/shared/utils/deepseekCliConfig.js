@@ -24,21 +24,45 @@ export function resolveDeepSeekCliConfigPath() {
 
 export function normalizeDeepSeekCliBaseUrl(baseUrl) {
   if (!baseUrl) return "http://localhost:20128/v1";
-  const trimmed = String(baseUrl).trim().replace(/\/+$/, "");
-  if (trimmed.endsWith("/v1")) return trimmed;
-  if (trimmed.endsWith("/chat/completions")) {
-    return trimmed.replace(/\/chat\/completions$/, "");
+  const url = parseDeepSeekCliUrl(baseUrl);
+  let pathname = url.pathname.replace(/\/+$/, "");
+  if (pathname.endsWith("/chat/completions")) {
+    pathname = pathname.slice(0, -"/chat/completions".length);
+  } else if (!pathname.endsWith("/v1")) {
+    pathname += "/v1";
   }
-  return `${trimmed}/v1`;
+  url.pathname = pathname;
+  return url.toString();
 }
 
 export function normalizeDeepSeekCliApiUrl(baseUrlOrApiUrl) {
   if (!baseUrlOrApiUrl) return "https://api.deepseek.com/chat/completions";
-  const trimmed = String(baseUrlOrApiUrl).trim().replace(/\/+$/, "");
-  if (trimmed.endsWith("/chat/completions")) return trimmed;
-  if (trimmed.endsWith("/v1")) return `${trimmed}/chat/completions`;
-  if (trimmed.startsWith("https://api.deepseek.com")) {
-    return `${trimmed}/chat/completions`;
+  const url = parseDeepSeekCliUrl(baseUrlOrApiUrl);
+  let pathname = url.pathname.replace(/\/+$/, "");
+  if (!pathname.endsWith("/chat/completions")) {
+    if (!pathname.endsWith("/v1") && url.origin !== "https://api.deepseek.com") {
+      pathname += "/v1";
+    }
+    pathname += "/chat/completions";
   }
-  return `${trimmed}/v1/chat/completions`;
+  url.pathname = pathname;
+  return url.toString();
+}
+
+function parseDeepSeekCliUrl(value) {
+  if (typeof value !== "string" || !value.trim()) throw new TypeError("Invalid API URL");
+  const url = new URL(value.trim());
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.hash) {
+    throw new TypeError("Invalid API URL");
+  }
+  return url;
+}
+
+export function isLocalDeepSeekRouterUrl(value) {
+  try {
+    const url = parseDeepSeekCliUrl(value);
+    return ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) && url.port === "20128";
+  } catch {
+    return false;
+  }
 }
