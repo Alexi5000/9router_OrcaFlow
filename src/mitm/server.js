@@ -2,6 +2,7 @@ const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const dns = require("dns");
+const { randomUUID } = require("crypto");
 const { promisify } = require("util");
 
 const INTERNAL_REQUEST_HEADER = { name: "x-request-source", value: "local" };
@@ -34,6 +35,9 @@ const certCache = new Map();
 // SNI callback for dynamic certificate generation
 function sniCallback(servername, cb) {
   try {
+    if (!TARGET_HOSTS.includes(servername)) {
+      return cb(new Error("Unsupported interception hostname"));
+    }
     // Check cache first
     if (certCache.has(servername)) {
       const cached = certCache.get(servername);
@@ -92,22 +96,22 @@ function saveRequestLog(url, bodyBuffer) {
   if (!ENABLE_FILE_LOG) return;
   try {
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
-    const urlSlug = url.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 60);
-    const filePath = path.join(LOG_DIR, `${ts}_${urlSlug}.json`);
+    const filePath = path.join(LOG_DIR, `${ts}_${randomUUID()}.json`);
     const body = JSON.parse(bodyBuffer.toString());
     fs.writeFileSync(filePath, JSON.stringify(body, null, 2));
   } catch { /* ignore */ }
 }
 
-const cachedTargetIPs = {};
+const cachedTargetIPs = new Map();
 async function resolveTargetIP(hostname) {
-  if (cachedTargetIPs[hostname]) return cachedTargetIPs[hostname];
+  if (!TARGET_HOSTS.includes(hostname)) throw new Error("Unsupported upstream hostname");
+  if (cachedTargetIPs.has(hostname)) return cachedTargetIPs.get(hostname);
   const resolver = new dns.Resolver();
   resolver.setServers(["8.8.8.8"]);
   const resolve4 = promisify(resolver.resolve4.bind(resolver));
   const addresses = await resolve4(hostname);
-  cachedTargetIPs[hostname] = addresses[0];
-  return cachedTargetIPs[hostname];
+  cachedTargetIPs.set(hostname, addresses[0]);
+  return cachedTargetIPs.get(hostname);
 }
 
 function collectBodyRaw(req) {
@@ -158,7 +162,7 @@ async function passthrough(req, res, bodyBuffer) {
     method: req.method,
     headers: { ...req.headers, host: targetHost },
     servername: targetHost,
-    rejectUnauthorized: false
+    rejectUnauthorized: true
   }, (forwardRes) => {
     res.writeHead(forwardRes.statusCode, forwardRes.headers);
     forwardRes.pipe(res);
@@ -218,6 +222,14 @@ const server = https.createServer(sslOptions, async (req, res) => {
     res.end(JSON.stringify({ ok: true, pid: process.pid }));
     return;
   }
+
+  const host = (req.headers.host || "").toLowerCase();
+  if (!TARGET_HOSTS.some(target => host === target || host === `${target}:443`)) {
+    res.writeHead(421);
+    res.end("Unsupported interception hostname");
+    return;
+  }
+  req.headers.host = host;
 
   const bodyBuffer = await collectBodyRaw(req);
   if (bodyBuffer.length > 0) saveRequestLog(req.url, bodyBuffer);
