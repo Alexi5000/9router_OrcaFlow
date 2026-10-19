@@ -17,7 +17,7 @@ export class CodexExecutor extends BaseExecutor {
    */
   buildHeaders(credentials, stream = true) {
     const headers = super.buildHeaders(credentials, stream);
-    headers["session_id"] = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    headers["session_id"] = `${Date.now()}-${crypto.randomUUID().replaceAll("-", "")}`;
     return headers;
   }
 
