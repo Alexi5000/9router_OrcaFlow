@@ -22,7 +22,7 @@ export async function PUT(request) {
   try {
     const { tool, mappings } = await request.json();
 
-    if (!tool || !mappings || typeof mappings !== "object") {
+    if (!["antigravity", "copilot"].includes(tool) || !mappings || typeof mappings !== "object" || Array.isArray(mappings)) {
       return NextResponse.json({ error: "tool and mappings required" }, { status: 400 });
     }
 
@@ -35,9 +35,12 @@ export async function PUT(request) {
       );
     }
 
-    const filtered = {};
+    const filtered = Object.create(null);
     for (const [alias, model] of Object.entries(mappings)) {
-      if (model && model.trim()) {
+      if (["__proto__", "constructor", "prototype"].includes(alias) || typeof model !== "string") {
+        return NextResponse.json({ error: "Invalid model mapping" }, { status: 400 });
+      }
+      if (model.trim()) {
         filtered[alias] = model.trim();
       }
     }
