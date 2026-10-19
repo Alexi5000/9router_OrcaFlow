@@ -20,7 +20,7 @@ function loadDns(execFile) {
 }
 
 function commandPath(command) {
-  const match = command.match(/'-File','"((?:''|[^"])+)"'/);
+  const match = command.match(/'-File','"([^"]+)"'/);
   assert.ok(match);
   return match[1].replace(/''/g, "'");
 }
@@ -35,7 +35,7 @@ test('temporary scopes are unique, private, exclusive, and removed after return'
     assert.throws(() => temp.write('secret.ps1', 'overwrite'), { code: 'EEXIST' });
     assert.throws(() => temp.write('../escape.ps1', 'escape'), /Invalid temporary filename/);
     if (process.platform === 'win32') {
-      const script = `$acl = Get-Acl -LiteralPath '${directory.replace(/'/g, "''")}'; [pscustomobject]@{Protected=$acl.AreAccessRulesProtected; Sids=@($acl.Access | ForEach-Object { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value })} | ConvertTo-Json -Compress`;
+      const script = `$ErrorActionPreference = 'Stop'; $acl = [System.IO.Directory]::GetAccessControl('${directory.replace(/'/g, "''")}'); [pscustomobject]@{Protected=$acl.AreAccessRulesProtected; Sids=@($acl.Access | ForEach-Object { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value })} | ConvertTo-Json -Compress`;
       const acl = JSON.parse(execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8' }));
       assert.equal(acl.Protected, true);
       assert.equal(acl.Sids.length, 3);
