@@ -1,47 +1,40 @@
 import { NextResponse } from "next/server";
 import { jwtVerify } from "jose";
+import { getSettings } from "./lib/localDb";
+import { getSessionSecret } from "./lib/sessionSecret";
 
-const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "orcaflow-default-secret-change-me"
-);
+const PUBLIC_API_PATHS = new Set([
+  "/api/auth/login", "/api/auth/logout", "/api/settings/require-login",
+  "/api/version", "/api/tags",
+]);
 
 export async function proxy(request) {
   const { pathname } = request.nextUrl;
+  const isApi = pathname.startsWith("/api/");
+  const publicInference = pathname === "/api/v1" || pathname.startsWith("/api/v1/") || pathname.startsWith("/api/v1beta/");
+  if (isApi && (PUBLIC_API_PATHS.has(pathname) || publicInference)) return NextResponse.next();
 
-  // Protect all dashboard routes
-  if (pathname.startsWith("/dashboard")) {
-    const token = request.cookies.get("auth_token")?.value;
-
-    if (token) {
-      try {
-        await jwtVerify(token, SECRET);
-        return NextResponse.next();
-      } catch (err) {
-        return NextResponse.redirect(new URL("/login", request.url));
+  if (pathname.startsWith("/dashboard") || isApi) {
+    if (isApi && !["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+      const origin = request.headers.get("origin");
+      if (origin && origin !== request.nextUrl.origin) {
+        return NextResponse.json({ error: "Cross-origin management request rejected" }, { status: 403 });
       }
     }
-
-    const origin = request.nextUrl.origin;
     try {
-      const res = await fetch(`${origin}/api/settings/require-login`);
-      const data = await res.json();
-      if (data.requireLogin === false) {
-        return NextResponse.next();
+      const settings = await getSettings();
+      if (settings.requireLogin === false) return NextResponse.next();
+      const token = request.cookies.get("auth_token")?.value;
+      if (token) {
+        const { payload } = await jwtVerify(token, getSessionSecret(), { algorithms: ["HS256"] });
+        if (payload.authenticated === true) return NextResponse.next();
       }
-    } catch (err) {
-      // On error, require login
-    }
+    } catch {}
+    if (isApi) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     return NextResponse.redirect(new URL("/login", request.url));
   }
-
-  // Redirect / to /dashboard if logged in, or /dashboard if it's the root
-  if (pathname === "/") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
+  if (pathname === "/") return NextResponse.redirect(new URL("/dashboard", request.url));
   return NextResponse.next();
 }
 
-export const config = {
-  matcher: ["/", "/dashboard/:path*"],
-};
+export const config = { matcher: ["/", "/dashboard/:path*", "/api/:path*"] };

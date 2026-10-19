@@ -4,25 +4,23 @@ import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { cookies } from "next/headers";
 
-const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "9router-default-secret-change-me"
-);
+import { getSessionSecret } from "@/lib/sessionSecret";
 
 export async function POST(request) {
   try {
+    const secret = getSessionSecret();
     const { password } = await request.json();
+    if (typeof password !== "string" || !password) return NextResponse.json({ error: "Invalid password" }, { status: 401 });
     const settings = await getSettings();
 
-    // Default password is '123456' if not set
     const storedHash = settings.password;
 
     let isValid = false;
     if (storedHash) {
       isValid = await bcrypt.compare(password, storedHash);
     } else {
-      // Use env var or default
-      const initialPassword = process.env.INITIAL_PASSWORD || "123456";
-      isValid = password === initialPassword;
+      const initialPassword = process.env.INITIAL_PASSWORD;
+      isValid = Boolean(initialPassword) && initialPassword !== "change-me" && password === initialPassword;
     }
 
     if (isValid) {
@@ -34,7 +32,7 @@ export async function POST(request) {
       const token = await new SignJWT({ authenticated: true })
         .setProtectedHeader({ alg: "HS256" })
         .setExpirationTime("24h")
-        .sign(SECRET);
+        .sign(secret);
 
       const cookieStore = await cookies();
       cookieStore.set("auth_token", token, {
