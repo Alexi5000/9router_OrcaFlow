@@ -260,3 +260,9 @@ This project is built on top of **[9Router](https://github.com/decolua/9router)*
 <div align="center">
   <sub>Built by <b>TechTide AI</b> on top of <a href="https://github.com/decolua/9router">9Router</a></sub>
 </div>
+
+### Management API authentication
+
+When login is enabled (the default), dashboard pages and management APIs require the same authenticated session. This includes settings, provider credentials, CLI configuration, OAuth initiation/exchange, and shutdown. Provider OAuth callbacks continue to use their existing browser/local callback flows; authenticated dashboard requests initiate and exchange them. Public inference protocol routes under `/api/v1` and `/api/v1beta` retain their existing API-key handling, independently of dashboard sessions. Login/logout, version, tags, and the login-required indicator remain public.
+
+Configure `JWT_SECRET` with at least 32 random characters and `INITIAL_PASSWORD` before the first login, or use an existing stored password hash. Public default signing secrets and the old `123456` fallback password are no longer accepted. Missing configuration fails closed; existing sessions signed with a valid configured secret remain usable. Intentionally setting `requireLogin: false` preserves local no-login operation, and must not be used on an exposed service. Cross-origin management writes are rejected. Live deployment and provider validation remain separate mandatory checks.
