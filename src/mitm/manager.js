@@ -1,7 +1,6 @@
 const { exec, spawn, execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
-const os = require("os");
 const net = require("net");
 const https = require("https");
 const crypto = require("crypto");
@@ -359,9 +358,7 @@ async function startServer(apiKey, sudoPassword) {
       `Start-Sleep -Milliseconds 500`,
     ].join("\n");
 
-    const tmpPs1 = path.join(os.tmpdir(), `mitm_start_${Date.now()}.ps1`);
-    fs.writeFileSync(tmpPs1, psScript, "utf8");
-    await executeElevatedPowerShell(tmpPs1, 90000);
+    await executeElevatedPowerShell(psScript, 90000);
 
     if (_updateSettings) await _updateSettings({ mitmCertInstalled: true }).catch(() => { });
   } else {
@@ -453,23 +450,22 @@ async function stopServer(sudoPassword) {
     const filtered = hostsContent.split(/\r?\n/)
       .filter(l => !allHosts.some(h => l.includes(h)))
       .join("\r\n");
-    const tmpHosts = path.join(os.tmpdir(), `mitm_hosts_clean_${Date.now()}.tmp`);
-    fs.writeFileSync(tmpHosts, filtered, "utf8");
+    await executeElevatedPowerShell((temp) => {
+      const tmpHosts = temp.write("hosts.tmp", filtered);
 
-    const psScript = [
-      `$ErrorActionPreference = 'Stop'`,
-      `try {`,
-      `  Copy-Item -Path '${psSQ(tmpHosts)}' -Destination '${psSQ(hostsFile)}' -Force -ErrorAction Stop`,
-      `  ipconfig /flushdns | Out-Null`,
-      `  Remove-Item '${psSQ(tmpHosts)}' -ErrorAction SilentlyContinue`,
-      `} catch {`,
-      `  Remove-Item '${psSQ(tmpHosts)}' -ErrorAction SilentlyContinue`,
-      `}`,
-    ].join("\n");
+      const psScript = [
+        `$ErrorActionPreference = 'Stop'`,
+        `try {`,
+        `  Copy-Item -Path '${psSQ(tmpHosts)}' -Destination '${psSQ(hostsFile)}' -Force -ErrorAction Stop`,
+        `  ipconfig /flushdns | Out-Null`,
+        `  Remove-Item '${psSQ(tmpHosts)}' -ErrorAction SilentlyContinue`,
+        `} catch {`,
+        `  Remove-Item '${psSQ(tmpHosts)}' -ErrorAction SilentlyContinue`,
+        `}`,
+      ].join("\n");
 
-    const tmpPs1 = path.join(os.tmpdir(), `mitm_stop_${Date.now()}.ps1`);
-    fs.writeFileSync(tmpPs1, psScript, "utf8");
-    await executeElevatedPowerShell(tmpPs1, 30000);
+      return psScript;
+    }, 30000);
   } else {
     await removeAllDNSEntries(sudoPassword);
   }

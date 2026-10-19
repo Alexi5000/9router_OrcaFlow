@@ -34,6 +34,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:unit
+      - run: node --test tests/security/private-elevation.test.cjs
 
   container:
     runs-on: ubuntu-latest
@@ -64,3 +65,12 @@ jobs:
             sleep 2
           done
           exit 1
+
+  windows-private-temp:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test tests/security/private-elevation.test.cjs
