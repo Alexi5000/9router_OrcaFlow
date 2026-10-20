@@ -36,7 +36,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:unit
-      - run: node --test tests/security/private-elevation.test.cjs
+      - run: node --test tests/security/private-elevation.test.cjs tests/security/windows-server-start.test.cjs
 
   container:
     runs-on: ubuntu-latest
@@ -75,4 +75,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test tests/security/private-elevation.test.cjs
+      - run: node --test tests/security/private-elevation.test.cjs tests/security/windows-server-start.test.cjs

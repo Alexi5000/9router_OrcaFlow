@@ -291,6 +291,24 @@ async function getMitmStatus() {
   return { running, pid, certExists, dnsStatus };
 }
 
+function buildWindowsServerScript(apiKey) {
+  if (/["\r\n\0]/.test(SERVER_PATH)) throw new Error("Invalid MITM server path");
+  const psSQ = (s) => s.replace(/'/g, "''");
+  const nodePs = psSQ(process.execPath);
+  const serverPs = psSQ(SERVER_PATH);
+
+  return [
+    `$ErrorActionPreference = 'Stop'`,
+    `$conn = Get-NetTCPConnection -LocalPort 443 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1`,
+    `if ($conn -and $conn.OwningProcess -gt 4) { Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue }`,
+    `Start-Sleep -Milliseconds 500`,
+    `$env:ROUTER_API_KEY = '${psSQ(apiKey)}'`,
+    `$env:NODE_ENV = 'production'`,
+    `Start-Process -FilePath '${nodePs}' -ArgumentList '"${serverPs}"' -WindowStyle Hidden`,
+    `Start-Sleep -Milliseconds 500`,
+  ].join("\n");
+}
+
 /**
  * Start MITM server only (cert + server, no DNS)
  */
@@ -363,19 +381,7 @@ async function startServer(apiKey, sudoPassword) {
 
   // Step 2: Spawn server (Root CA already installed in Step 1.5)
   if (IS_WIN) {
-    const psSQ = (s) => s.replace(/'/g, "''");
-    const nodePs = psSQ(process.execPath);
-    const serverPs = psSQ(SERVER_PATH);
-
-    const psScript = [
-      `$ErrorActionPreference = 'Stop'`,
-      `$conn = Get-NetTCPConnection -LocalPort 443 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1`,
-      `if ($conn -and $conn.OwningProcess -gt 4) { Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue }`,
-      `Start-Sleep -Milliseconds 500`,
-      `$nodeCmd = 'set ROUTER_API_KEY=${psSQ(apiKey)}&& set NODE_ENV=production&& "${nodePs}" "${serverPs}"'`,
-      `Start-Process cmd -ArgumentList '/c',$nodeCmd -WindowStyle Hidden`,
-      `Start-Sleep -Milliseconds 500`,
-    ].join("\n");
+    const psScript = buildWindowsServerScript(apiKey);
 
     await executeElevatedPowerShell(psScript, 90000);
 
