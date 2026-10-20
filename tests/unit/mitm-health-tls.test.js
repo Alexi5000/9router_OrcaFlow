@@ -59,6 +59,7 @@ async function serverFor(leaf, payload = { ok: true, pid: 12345 }) {
   const server = https.createServer({ ...leaf, SNICallback(name, callback) { servername = name; callback(null, context); } }, (req, res) => {
     requests++;
     expect(req.url).toBe("/_mitm_health");
+    if (payload === null) return;
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify(payload));
   });
@@ -67,9 +68,9 @@ async function serverFor(leaf, payload = { ok: true, pid: 12345 }) {
   return { port: server.address().port, requests: () => requests, servername: () => servername };
 }
 
-function probe(port, loadRootCA = () => trustedRoot) {
-  return vm.runInNewContext(`${probeSource}\npollMitmHealth(0, port);`, {
-    https, forge, loadRootCA, port, MITM_PORT: 443, setTimeout, Date,
+function probe(port, loadRootCA = () => trustedRoot, timeoutMs = 0) {
+  return vm.runInNewContext(`${probeSource}\npollMitmHealth(timeoutMs, port);`, {
+    https, forge, loadRootCA, port, timeoutMs, MITM_PORT: 443, setTimeout, clearTimeout, Date,
   });
 }
 
@@ -102,5 +103,13 @@ it.each(["missing", "malformed"])("fails closed with a %s root without contactin
 it("preserves unhealthy-service status handling", async () => {
   const server = await serverFor(goodLeaf, { ok: false });
   expect(await probe(server.port)).toBeNull();
+  expect(server.requests()).toBe(1);
+});
+
+it("bounds a trusted server that never finishes the health response", async () => {
+  const server = await serverFor(goodLeaf, null);
+  const started = Date.now();
+  expect(await probe(server.port, undefined, 100)).toBeNull();
+  expect(Date.now() - started).toBeLessThan(2000);
   expect(server.requests()).toBe(1);
 });

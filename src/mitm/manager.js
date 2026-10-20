@@ -237,6 +237,7 @@ function pollMitmHealth(timeoutMs, port = MITM_PORT) {
           let body = "";
           res.on("data", (d) => { body += d; });
           res.on("end", () => {
+            clearTimeout(requestTimer);
             try {
               const json = JSON.parse(body);
               resolve(json.ok === true ? { ok: true, pid: json.pid || null } : null);
@@ -244,8 +245,13 @@ function pollMitmHealth(timeoutMs, port = MITM_PORT) {
           });
         }
       );
+      const requestTimer = setTimeout(
+        () => req.destroy(new Error("MITM health request timed out")),
+        timeoutMs > 0 ? Math.max(1, deadline - Date.now()) : 1000
+      );
       req.on("error", () => {
-        if (Date.now() < deadline) setTimeout(check, 500);
+        clearTimeout(requestTimer);
+        if (Date.now() < deadline) setTimeout(check, Math.min(500, deadline - Date.now()));
         else resolve(null);
       });
       req.end();
