@@ -59,3 +59,12 @@ describe("OpenCode settings input and configuration preservation", () => {
     expect(written.provider.custom).toEqual({ models: {} });
   });
 });
+
+ it.each(["toString", "hasOwnProperty", "provider/model.with-dots"])("persists model %s as own JSON data", async model => {
+    const request = new Request("http://localhost/api/opencode-settings", { method: "POST", body: JSON.stringify({ ...payload, model }) });
+    expect((await POST(request)).status).toBe(200);
+    const written = JSON.parse(io.writeFile.mock.calls[0][1]);
+    expect(Object.hasOwn(written.provider["9router"].models, model)).toBe(true);
+    expect(written.provider["9router"].models[model]).toEqual({ name: model });
+    expect(written.model).toBe(`9router/${model}`);
+  });

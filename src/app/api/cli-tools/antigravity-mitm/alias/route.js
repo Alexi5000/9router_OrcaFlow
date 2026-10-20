@@ -35,16 +35,17 @@ export async function PUT(request) {
       );
     }
 
-    const filtered = Object.create(null);
+    const entries = new Map();
     for (const [alias, model] of Object.entries(mappings)) {
       if (["__proto__", "constructor", "prototype"].includes(alias) || typeof model !== "string") {
         return NextResponse.json({ error: "Invalid model mapping" }, { status: 400 });
       }
       if (model.trim()) {
-        filtered[alias] = model.trim();
+        entries.set(alias, model.trim());
       }
     }
 
+    const filtered = Object.fromEntries(entries);
     await setMitmAliasAll(tool, filtered);
     return NextResponse.json({ success: true, aliases: filtered });
   } catch (error) {
