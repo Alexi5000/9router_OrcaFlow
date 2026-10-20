@@ -60,3 +60,7 @@ If you discover a security vulnerability, please see [SECURITY.md](SECURITY.md) 
 ## License
 
 By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+
+### Optional Kilo provider smoke scripts
+
+`scripts/test-kilocode.js` and `scripts/test-claude46.js` require `KILO_API_TOKEN` supplied by your secret manager. They exit before network access when it is absent. Running them with a token makes real provider requests and may incur usage charges. Never commit tokens or paste them into reports. Previously embedded credentials must be revoked at the provider if they belong to your account; removing source literals does not revoke historical credentials.

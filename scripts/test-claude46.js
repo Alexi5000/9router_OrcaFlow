@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbnYiOiJwcm9kdWN0aW9uIiwia2lsbFVzZXJkZXZpY2VBdXRoUnVxdWVzdENvZGUiOiI5TDg2LVhNTjgiLCJpYXQiOjE3NzMyMzg1ODMsImV4cCI6MTkzMDkxODU4M30.MMQjvdVf35WLbwggPXrgL5V_W3YnDdovcMYV9yPoqqs';
+const token = process.env.KILO_API_TOKEN?.trim();
+if (!token) {
+  console.error('KILO_API_TOKEN is required; load it from your secret manager.');
+  process.exit(1);
+}
 const baseUrl = 'https://api.kilo.ai/api/openrouter/chat/completions';
 
 async function testModel(model) {
@@ -32,7 +36,7 @@ async function testModel(model) {
 
 (async () => {
   console.log('Testing Claude 4.6 models on KiloCode...\n');
-  
+
   // Test various Claude 4.6 naming conventions
   await testModel('anthropic/claude-opus-4-6');
   await testModel('anthropic/claude-sonnet-4-6');
@@ -40,7 +44,7 @@ async function testModel(model) {
   await testModel('anthropic/claude-4-sonnet');
   await testModel('anthropic/claude-4.6-opus');
   await testModel('anthropic/claude-4.6-sonnet');
-  
+
   // Also test the working ones we comparison
   console.log('\nReference (working models):');
   await testModel('anthropic/claude-sonnet-4');

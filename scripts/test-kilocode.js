@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbnYiOiJwcm9kdWN0aW9uIiwia2lsb1VzZXJJZCI6ImI5MjBjNzM4LTE5ZjQtNGU2Yi1iOWFlLWY1MzYzN2I3MWY0NyIsImFwaVRva2VuUGVwcGVyIjpudWxsLCJ2ZXJzaW9uIjozLCJkZXZpY2VBdXRoUmVxdWVzdENvZGUiOiI5TDg2LVhNTjgiLCJpYXQiOjE3NzMyMzg1ODMsImV4cCI6MTkzMDkxODU4M30.MMQjvdVf35WLbwggPXrgL5V_W3YnDdovcMYV9yPoqqs';
+const token = process.env.KILO_API_TOKEN?.trim();
+if (!token) {
+  console.error('KILO_API_TOKEN is required; load it from your secret manager.');
+  process.exit(1);
+}
 const baseUrl = 'https://api.kilo.ai/api/openrouter/chat/completions';
 
 async function testModel(model) {
