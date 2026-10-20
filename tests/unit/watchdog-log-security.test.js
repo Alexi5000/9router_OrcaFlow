@@ -29,9 +29,13 @@ function largeFile(target = file) {
 }
 
 describe("watchdog request log trimming", () => {
-  it("does not create missing logs or change logs below the threshold", () => {
+  it("does not create missing logs", () => {
     trim();
     expect(fs.existsSync(file)).toBe(false);
+    expect(messages).toEqual([]);
+  });
+
+  it("does not change logs below the threshold", () => {
     fs.writeFileSync(file, '[{"message":"keep"}]');
     trim();
     expect(fs.readFileSync(file, "utf8")).toBe('[{"message":"keep"}]');
