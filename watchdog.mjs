@@ -189,7 +189,9 @@ function trimRequestDetails() {
     if (sizeMB < 50) return;
 
     log(`request-details.json is ${sizeMB.toFixed(0)} MB — trimming...`);
-    fs.writeSync(fd, "[]", 0, "utf8");
+    if (fs.writeSync(fd, "[]", 0, "utf8") !== 2) {
+      throw new Error("Incomplete request log reset");
+    }
     fs.ftruncateSync(fd, 2);
     log("request-details.json trimmed to empty.");
   } catch (err) {

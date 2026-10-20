@@ -96,4 +96,12 @@ describe("watchdog request log trimming", () => {
     expect(closed).toBe(1);
     expect(messages.at(-1)).toContain("injected write failure");
   });
+  it("short writes do not truncate or report a successful reset", () => {
+    largeFile();
+    trim({ writeSync(fd) { return fs.writeSync(fd, "[", 0, "utf8"); } });
+    expect(fs.statSync(file).size).toBe(51 * 1024 * 1024);
+    expect(messages.at(-1)).toContain("Incomplete request log reset");
+    expect(messages.some(message => message.includes("trimmed to empty"))).toBe(false);
+  });
+
 });
