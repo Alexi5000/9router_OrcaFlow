@@ -98,7 +98,7 @@ it("stalled writes reject and retain the safety snapshot without truncating", as
   expect(fs.readFileSync(path.join(safety, privateDir, "usage.json"), "utf8")).toBe(initial);
 });
 
-it("the CLI reports a durable backup and restored usage on disk", () => {
+it("the CLI reports a persisted backup and restored usage on disk", () => {
   const result = execFileSync(process.execPath, [fileURLToPath(new URL("../../scripts/recover-usage-from-outlog.cjs", import.meta.url))], {
     env: { ...process.env, DATA_DIR: root, USERPROFILE: root, NINEROUTER_BACKUP_DIR: safety },
     encoding: "utf8",
