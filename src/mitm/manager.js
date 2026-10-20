@@ -3,6 +3,8 @@ const path = require("path");
 const fs = require("fs");
 const net = require("net");
 const https = require("https");
+const forge = require("node-forge");
+const { loadRootCA } = require("./cert/rootCA");
 const crypto = require("crypto");
 const { addDNSEntry, removeDNSEntry, removeAllDNSEntries, checkAllDNSStatus, executeElevatedPowerShell, TOOL_HOSTS } = require("./dns/dnsConfig");
 
@@ -220,13 +222,22 @@ async function killLeftoverMitm(sudoPassword) {
 function pollMitmHealth(timeoutMs, port = MITM_PORT) {
   return new Promise((resolve) => {
     const deadline = Date.now() + timeoutMs;
+    let ca;
+    try {
+      ca = forge.pki.certificateToPem(loadRootCA().cert);
+    } catch {
+      resolve(null);
+      return;
+    }
     const check = () => {
       const req = https.request(
-        { hostname: "127.0.0.1", port, path: "/_mitm_health", method: "GET", rejectUnauthorized: false },
+        { hostname: "127.0.0.1", servername: "cloudcode-pa.googleapis.com", ca,
+          port, path: "/_mitm_health", method: "GET", rejectUnauthorized: true },
         (res) => {
           let body = "";
           res.on("data", (d) => { body += d; });
           res.on("end", () => {
+            clearTimeout(requestTimer);
             try {
               const json = JSON.parse(body);
               resolve(json.ok === true ? { ok: true, pid: json.pid || null } : null);
@@ -234,8 +245,13 @@ function pollMitmHealth(timeoutMs, port = MITM_PORT) {
           });
         }
       );
+      const requestTimer = setTimeout(
+        () => req.destroy(new Error("MITM health request timed out")),
+        timeoutMs > 0 ? Math.max(1, deadline - Date.now()) : 1000
+      );
       req.on("error", () => {
-        if (Date.now() < deadline) setTimeout(check, 500);
+        clearTimeout(requestTimer);
+        if (Date.now() < deadline) setTimeout(check, Math.min(500, deadline - Date.now()));
         else resolve(null);
       });
       req.end();
