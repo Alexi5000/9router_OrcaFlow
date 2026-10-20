@@ -3,6 +3,8 @@ const path = require("path");
 const fs = require("fs");
 const net = require("net");
 const https = require("https");
+const forge = require("node-forge");
+const { loadRootCA } = require("./cert/rootCA");
 const crypto = require("crypto");
 const { addDNSEntry, removeDNSEntry, removeAllDNSEntries, checkAllDNSStatus, executeElevatedPowerShell, TOOL_HOSTS } = require("./dns/dnsConfig");
 
@@ -220,9 +222,17 @@ async function killLeftoverMitm(sudoPassword) {
 function pollMitmHealth(timeoutMs, port = MITM_PORT) {
   return new Promise((resolve) => {
     const deadline = Date.now() + timeoutMs;
+    let ca;
+    try {
+      ca = forge.pki.certificateToPem(loadRootCA().cert);
+    } catch {
+      resolve(null);
+      return;
+    }
     const check = () => {
       const req = https.request(
-        { hostname: "127.0.0.1", port, path: "/_mitm_health", method: "GET", rejectUnauthorized: false },
+        { hostname: "127.0.0.1", servername: "cloudcode-pa.googleapis.com", ca,
+          port, path: "/_mitm_health", method: "GET", rejectUnauthorized: true },
         (res) => {
           let body = "";
           res.on("data", (d) => { body += d; });
