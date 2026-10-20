@@ -382,10 +382,13 @@ async function startServer(apiKey, sudoPassword) {
     if (_updateSettings) await _updateSettings({ mitmCertInstalled: true }).catch(() => { });
   } else {
     // Non-Windows: Root CA already installed in Step 1.5, just spawn server
-    const inlineCmd = `ROUTER_API_KEY='${apiKey}' NODE_ENV='production' '${process.execPath}' '${SERVER_PATH}'`;
     serverProcess = spawn(
-      "sudo", ["-S", "-E", "sh", "-c", inlineCmd],
-      { detached: false, stdio: ["pipe", "pipe", "pipe"] }
+      "sudo", ["-S", "-E", "--", process.execPath, SERVER_PATH],
+      {
+        detached: false,
+        stdio: ["pipe", "pipe", "pipe"],
+        env: { ...process.env, ROUTER_API_KEY: apiKey, NODE_ENV: "production" },
+      }
     );
     serverProcess.stdin.write(`${sudoPassword}\n`);
     serverProcess.stdin.end();
