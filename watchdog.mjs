@@ -175,17 +175,27 @@ function clearLocksInDb(connectionId, lockKeys) {
 // ── Log trim ─────────────────────────────────────────────────────────────────
 
 function trimRequestDetails() {
+  let fd;
   try {
-    if (!fs.existsSync(REQUEST_DETAILS_FILE)) return;
-    const stat = fs.statSync(REQUEST_DETAILS_FILE);
+    fd = fs.openSync(REQUEST_DETAILS_FILE,
+      fs.constants.O_RDWR | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0));
+    const stat = fs.fstatSync(fd);
+    const named = fs.lstatSync(REQUEST_DETAILS_FILE);
+    if (named.isSymbolicLink() || named.dev !== stat.dev || named.ino !== stat.ino || !stat.isFile() || stat.nlink !== 1 ||
+        (process.platform !== "win32" && stat.uid !== process.getuid())) {
+      throw new Error("Request details must be an owned, single-link regular file");
+    }
     const sizeMB = stat.size / 1024 / 1024;
-    if (sizeMB < 50) return; // Only trim if > 50 MB
+    if (sizeMB < 50) return;
 
     log(`request-details.json is ${sizeMB.toFixed(0)} MB — trimming...`);
-    fs.writeFileSync(REQUEST_DETAILS_FILE, "[]", "utf8");
+    fs.writeSync(fd, "[]", 0, "utf8");
+    fs.ftruncateSync(fd, 2);
     log("request-details.json trimmed to empty.");
   } catch (err) {
-    log(`Trim error: ${err.message}`);
+    if (err.code !== "ENOENT") log(`Trim error: ${err.message}`);
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
   }
 }
 

@@ -13,6 +13,7 @@ on:
       - tests/**
       - open-sse/**
       - src/**
+      - watchdog.mjs
       - Dockerfile
       - .github/workflows/dependency-validation.yml
   workflow_dispatch:
