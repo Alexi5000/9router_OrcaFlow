@@ -1,4 +1,4 @@
-const { exec, spawn, execSync } = require("child_process");
+const { exec, execFile, spawn, execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const net = require("net");
@@ -207,13 +207,16 @@ async function killLeftoverMitm(sudoPassword) {
   } catch { /* ignore */ }
   if (!IS_WIN && SERVER_PATH) {
     try {
-      const escaped = SERVER_PATH.replace(/'/g, "'\\''");
-      if (sudoPassword) {
-        const { execWithPassword } = require("./dns/dnsConfig");
-        await execWithPassword(`pkill -SIGKILL -f "${escaped}" 2>/dev/null || true`, sudoPassword).catch(() => { });
-      } else {
-        exec(`pkill -SIGKILL -f "${escaped}" 2>/dev/null || true`, () => { });
-      }
+      const pattern = SERVER_PATH.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      await new Promise(resolve => {
+        if (sudoPassword) {
+          const child = execFile("sudo", ["-S", "--", "pkill", "-SIGKILL", "-f", "--", pattern], () => resolve());
+          child.stdin.on("error", () => {});
+          child.stdin.end(`${sudoPassword}\n`);
+        } else {
+          execFile("pkill", ["-SIGKILL", "-f", "--", pattern], () => resolve());
+        }
+      });
       await new Promise(r => setTimeout(r, 500));
     } catch { /* ignore */ }
   }
