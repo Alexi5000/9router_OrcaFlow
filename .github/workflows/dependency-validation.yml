@@ -10,6 +10,7 @@ on:
       - pnpm-lock.yaml
       - vendor/**
       - scripts/verify-braces.cjs
+      - scripts/recover-usage-from-outlog.cjs
       - tests/**
       - open-sse/**
       - src/**
