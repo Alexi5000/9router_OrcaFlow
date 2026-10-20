@@ -19,3 +19,17 @@ describe("MITM alias validation", () => {
     expect(await response.json()).toEqual({ success: true, aliases: { "gpt-4.1": "provider/model" } });
   });
 });
+
+ it("preserves inherited-name aliases as own JSON data while retaining DNS gate", async () => {
+    mocks.save.mockClear();
+    const payload = { tool: "copilot", mappings: { toString: " provider/model ", hasOwnProperty: "provider/other" } };
+    const response = await PUT(new Request("http://localhost/api/alias", { method: "PUT", body: JSON.stringify(payload) }));
+    expect(response.status).toBe(200);
+    const saved = mocks.save.mock.calls[0][1];
+    expect(Object.hasOwn(saved, "toString")).toBe(true);
+    expect(JSON.parse(JSON.stringify(saved))).toEqual({ toString: "provider/model", hasOwnProperty: "provider/other" });
+    mocks.save.mockClear();
+    mocks.status.mockResolvedValueOnce({ dnsStatus: { copilot: false } });
+    expect((await PUT({ json: async () => payload })).status).toBe(403);
+    expect(mocks.save).not.toHaveBeenCalled();
+  });

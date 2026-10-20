@@ -1,7 +1,7 @@
 const fs = require("fs");
 const crypto = require("crypto");
-const { exec } = require("child_process");
-const { execWithPassword } = require("../dns/dnsConfig.js");
+const { execFile } = require("child_process");
+const path = require("path");
 
 const IS_WIN = process.platform === "win32";
 const IS_MAC = process.platform === "darwin";
@@ -28,11 +28,11 @@ function checkCertInstalledMac(certPath) {
     try {
       const fingerprint = getCertFingerprint(certPath).replace(/:/g, "");
       // security verify-cert returns 0 only if cert is trusted by system policy
-      exec(`security verify-cert -c "${certPath}" -p ssl -k /Library/Keychains/System.keychain 2>/dev/null`, (error) => {
+      execFile("security", ["verify-cert", "-c", path.resolve(certPath), "-p", "ssl", "-k", "/Library/Keychains/System.keychain"], (error) => {
         if (!error) return resolve(true);
         // Fallback: check if fingerprint appears in System keychain with trust
-        exec(`security dump-trust-settings -d 2>/dev/null | grep -i "${fingerprint}"`, (err2, stdout2) => {
-          resolve(!err2 && !!stdout2?.trim());
+        execFile("security", ["dump-trust-settings", "-d"], (err2, stdout2) => {
+          resolve(!err2 && !!stdout2?.toUpperCase().includes(fingerprint));
         });
       });
     } catch {
@@ -44,7 +44,7 @@ function checkCertInstalledMac(certPath) {
 function checkCertInstalledWindows(certPath) {
   return new Promise((resolve) => {
     // Check Root store for our Root CA by common name
-    exec("certutil -store Root \"9Router MITM Root CA\"", (error) => {
+    execFile("certutil", ["-store", "Root", "9Router MITM Root CA"], (error) => {
       resolve(!error);
     });
   });
@@ -60,6 +60,7 @@ async function installCert(sudoPassword, certPath) {
 
   const isInstalled = await checkCertInstalled(certPath);
   if (isInstalled) {
+    if (!IS_WIN && !IS_MAC) await refreshLinuxTrust(sudoPassword);
     console.log("✅ Certificate already installed");
     return;
   }
@@ -74,9 +75,9 @@ async function installCert(sudoPassword, certPath) {
 }
 
 async function installCertMac(sudoPassword, certPath) {
-  const command = `security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "${certPath}"`;
+  const args = ["add-trusted-cert", "-d", "-r", "trustRoot", "-k", "/Library/Keychains/System.keychain", path.resolve(certPath)];
   try {
-    await execWithPassword(command, sudoPassword);
+    await runElevated("security", args, sudoPassword);
     console.log(`✅ Installed certificate to system keychain: ${certPath}`);
   } catch (error) {
     const msg = error.message?.includes("canceled") ? "User canceled authorization" : "Certificate install failed";
@@ -85,18 +86,8 @@ async function installCertMac(sudoPassword, certPath) {
 }
 
 async function installCertWindows(certPath) {
-  const escaped = certPath.replace(/'/g, "''");
-  const psCommand = `Start-Process certutil -ArgumentList '-addstore','Root','${escaped}' -Verb RunAs -Wait -WindowStyle Hidden`;
-  return new Promise((resolve, reject) => {
-    exec(
-      `powershell -NonInteractive -WindowStyle Hidden -Command "${psCommand}"`,
-      { windowsHide: true },
-      (error) => {
-        if (error) reject(new Error(`Failed to install certificate: ${error.message}`));
-        else { console.log("✅ Installed certificate to Windows Root store"); resolve(); }
-      }
-    );
-  });
+  await runWindowsCertutil(["-addstore", "Root", path.resolve(certPath)]);
+  console.log("✅ Installed certificate to Windows Root store");
 }
 
 /**
@@ -120,9 +111,9 @@ async function uninstallCert(sudoPassword, certPath) {
 
 async function uninstallCertMac(sudoPassword, certPath) {
   const fingerprint = getCertFingerprint(certPath).replace(/:/g, "");
-  const command = `security delete-certificate -Z "${fingerprint}" /Library/Keychains/System.keychain`;
+  const args = ["delete-certificate", "-Z", fingerprint, "/Library/Keychains/System.keychain"];
   try {
-    await execWithPassword(command, sudoPassword);
+    await runElevated("security", args, sudoPassword);
     console.log("✅ Uninstalled certificate from system keychain");
   } catch (err) {
     throw new Error("Failed to uninstall certificate");
@@ -130,17 +121,40 @@ async function uninstallCertMac(sudoPassword, certPath) {
 }
 
 async function uninstallCertWindows() {
-  const psCommand = `Start-Process certutil -ArgumentList '-delstore','Root','9Router MITM Root CA' -Verb RunAs -Wait -WindowStyle Hidden`;
+  await runWindowsCertutil(["-delstore", "Root", "9Router MITM Root CA"]);
+  console.log("✅ Uninstalled certificate from Windows Root store");
+}
+
+function runWindowsCertutil(args) {
+  const literal = value => "'" + value.replace(/'/g, "''") + "'";
+  const script = "& certutil " + args.map(literal).join(" ") + "; exit $LASTEXITCODE";
+  const encoded = Buffer.from(script, "utf16le").toString("base64");
+  const outer = `$ErrorActionPreference = 'Stop'; $child = Start-Process powershell -ArgumentList '-NoProfile','-NonInteractive','-EncodedCommand','${encoded}' -Verb RunAs -Wait -PassThru -WindowStyle Hidden; exit $child.ExitCode`;
   return new Promise((resolve, reject) => {
-    exec(
-      `powershell -NonInteractive -WindowStyle Hidden -Command "${psCommand}"`,
-      { windowsHide: true },
-      (error) => {
-        if (error) reject(new Error(`Failed to uninstall certificate: ${error.message}`));
-        else { console.log("✅ Uninstalled certificate from Windows Root store"); resolve(); }
-      }
-    );
+    execFile("powershell", ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", outer], { windowsHide: true }, error => {
+      if (error) reject(new Error("Certificate trust-store update failed"));
+      else resolve();
+    });
   });
+}
+
+function runElevated(file, args, password) {
+  return new Promise((resolve, reject) => {
+    const child = execFile("sudo", ["-S", "--", file, ...args], error => {
+      if (error) reject(error);
+      else resolve();
+    });
+    child.stdin.on("error", reject);
+    child.stdin.end(`${password}\n`);
+  });
+}
+
+async function refreshLinuxTrust(password) {
+  try {
+    await runElevated("update-ca-certificates", [], password);
+  } catch {
+    await runElevated("update-ca-trust", [], password);
+  }
 }
 
 function checkCertInstalledLinux() {
@@ -150,10 +164,10 @@ function checkCertInstalledLinux() {
 
 async function installCertLinux(sudoPassword, certPath) {
   const destFile = `${LINUX_CERT_DIR}/9router-root-ca.crt`;
-  // Try update-ca-certificates (Debian/Ubuntu), fallback to update-ca-trust (Fedora/RHEL)
-  const cmd = `cp "${certPath}" "${destFile}" && (update-ca-certificates 2>/dev/null || update-ca-trust 2>/dev/null || true)`;
+
   try {
-    await execWithPassword(cmd, sudoPassword);
+    await runElevated("cp", ["--", path.resolve(certPath), destFile], sudoPassword);
+    await refreshLinuxTrust(sudoPassword);
     console.log("✅ Installed certificate to Linux trust store");
   } catch (error) {
     throw new Error("Certificate install failed");
@@ -162,9 +176,10 @@ async function installCertLinux(sudoPassword, certPath) {
 
 async function uninstallCertLinux(sudoPassword) {
   const destFile = `${LINUX_CERT_DIR}/9router-root-ca.crt`;
-  const cmd = `rm -f "${destFile}" && (update-ca-certificates 2>/dev/null || update-ca-trust 2>/dev/null || true)`;
+
   try {
-    await execWithPassword(cmd, sudoPassword);
+    await runElevated("rm", ["-f", "--", destFile], sudoPassword);
+    await refreshLinuxTrust(sudoPassword);
     console.log("✅ Uninstalled certificate from Linux trust store");
   } catch (error) {
     throw new Error("Failed to uninstall certificate");

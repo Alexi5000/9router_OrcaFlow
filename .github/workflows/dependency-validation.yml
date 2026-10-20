@@ -10,9 +10,11 @@ on:
       - pnpm-lock.yaml
       - vendor/**
       - scripts/verify-braces.cjs
+      - scripts/recover-usage-from-outlog.cjs
       - tests/**
       - open-sse/**
       - src/**
+      - watchdog.mjs
       - Dockerfile
       - .github/workflows/dependency-validation.yml
   workflow_dispatch:
@@ -34,6 +36,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:unit
+      - run: node --test tests/security/private-elevation.test.cjs tests/security/windows-server-start.test.cjs
 
   container:
     runs-on: ubuntu-latest
@@ -64,3 +67,12 @@ jobs:
             sleep 2
           done
           exit 1
+
+  windows-private-temp:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test tests/security/private-elevation.test.cjs tests/security/windows-server-start.test.cjs

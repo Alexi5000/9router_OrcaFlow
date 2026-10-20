@@ -1,9 +1,10 @@
-const { exec, spawn, execSync } = require("child_process");
+const { exec, execFile, spawn, execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
-const os = require("os");
 const net = require("net");
 const https = require("https");
+const forge = require("node-forge");
+const { loadRootCA } = require("./cert/rootCA");
 const crypto = require("crypto");
 const { addDNSEntry, removeDNSEntry, removeAllDNSEntries, checkAllDNSStatus, executeElevatedPowerShell, TOOL_HOSTS } = require("./dns/dnsConfig");
 
@@ -206,13 +207,16 @@ async function killLeftoverMitm(sudoPassword) {
   } catch { /* ignore */ }
   if (!IS_WIN && SERVER_PATH) {
     try {
-      const escaped = SERVER_PATH.replace(/'/g, "'\\''");
-      if (sudoPassword) {
-        const { execWithPassword } = require("./dns/dnsConfig");
-        await execWithPassword(`pkill -SIGKILL -f "${escaped}" 2>/dev/null || true`, sudoPassword).catch(() => { });
-      } else {
-        exec(`pkill -SIGKILL -f "${escaped}" 2>/dev/null || true`, () => { });
-      }
+      const pattern = SERVER_PATH.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      await new Promise(resolve => {
+        if (sudoPassword) {
+          const child = execFile("sudo", ["-S", "--", "pkill", "-SIGKILL", "-f", "--", pattern], () => resolve());
+          child.stdin.on("error", () => {});
+          child.stdin.end(`${sudoPassword}\n`);
+        } else {
+          execFile("pkill", ["-SIGKILL", "-f", "--", pattern], () => resolve());
+        }
+      });
       await new Promise(r => setTimeout(r, 500));
     } catch { /* ignore */ }
   }
@@ -221,13 +225,22 @@ async function killLeftoverMitm(sudoPassword) {
 function pollMitmHealth(timeoutMs, port = MITM_PORT) {
   return new Promise((resolve) => {
     const deadline = Date.now() + timeoutMs;
+    let ca;
+    try {
+      ca = forge.pki.certificateToPem(loadRootCA().cert);
+    } catch {
+      resolve(null);
+      return;
+    }
     const check = () => {
       const req = https.request(
-        { hostname: "127.0.0.1", port, path: "/_mitm_health", method: "GET", rejectUnauthorized: false },
+        { hostname: "127.0.0.1", servername: "cloudcode-pa.googleapis.com", ca,
+          port, path: "/_mitm_health", method: "GET", rejectUnauthorized: true },
         (res) => {
           let body = "";
           res.on("data", (d) => { body += d; });
           res.on("end", () => {
+            clearTimeout(requestTimer);
             try {
               const json = JSON.parse(body);
               resolve(json.ok === true ? { ok: true, pid: json.pid || null } : null);
@@ -235,8 +248,13 @@ function pollMitmHealth(timeoutMs, port = MITM_PORT) {
           });
         }
       );
+      const requestTimer = setTimeout(
+        () => req.destroy(new Error("MITM health request timed out")),
+        timeoutMs > 0 ? Math.max(1, deadline - Date.now()) : 1000
+      );
       req.on("error", () => {
-        if (Date.now() < deadline) setTimeout(check, 500);
+        clearTimeout(requestTimer);
+        if (Date.now() < deadline) setTimeout(check, Math.min(500, deadline - Date.now()));
         else resolve(null);
       });
       req.end();
@@ -271,6 +289,24 @@ async function getMitmStatus() {
   const certExists = fs.existsSync(rootCACertPath);
 
   return { running, pid, certExists, dnsStatus };
+}
+
+function buildWindowsServerScript(apiKey) {
+  if (/["\r\n\0]/.test(SERVER_PATH)) throw new Error("Invalid MITM server path");
+  const psSQ = (s) => s.replace(/'/g, "''");
+  const nodePs = psSQ(process.execPath);
+  const serverPs = psSQ(SERVER_PATH);
+
+  return [
+    `$ErrorActionPreference = 'Stop'`,
+    `$conn = Get-NetTCPConnection -LocalPort 443 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1`,
+    `if ($conn -and $conn.OwningProcess -gt 4) { Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue }`,
+    `Start-Sleep -Milliseconds 500`,
+    `$env:ROUTER_API_KEY = '${psSQ(apiKey)}'`,
+    `$env:NODE_ENV = 'production'`,
+    `Start-Process -FilePath '${nodePs}' -ArgumentList '"${serverPs}"' -WindowStyle Hidden`,
+    `Start-Sleep -Milliseconds 500`,
+  ].join("\n");
 }
 
 /**
@@ -345,31 +381,20 @@ async function startServer(apiKey, sudoPassword) {
 
   // Step 2: Spawn server (Root CA already installed in Step 1.5)
   if (IS_WIN) {
-    const psSQ = (s) => s.replace(/'/g, "''");
-    const nodePs = psSQ(process.execPath);
-    const serverPs = psSQ(SERVER_PATH);
+    const psScript = buildWindowsServerScript(apiKey);
 
-    const psScript = [
-      `$ErrorActionPreference = 'Stop'`,
-      `$conn = Get-NetTCPConnection -LocalPort 443 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1`,
-      `if ($conn -and $conn.OwningProcess -gt 4) { Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue }`,
-      `Start-Sleep -Milliseconds 500`,
-      `$nodeCmd = 'set ROUTER_API_KEY=${psSQ(apiKey)}&& set NODE_ENV=production&& "${nodePs}" "${serverPs}"'`,
-      `Start-Process cmd -ArgumentList '/c',$nodeCmd -WindowStyle Hidden`,
-      `Start-Sleep -Milliseconds 500`,
-    ].join("\n");
-
-    const tmpPs1 = path.join(os.tmpdir(), `mitm_start_${Date.now()}.ps1`);
-    fs.writeFileSync(tmpPs1, psScript, "utf8");
-    await executeElevatedPowerShell(tmpPs1, 90000);
+    await executeElevatedPowerShell(psScript, 90000);
 
     if (_updateSettings) await _updateSettings({ mitmCertInstalled: true }).catch(() => { });
   } else {
     // Non-Windows: Root CA already installed in Step 1.5, just spawn server
-    const inlineCmd = `ROUTER_API_KEY='${apiKey}' NODE_ENV='production' '${process.execPath}' '${SERVER_PATH}'`;
     serverProcess = spawn(
-      "sudo", ["-S", "-E", "sh", "-c", inlineCmd],
-      { detached: false, stdio: ["pipe", "pipe", "pipe"] }
+      "sudo", ["-S", "-E", "--", process.execPath, SERVER_PATH],
+      {
+        detached: false,
+        stdio: ["pipe", "pipe", "pipe"],
+        env: { ...process.env, ROUTER_API_KEY: apiKey, NODE_ENV: "production" },
+      }
     );
     serverProcess.stdin.write(`${sudoPassword}\n`);
     serverProcess.stdin.end();
@@ -453,23 +478,22 @@ async function stopServer(sudoPassword) {
     const filtered = hostsContent.split(/\r?\n/)
       .filter(l => !allHosts.some(h => l.includes(h)))
       .join("\r\n");
-    const tmpHosts = path.join(os.tmpdir(), `mitm_hosts_clean_${Date.now()}.tmp`);
-    fs.writeFileSync(tmpHosts, filtered, "utf8");
+    await executeElevatedPowerShell((temp) => {
+      const tmpHosts = temp.write("hosts.tmp", filtered);
 
-    const psScript = [
-      `$ErrorActionPreference = 'Stop'`,
-      `try {`,
-      `  Copy-Item -Path '${psSQ(tmpHosts)}' -Destination '${psSQ(hostsFile)}' -Force -ErrorAction Stop`,
-      `  ipconfig /flushdns | Out-Null`,
-      `  Remove-Item '${psSQ(tmpHosts)}' -ErrorAction SilentlyContinue`,
-      `} catch {`,
-      `  Remove-Item '${psSQ(tmpHosts)}' -ErrorAction SilentlyContinue`,
-      `}`,
-    ].join("\n");
+      const psScript = [
+        `$ErrorActionPreference = 'Stop'`,
+        `try {`,
+        `  Copy-Item -Path '${psSQ(tmpHosts)}' -Destination '${psSQ(hostsFile)}' -Force -ErrorAction Stop`,
+        `  ipconfig /flushdns | Out-Null`,
+        `  Remove-Item '${psSQ(tmpHosts)}' -ErrorAction SilentlyContinue`,
+        `} catch {`,
+        `  Remove-Item '${psSQ(tmpHosts)}' -ErrorAction SilentlyContinue`,
+        `}`,
+      ].join("\n");
 
-    const tmpPs1 = path.join(os.tmpdir(), `mitm_stop_${Date.now()}.ps1`);
-    fs.writeFileSync(tmpPs1, psScript, "utf8");
-    await executeElevatedPowerShell(tmpPs1, 30000);
+      return psScript;
+    }, 30000);
   } else {
     await removeAllDNSEntries(sudoPassword);
   }

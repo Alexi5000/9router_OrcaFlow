@@ -64,11 +64,35 @@ function parseLegacyTimestamp(raw) {
   return `${year}-${month}-${day}T${time}.000Z`;
 }
 
+function openUsage(file, writable = false) {
+  const flags = (writable ? fs.constants.O_RDWR : fs.constants.O_RDONLY) |
+    (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0);
+  const fd = fs.openSync(file, flags);
+  try {
+    const stat = fs.fstatSync(fd);
+    const named = fs.lstatSync(file);
+    if (!stat.isFile() || stat.nlink !== 1 || named.isSymbolicLink() ||
+        stat.dev !== named.dev || stat.ino !== named.ino ||
+        (writable && process.platform !== "win32" && stat.uid !== process.getuid())) {
+      throw new Error("Usage source must be a single-link regular file");
+    }
+    const text = fs.readFileSync(fd, "utf8");
+    const data = JSON.parse(text);
+    if (!Array.isArray(data.history)) data.history = [];
+    return { fd, text, data };
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+
 function loadUsage(file) {
-  const text = fs.readFileSync(file, "utf8");
-  const data = JSON.parse(text);
-  if (!Array.isArray(data.history)) data.history = [];
-  return data;
+  const opened = openUsage(file);
+  try {
+    return opened.data;
+  } finally {
+    fs.closeSync(opened.fd);
+  }
 }
 
 function makeDedupKey(entry) {
@@ -248,50 +272,59 @@ function summarize(history) {
 }
 
 async function recover() {
-  if (!fs.existsSync(usagePath)) {
-    throw new Error(`Missing usage file: ${usagePath}`);
+  const opened = openUsage(usagePath, true);
+  try {
+    const current = opened.data;
+    const backup = loadUsage(backupUsagePath);
+    const recovered = await recoverFromLogs();
+
+    const mergedHistory = mergeHistorySets(backup.history, current.history, recovered);
+
+    const safetyDir = process.env.NINEROUTER_BACKUP_DIR || path.join(os.tmpdir(), "9router-usage-backups");
+    fs.mkdirSync(safetyDir, { recursive: true, mode: 0o700 });
+    const safetyStat = fs.lstatSync(safetyDir);
+    if (!safetyStat.isDirectory() || safetyStat.isSymbolicLink() ||
+        (process.platform !== "win32" &&
+         (safetyStat.uid !== process.getuid() || (safetyStat.mode & 0o022) !== 0))) {
+      throw new Error("Recovery backup directory must be owned and protected");
+    }
+    const privateSafetyDir = fs.mkdtempSync(path.join(safetyDir, "usage-restore-"));
+    const safetyPath = path.join(privateSafetyDir, "usage.json");
+    fs.writeFileSync(safetyPath, opened.text, { flag: "wx", mode: 0o600 });
+
+    const nextUsage = {
+      ...backup,
+      ...current,
+      history: mergedHistory,
+    };
+
+    const bytes = Buffer.from(JSON.stringify(nextUsage, null, 2));
+    let offset = 0;
+    while (offset < bytes.length) {
+      const written = fs.writeSync(opened.fd, bytes, offset, bytes.length - offset, offset);
+      if (written <= 0) throw new Error("Usage recovery write made no progress");
+      offset += written;
+    }
+    fs.ftruncateSync(opened.fd, bytes.length);
+
+    console.log(
+      JSON.stringify(
+        {
+          usagePath,
+          backupUsagePath,
+          safetyPath,
+          current: summarize(current.history),
+          backup: summarize(backup.history),
+          recoveredFromLogs: summarize(recovered),
+          merged: summarize(mergedHistory),
+        },
+        null,
+        2
+      )
+    );
+  } finally {
+    fs.closeSync(opened.fd);
   }
-  if (!fs.existsSync(backupUsagePath)) {
-    throw new Error(`Missing backup usage file: ${backupUsagePath}`);
-  }
-
-  const current = loadUsage(usagePath);
-  const backup = loadUsage(backupUsagePath);
-  const recovered = await recoverFromLogs();
-
-  const mergedHistory = mergeHistorySets(backup.history, current.history, recovered);
-
-  const safetyDir = process.env.NINEROUTER_BACKUP_DIR || path.join(os.tmpdir(), "9router-usage-backups");
-  fs.mkdirSync(safetyDir, { recursive: true });
-  const safetyPath = path.join(
-    safetyDir,
-    `usage.restore-safety-${new Date().toISOString().replace(/[:.]/g, "-")}.json`
-  );
-  fs.copyFileSync(usagePath, safetyPath);
-
-  const nextUsage = {
-    ...backup,
-    ...current,
-    history: mergedHistory,
-  };
-
-  fs.writeFileSync(usagePath, JSON.stringify(nextUsage, null, 2));
-
-  console.log(
-    JSON.stringify(
-      {
-        usagePath,
-        backupUsagePath,
-        safetyPath,
-        current: summarize(current.history),
-        backup: summarize(backup.history),
-        recoveredFromLogs: summarize(recovered),
-        merged: summarize(mergedHistory),
-      },
-      null,
-      2
-    )
-  );
 }
 
 recover().catch((error) => {
