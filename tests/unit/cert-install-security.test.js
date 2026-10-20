@@ -7,7 +7,7 @@ import { EventEmitter } from "node:events";
 
 const require = createRequire(import.meta.url);
 const source = fs.readFileSync(new URL("../../src/mitm/cert/install.js", import.meta.url), "utf8");
-const malicious = "/tmp/ca ' \" $(touch injected) `whoami` & %.crt";
+const malicious = "/tmp/ca ' \" $(touch injected) `whoami`; & %.crt";
 
 function load(platform, fail = () => false, installed = false) {
   const calls = [];
@@ -63,6 +63,15 @@ describe("certificate command boundaries", () => {
   it("rejects failed refresh instead of reporting installation success", async () => {
     const api = load("linux", (file, args) => args.some(arg => arg.startsWith("update-ca-")));
     await expect(api.installCert("password", malicious)).rejects.toThrow("Certificate install failed");
+  });
+
+  it("retries refresh for an existing Linux certificate instead of treating a failed prior refresh as trusted", async () => {
+    const api = load("linux", (file, args) => args.some(arg => arg.startsWith("update-ca-")), true);
+    await expect(api.installCert("password", malicious)).rejects.toThrow();
+    expect(api.calls.map(call => call.args)).toEqual([
+      ["-S", "--", "update-ca-certificates"],
+      ["-S", "--", "update-ca-trust"],
+    ]);
   });
 
   it("does not refresh after copy failure", async () => {

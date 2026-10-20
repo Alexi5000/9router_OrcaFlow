@@ -60,6 +60,7 @@ async function installCert(sudoPassword, certPath) {
 
   const isInstalled = await checkCertInstalled(certPath);
   if (isInstalled) {
+    if (!IS_WIN && !IS_MAC) await refreshLinuxTrust(sudoPassword);
     console.log("✅ Certificate already installed");
     return;
   }
