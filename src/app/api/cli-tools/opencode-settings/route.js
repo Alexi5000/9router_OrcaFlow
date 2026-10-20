@@ -108,9 +108,7 @@ export async function POST(request) {
         baseURL: normalizedBaseUrl,
         apiKey: keyToUse,
       },
-      models: {
-        [model]: { name: model },
-      },
+      models: Object.fromEntries([[model, { name: model }]]),
     };
 
     // Set as active model
