@@ -31,11 +31,7 @@ function getMachineId() {
 }
 
 function generateApiKey(machineId) {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let keyId = "";
-  for (let i = 0; i < 6; i++) {
-    keyId += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
+  const keyId = crypto.randomBytes(16).toString("hex");
   const crc = crypto.createHmac("sha256", API_KEY_SECRET).update(machineId + keyId).digest("hex").slice(0, 8);
   return `sk-${machineId}-${keyId}-${crc}`;
 }
