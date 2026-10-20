@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { Modal, Button, Input } from "@/shared/components";
+import { exchangeKiroCallback } from "@/shared/utils/kiroCallback";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 
 /**
@@ -12,18 +13,24 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 export default function KiroSocialOAuthModal({ isOpen, provider, onSuccess, onClose }) {
   const [step, setStep] = useState("loading"); // loading | input | success | error
   const [authUrl, setAuthUrl] = useState("");
-  const [authData, setAuthData] = useState(null);
+  const authData = useRef(null);
+  const generation = useRef(0);
+  const [attempt, setAttempt] = useState(0);
   const [callbackUrl, setCallbackUrl] = useState("");
   const [error, setError] = useState(null);
   const { copied, copy } = useCopyToClipboard();
 
   // Initialize auth flow
   useEffect(() => {
+    generation.current += 1;
+    authData.current = null;
     if (!isOpen || !provider) return;
+    let active = true;
 
     const initAuth = async () => {
       try {
         setError(null);
+        setCallbackUrl("");
         setStep("loading");
 
         const res = await fetch(`/api/oauth/kiro/social-authorize?provider=${provider}`);
@@ -33,63 +40,37 @@ export default function KiroSocialOAuthModal({ isOpen, provider, onSuccess, onCl
           throw new Error(data.error);
         }
 
-        setAuthData(data);
+        if (!active) return;
+        authData.current = { ...data, provider };
         setAuthUrl(data.authUrl);
         setStep("input");
 
         // Auto-open browser
         window.open(data.authUrl, "_blank");
       } catch (err) {
+        if (!active) return;
         setError(err.message);
         setStep("error");
       }
     };
 
     initAuth();
-  }, [isOpen, provider]);
+    return () => { active = false; generation.current += 1; authData.current = null; };
+  }, [isOpen, provider, attempt]);
 
   const handleManualSubmit = async () => {
+    if (step === "exchanging") return;
+    const currentGeneration = generation.current;
     try {
       setError(null);
-      
-      // Parse callback URL - can be either kiro:// or http://localhost format
-      let url;
-      try {
-        url = new URL(callbackUrl);
-      } catch (e) {
-        // If URL parsing fails, might be malformed
-        throw new Error("Invalid callback URL format");
-      }
+      setStep("exchanging");
+      await exchangeKiroCallback(callbackUrl, authData, provider);
 
-      const code = url.searchParams.get("code");
-      const state = url.searchParams.get("state");
-      const errorParam = url.searchParams.get("error");
-
-      if (errorParam) {
-        throw new Error(url.searchParams.get("error_description") || errorParam);
-      }
-
-      if (!code) {
-        throw new Error("No authorization code found in URL");
-      }
-
-      // Exchange code for tokens
-      const res = await fetch("/api/oauth/kiro/social-exchange", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code,
-          codeVerifier: authData.codeVerifier,
-          provider,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
+      if (generation.current !== currentGeneration) return;
       setStep("success");
       onSuccess?.();
     } catch (err) {
+      if (generation.current !== currentGeneration) return;
       setError(err.message);
       setStep("error");
     }
@@ -116,7 +97,7 @@ export default function KiroSocialOAuthModal({ isOpen, provider, onSuccess, onCl
         )}
 
         {/* Manual Input Step */}
-        {step === "input" && (
+        {["input", "exchanging"].includes(step) && (
           <>
             <div className="space-y-4">
               <div>
@@ -148,7 +129,7 @@ export default function KiroSocialOAuthModal({ isOpen, provider, onSuccess, onCl
             </div>
 
             <div className="flex gap-2">
-              <Button onClick={handleManualSubmit} fullWidth disabled={!callbackUrl}>
+              <Button onClick={handleManualSubmit} fullWidth disabled={!callbackUrl || step === "exchanging"}>
                 Connect
               </Button>
               <Button onClick={onClose} variant="ghost" fullWidth>
@@ -183,7 +164,7 @@ export default function KiroSocialOAuthModal({ isOpen, provider, onSuccess, onCl
             <h3 className="text-lg font-semibold mb-2">Connection Failed</h3>
             <p className="text-sm text-red-600 mb-4">{error}</p>
             <div className="flex gap-2">
-              <Button onClick={() => setStep("input")} variant="secondary" fullWidth>
+              <Button onClick={() => authData.current ? setStep("input") : setAttempt(value => value + 1)} variant="secondary" fullWidth>
                 Try Again
               </Button>
               <Button onClick={onClose} variant="ghost" fullWidth>
