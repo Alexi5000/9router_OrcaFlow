@@ -216,9 +216,9 @@ export async function handleComboChat({
           requestScopedFallback,
           errorCode: requestScopedErrorCode,
         });
-      } catch (error) {
+      } catch {
         // Catch unexpected exceptions to ensure fallback continues
-        lastError = error.message || String(error);
+        lastError = "Model request failed";
         if (!lastStatus) lastStatus = 500;
         log.warn("COMBO", `Model ${modelStr} threw error, trying next`, { error: lastError });
       }
