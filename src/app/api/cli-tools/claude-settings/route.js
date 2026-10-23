@@ -3,8 +3,7 @@
 import { NextResponse } from "next/server";
 import { exec } from "child_process";
 import { promisify } from "util";
-import fs from "fs/promises";
-import path from "path";
+import fs from "@/lib/managedFiles";
 import { resolveClaudeSettingsPath } from "@/shared/utils/claudeConfig";
 
 const execAsync = promisify(exec);
@@ -58,7 +57,7 @@ export async function GET() {
         settingsPath: resolveClaudeSettingsPath(),
     });
   } catch (error) {
-    console.log("Error checking claude settings:", error);
+    console.log("Error checking claude settings:");
     return NextResponse.json(
       { error: "Failed to check claude settings" },
       { status: 500 }
@@ -79,10 +78,7 @@ export async function POST(request) {
     }
 
     const settingsPath = resolveClaudeSettingsPath();
-    const claudeDir = path.dirname(settingsPath);
 
-    // Ensure .claude directory exists
-    await fs.mkdir(claudeDir, { recursive: true });
 
     // Read current settings
     let currentSettings = {};
@@ -119,7 +115,7 @@ export async function POST(request) {
       message: "Settings updated successfully",
     });
   } catch (error) {
-    console.log("Error updating claude settings:", error);
+    console.log("Error updating claude settings:");
     return NextResponse.json(
       { error: "Failed to update claude settings" },
       { status: 500 }
@@ -177,7 +173,7 @@ export async function DELETE() {
       message: "Settings reset successfully",
     });
   } catch (error) {
-    console.log("Error resetting claude settings:", error);
+    console.log("Error resetting claude settings:");
     return NextResponse.json(
       { error: "Failed to reset claude settings" },
       { status: 500 }

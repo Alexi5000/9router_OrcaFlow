@@ -60,20 +60,10 @@ if (!url || !headers || !body) {
 // Display request info
 console.log("\n🚀 Sending Request from File\n");
 console.log(`📁 File: ${filePath}`);
-console.log(`🌐 URL: ${url}`);
-console.log(`📋 Headers:`);
-Object.entries(headers).forEach(([k, v]) => {
-  if (k.toLowerCase().includes("auth") || k.toLowerCase().includes("key") || k.toLowerCase().includes("bearer")) {
-    const str = String(v);
-    if (str.length > 20) {
-      console.log(`  ${k}: ${str.slice(0, 20)}...`);
-    } else {
-      console.log(`  ${k}: ${str}`);
-    }
-  } else {
-    console.log(`  ${k}: ${v}`);
-  }
-});
+const displayUrl = new URL(url);
+console.log(`🌐 URL: ${JSON.stringify(displayUrl.origin + displayUrl.pathname)}`);
+console.log(`📋 Headers (values redacted):`);
+Object.keys(headers).forEach(k => console.log(`  ${JSON.stringify(k)}: [redacted]`));
 
 console.log(`\n📊 Request Body:`);
 console.log(`  Model: ${body.model || "N/A"}`);
@@ -88,6 +78,7 @@ console.log(`  Stream: ${body.stream || false}`);
     
     const response = await fetch(url, {
       method: "POST",
+      redirect: "error",
       headers,
       body: JSON.stringify(body)
     });

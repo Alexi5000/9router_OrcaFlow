@@ -185,6 +185,7 @@ async function intercept(req, res, bodyBuffer, mappedModel) {
 
     const response = await fetch(ROUTER_URL, {
       method: "POST",
+      redirect: "error",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${API_KEY}`

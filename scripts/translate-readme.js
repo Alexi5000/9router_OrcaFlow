@@ -54,6 +54,7 @@ ${readmeContent}`;
   
   const response = await fetch(API_ENDPOINT, {
     method: 'POST',
+      redirect: "error",
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': API_KEY,

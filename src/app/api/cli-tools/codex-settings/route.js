@@ -1,9 +1,10 @@
 "use server";
 
+import { parseTOML, stringifyTOML } from "confbox";
 import { NextResponse } from "next/server";
 import { exec } from "child_process";
 import { promisify } from "util";
-import fs from "fs/promises";
+import fs from "@/lib/managedFiles";
 import path from "path";
 import os from "os";
 
@@ -13,63 +14,8 @@ const getCodexDir = () => path.join(os.homedir(), ".codex");
 const getCodexConfigPath = () => path.join(getCodexDir(), "config.toml");
 const getCodexAuthPath = () => path.join(getCodexDir(), "auth.json");
 
-// Parse TOML config to object (simple parser for codex config)
-const parseToml = (content) => {
-  const result = { _root: {}, _sections: {} };
-  let currentSection = "_root";
-  
-  content.split("\n").forEach((line) => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) return;
-    
-    // Section header like [model_providers.9router]
-    const sectionMatch = trimmed.match(/^\[(.+)\]$/);
-    if (sectionMatch) {
-      currentSection = sectionMatch[1];
-      result._sections[currentSection] = {};
-      return;
-    }
-    
-    // Key = value
-    const kvMatch = trimmed.match(/^([^=]+)\s*=\s*(.+)$/);
-    if (kvMatch) {
-      const key = kvMatch[1].trim();
-      let value = kvMatch[2].trim();
-      // Remove quotes
-      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-        value = value.slice(1, -1);
-      }
-      if (currentSection === "_root") {
-        result._root[key] = value;
-      } else {
-        result._sections[currentSection][key] = value;
-      }
-    }
-  });
-  
-  return result;
-};
-
-// Convert parsed object back to TOML string
-const toToml = (parsed) => {
-  let lines = [];
-  
-  // Root level keys
-  Object.entries(parsed._root).forEach(([key, value]) => {
-    lines.push(`${key} = "${value}"`);
-  });
-  
-  // Sections
-  Object.entries(parsed._sections).forEach(([section, values]) => {
-    lines.push("");
-    lines.push(`[${section}]`);
-    Object.entries(values).forEach(([key, value]) => {
-      lines.push(`${key} = "${value}"`);
-    });
-  });
-  
-  return lines.join("\n") + "\n";
-};
+const parseToml = content => parseTOML(content);
+const toToml = parsed => stringifyTOML(parsed);
 
 // Check if codex CLI is installed
 const checkCodexInstalled = async () => {
@@ -123,7 +69,7 @@ export async function GET() {
       configPath: getCodexConfigPath(),
     });
   } catch (error) {
-    console.log("Error checking codex settings:", error);
+    console.log("Error checking codex settings:");
     return NextResponse.json({ error: "Failed to check codex settings" }, { status: 500 });
   }
 }
@@ -133,31 +79,29 @@ export async function POST(request) {
   try {
     const { baseUrl, apiKey, model } = await request.json();
     
-    if (!baseUrl || !apiKey || !model) {
+    if (![baseUrl, apiKey, model].every(value => typeof value === "string" && value.trim())) {
       return NextResponse.json({ error: "baseUrl, apiKey and model are required" }, { status: 400 });
     }
 
-    const codexDir = getCodexDir();
     const configPath = getCodexConfigPath();
 
-    // Ensure directory exists
-    await fs.mkdir(codexDir, { recursive: true });
 
     // Read and parse existing config
-    let parsed = { _root: {}, _sections: {} };
+    let parsed = {};
     try {
       const existingConfig = await fs.readFile(configPath, "utf-8");
       parsed = parseToml(existingConfig);
-    } catch { /* No existing config */ }
+    } catch (error) { if (error.code !== "ENOENT") throw error; }
 
     // Update only 9Router related fields (api_key goes to auth.json, not config.toml)
-    parsed._root.model = model;
-    parsed._root.model_provider = "9router";
+    parsed.model = model;
+    parsed.model_provider = "9router";
     
     // Update or create 9router provider section (no api_key - Codex reads from auth.json)
     // Ensure /v1 suffix is added only once
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
-    parsed._sections["model_providers.9router"] = {
+    parsed.model_providers ??= {};
+    parsed.model_providers["9router"] = {
       name: "9Router",
       base_url: normalizedBaseUrl,
       wire_api: "responses",
@@ -165,18 +109,18 @@ export async function POST(request) {
 
     // Write merged config
     const configContent = toToml(parsed);
-    await fs.writeFile(configPath, configContent);
-
     // Update auth.json with OPENAI_API_KEY (Codex reads this first)
     const authPath = getCodexAuthPath();
     let authData = {};
     try {
       const existingAuth = await fs.readFile(authPath, "utf-8");
       authData = JSON.parse(existingAuth);
-    } catch { /* No existing auth */ }
+    } catch (error) { if (error.code !== "ENOENT") throw error; }
     
+    if (!authData || typeof authData !== "object" || Array.isArray(authData)) throw new Error("Invalid Codex auth");
     authData.OPENAI_API_KEY = apiKey;
     await fs.writeFile(authPath, JSON.stringify(authData, null, 2));
+    await fs.writeFile(configPath, configContent);
 
     return NextResponse.json({
       success: true,
@@ -184,7 +128,7 @@ export async function POST(request) {
       configPath,
     });
   } catch (error) {
-    console.log("Error updating codex settings:", error);
+    console.log("Error updating codex settings:");
     return NextResponse.json({ error: "Failed to update codex settings" }, { status: 500 });
   }
 }
@@ -195,7 +139,7 @@ export async function DELETE() {
     const configPath = getCodexConfigPath();
 
     // Read and parse existing config
-    let parsed = { _root: {}, _sections: {} };
+    let parsed = {};
     try {
       const existingConfig = await fs.readFile(configPath, "utf-8");
       parsed = parseToml(existingConfig);
@@ -210,13 +154,13 @@ export async function DELETE() {
     }
 
     // Remove 9Router related root fields only if they point to 9router
-    if (parsed._root.model_provider === "9router") {
-      delete parsed._root.model;
-      delete parsed._root.model_provider;
+    if (parsed.model_provider === "9router") {
+      delete parsed.model;
+      delete parsed.model_provider;
     }
     
     // Remove 9router provider section
-    delete parsed._sections["model_providers.9router"];
+    if (parsed.model_providers) delete parsed.model_providers["9router"];
 
     // Write updated config
     const configContent = toToml(parsed);
@@ -227,6 +171,7 @@ export async function DELETE() {
     try {
       const existingAuth = await fs.readFile(authPath, "utf-8");
       const authData = JSON.parse(existingAuth);
+      if (!authData || typeof authData !== "object" || Array.isArray(authData)) throw new Error("Invalid Codex auth");
       delete authData.OPENAI_API_KEY;
       
       // Write back or delete if empty
@@ -235,14 +180,14 @@ export async function DELETE() {
       } else {
         await fs.writeFile(authPath, JSON.stringify(authData, null, 2));
       }
-    } catch { /* No auth file */ }
+    } catch (error) { if (error.code !== "ENOENT") throw error; }
 
     return NextResponse.json({
       success: true,
       message: "9Router settings removed successfully",
     });
   } catch (error) {
-    console.log("Error resetting codex settings:", error);
+    console.log("Error resetting codex settings:");
     return NextResponse.json({ error: "Failed to reset codex settings" }, { status: 500 });
   }
 }

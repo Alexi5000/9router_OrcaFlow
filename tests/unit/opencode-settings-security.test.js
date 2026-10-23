@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const io = vi.hoisted(() => ({
   readFile: vi.fn(), writeFile: vi.fn(), mkdir: vi.fn(),
 }));
-vi.mock("fs/promises", () => ({ default: io }));
+vi.mock("@/lib/managedFiles", () => ({ default: io }));
 import { POST } from "@/app/api/cli-tools/opencode-settings/route.js";
 
 const payload = { baseUrl: "http://localhost:20128", model: "provider/model" };

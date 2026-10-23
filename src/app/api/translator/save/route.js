@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
+import fs from "@/lib/managedFiles";
 import path from "path";
 
 export async function POST(request) {
   try {
     const { file, content } = await request.json();
 
-    if (!file || content === undefined) {
+    if (!file || typeof content !== "string") {
       return NextResponse.json({ success: false, error: "File and content required" }, { status: 400 });
     }
 
@@ -28,17 +28,13 @@ export async function POST(request) {
 
     const logsDir = path.join(process.cwd(), "logs", "translator");
     
-    // Create directory if not exists
-    if (!fs.existsSync(logsDir)) {
-      fs.mkdirSync(logsDir, { recursive: true });
-    }
 
     const filePath = path.join(logsDir, file);
-    fs.writeFileSync(filePath, content, "utf-8");
+    fs.writeFile(filePath, content, "utf-8");
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error saving file:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Failed to save translator file" }, { status: 500 });
   }
 }
