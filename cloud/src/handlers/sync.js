@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import * as log from "../utils/logger.js";
 import { getMachineData, saveMachineData, deleteMachineData } from "../services/storage.js";
 
@@ -22,6 +23,19 @@ export async function handleSync(request, env, ctx) {
         "Access-Control-Allow-Headers": "*"
       }
     });
+  }
+
+  const secret = env.CLOUD_SYNC_MANAGEMENT_TOKEN;
+  if (typeof secret !== "string" || secret.length < 32) {
+    return jsonResponse({ error: "Cloud sync management authentication is not configured" }, 503);
+  }
+  const authorization = request.headers.get("authorization");
+  const token = authorization?.match(/^Bearer ([^\s]+)$/i)?.[1];
+  if (!token || !timingSafeEqual(
+    createHash("sha256").update(token).digest(),
+    createHash("sha256").update(secret).digest()
+  )) {
+    return jsonResponse({ error: "Cloud sync management authentication required" }, 401);
   }
 
   if (!machineId) {
