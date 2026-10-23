@@ -11,6 +11,7 @@ import {
 import { HTTP_STATUS } from "open-sse/config/constants.js";
 import * as log from "../utils/logger.js";
 import { parseApiKey, extractBearerToken } from "../utils/apiKey.js";
+import { isActiveStoredApiKey } from "../utils/apiKeyAccess.js";
 import { getMachineData, saveMachineData } from "../services/storage.js";
 
 /**
@@ -167,7 +168,7 @@ async function validateApiKey(request, machineId, env) {
 
   const apiKey = authHeader.slice(7);
   const data = await getMachineData(machineId, env);
-  return data?.apiKeys?.some(k => k.key === apiKey) || false;
+  return isActiveStoredApiKey(data?.apiKeys, apiKey);
 }
 
 async function getProviderCredentials(machineId, provider, env, excludeConnectionId = null) {
