@@ -169,7 +169,7 @@ async function passthrough(req, res, bodyBuffer) {
   });
 
   forwardReq.on("error", (err) => {
-    console.error(`❌ Passthrough error: ${err.message}`);
+    console.error("❌ Passthrough error:", JSON.stringify(String(err.message)));
     if (!res.headersSent) res.writeHead(502);
     res.end("Bad Gateway");
   });
@@ -210,7 +210,7 @@ async function intercept(req, res, bodyBuffer, mappedModel) {
       res.write(decoder.decode(value, { stream: true }));
     }
   } catch (error) {
-    console.error(`❌ ${error.message}`);
+    console.error("❌ MITM error:", JSON.stringify(String(error.message)));
     if (!res.headersSent) res.writeHead(500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: { message: error.message, type: "mitm_error" } }));
   }
@@ -250,7 +250,7 @@ const server = https.createServer(sslOptions, async (req, res) => {
   if (!isChat) return passthrough(req, res, bodyBuffer);
 
   const model = extractModel(req.url, bodyBuffer);
-  console.log("Extracted model:",  model)
+  console.log("Extracted model:", JSON.stringify(model));
   const mappedModel = getMappedModel(tool, model);
 
   if (!mappedModel) return passthrough(req, res, bodyBuffer);
@@ -268,7 +268,7 @@ server.on("error", (error) => {
   } else if (error.code === "EACCES") {
     console.error(`❌ Permission denied for port ${LOCAL_PORT}`);
   } else {
-    console.error(`❌ ${error.message}`);
+    console.error("❌ MITM error:", JSON.stringify(String(error.message)));
   }
   process.exit(1);
 });
