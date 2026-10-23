@@ -1,4 +1,5 @@
 // Stub for cloud worker - no-op async functions
+export async function saveRequestDetail() {}
 export async function saveRequestUsage() {}
 export function trackPendingRequest() {}
 export async function appendRequestLog() {}
