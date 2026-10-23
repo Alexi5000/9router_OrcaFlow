@@ -3,8 +3,7 @@
 import { NextResponse } from "next/server";
 import { exec } from "child_process";
 import { promisify } from "util";
-import fs from "fs/promises";
-import path from "path";
+import fs from "@/lib/managedFiles";
 import {
   isLocalDeepSeekRouterUrl,
   normalizeDeepSeekCliApiUrl,
@@ -73,7 +72,7 @@ export async function GET() {
       configPath: resolveDeepSeekCliConfigPath(),
     });
   } catch (error) {
-    console.log("Error checking deepseek settings:", error);
+    console.log("Error checking deepseek settings:");
     return NextResponse.json({ error: "Failed to check deepseek settings" }, { status: 500 });
   }
 }
@@ -96,8 +95,6 @@ export async function POST(request) {
     }
 
     const configPath = resolveDeepSeekCliConfigPath();
-    const configDir = path.dirname(configPath);
-    await fs.mkdir(configDir, { recursive: true });
 
     let config = {};
     try {
@@ -125,7 +122,7 @@ export async function POST(request) {
       configPath,
     });
   } catch (error) {
-    console.log("Error updating deepseek settings:", error);
+    console.log("Error updating deepseek settings:");
     return NextResponse.json({ error: "Failed to update deepseek settings" }, { status: 500 });
   }
 }
@@ -161,7 +158,7 @@ export async function DELETE() {
       message: "DeepSeek CLI settings reset successfully!",
     });
   } catch (error) {
-    console.log("Error resetting deepseek settings:", error);
+    console.log("Error resetting deepseek settings:");
     return NextResponse.json({ error: "Failed to reset deepseek settings" }, { status: 500 });
   }
 }

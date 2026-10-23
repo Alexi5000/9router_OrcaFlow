@@ -10,7 +10,7 @@ function request(path, token, method = "GET", origin) {
 }
 beforeEach(() => { process.env.JWT_SECRET = secret; mocks.settings.mockResolvedValue({ requireLogin: true }); });
 describe("management authentication", () => {
-  it.each(["/api/settings", "/api/keys", "/api/providers", "/api/cli-tools/opencode-settings", "/api/oauth/kiro/social-authorize", "/api/shutdown"])("protects %s", async path => {
+  it.each(["/api/settings", "/api/keys", "/api/providers", "/api/cli-tools/opencode-settings", "/api/cli-tools/claude-settings", "/api/cli-tools/codex-settings", "/api/cli-tools/copilot-settings", "/api/cli-tools/deepseek-settings", "/api/translator/save", "/api/tunnel/enable", "/api/oauth/kiro/social-authorize", "/api/shutdown"])("protects %s", async path => {
     expect((await proxy(request(path))).status).toBe(401);
   });
   it.each(["/api/auth/login", "/api/settings/require-login", "/api/v1/chat/completions", "/api/v1beta/models/gemini:generateContent"])("preserves public protocol route %s", async path => {

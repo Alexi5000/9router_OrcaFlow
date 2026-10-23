@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { exec } from "child_process";
 import { promisify } from "util";
-import fs from "fs/promises";
+import fs from "@/lib/managedFiles";
 import path from "path";
 import os from "os";
 
@@ -60,7 +60,7 @@ export async function GET() {
       configPath: getConfigPath(),
     });
   } catch (error) {
-    console.log("Error checking opencode settings:", error);
+    console.log("Error checking opencode settings:");
     return NextResponse.json({ error: "Failed to check opencode settings" }, { status: 500 });
   }
 }
@@ -77,10 +77,8 @@ export async function POST(request) {
       return NextResponse.json({ error: "baseUrl and model are required" }, { status: 400 });
     }
 
-    const configDir = getConfigDir();
     const configPath = getConfigPath();
 
-    await fs.mkdir(configDir, { recursive: true });
 
     // Read existing config or start fresh
     let config = {};
@@ -122,7 +120,7 @@ export async function POST(request) {
       configPath,
     });
   } catch (error) {
-    console.log("Error updating opencode settings:", error);
+    console.log("Error updating opencode settings:");
     return NextResponse.json({ error: "Failed to update opencode settings" }, { status: 500 });
   }
 }
@@ -156,7 +154,7 @@ export async function DELETE() {
       message: "9Router settings removed from OpenCode",
     });
   } catch (error) {
-    console.log("Error resetting opencode settings:", error);
+    console.log("Error resetting opencode settings:");
     return NextResponse.json({ error: "Failed to reset opencode settings" }, { status: 500 });
   }
 }
