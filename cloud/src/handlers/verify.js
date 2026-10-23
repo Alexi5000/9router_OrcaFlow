@@ -1,4 +1,5 @@
 import { parseApiKey, extractBearerToken } from "../utils/apiKey.js";
+import { isActiveStoredApiKey } from "../utils/apiKeyAccess.js";
 import { getMachineData } from "../services/storage.js";
 
 /**
@@ -35,7 +36,7 @@ export async function handleVerify(request, env, machineIdOverride = null) {
     return jsonResponse({ error: "Machine not found" }, 404);
   }
 
-  const isValid = data.apiKeys?.some(k => k.key === apiKey) || false;
+  const isValid = isActiveStoredApiKey(data.apiKeys, apiKey);
   
   if (!isValid) {
     return jsonResponse({ error: "Invalid API key" }, 401);
