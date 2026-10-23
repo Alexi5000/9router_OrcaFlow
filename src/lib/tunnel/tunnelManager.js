@@ -105,7 +105,7 @@ async function scheduleReconnect(attempt) {
     console.log("[Tunnel] Reconnected successfully");
     isReconnecting = false;
   } catch (err) {
-    console.log(`[Tunnel] Reconnect attempt ${attempt + 1} failed:`, err.message);
+    console.log(`[Tunnel] Reconnect attempt ${attempt + 1} failed:`, JSON.stringify(String(err.message)));
     isReconnecting = false;
     const nextAttempt = attempt + 1;
     if (nextAttempt < RECONNECT_DELAYS_MS.length) {
