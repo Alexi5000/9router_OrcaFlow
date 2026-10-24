@@ -1,3 +1,5 @@
+import { fetchPublic } from "@/shared/utils/ssrfGuard.js";
+import { isLocalRequest } from "@/dashboardGuard";
 import { NextResponse } from "next/server";
 import { createProviderConnection } from "@/models";
 
@@ -9,6 +11,7 @@ import { createProviderConnection } from "@/models";
  * Body: { apiKey, uid?, baseUrl? }
  */
 export async function POST(request) {
+  const requestProvider = isLocalRequest(request) ? (url, init) => fetch(url, { ...init, redirect: "error" }) : fetchPublic;
   try {
     const { apiKey, uid, baseUrl, mimoPassToken, mimoUserId, mimoCUserId, region } = await request.json();
 
@@ -36,7 +39,7 @@ export async function POST(request) {
     let modelCount = 0;
     if (key) {
       try {
-        const resp = await fetch(`${effectiveBaseUrl}/models`, {
+        const resp = await requestProvider(`${effectiveBaseUrl}/models`, {
           method: "GET",
           headers: {
             Authorization: `Bearer ${key}`,

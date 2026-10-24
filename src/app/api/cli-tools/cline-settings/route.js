@@ -1,5 +1,7 @@
 "use server";
 
+import managedFiles from "@/lib/managedFiles";
+
 import { NextResponse } from "next/server";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -34,7 +36,7 @@ const checkInstalled = async () => {
 
 const readJson = async (filePath) => {
   try {
-    const content = await fs.readFile(filePath, "utf-8");
+    const content = await managedFiles.readFile(filePath, "utf-8");
     // Tolerate JSONC (trailing commas) and treat unparseable files as "no config"
     // rather than throwing a 500 that the UI misreads as "tool not installed".
     const stripped = content.replace(/,(\s*[}\]])/g, "$1");
@@ -94,11 +96,11 @@ export async function POST(request) {
     globalState.openAiBaseUrl = normalizedBaseUrl;
     globalState.openAiModelId = model;
     globalState.planModeOpenAiModelId = model;
-    await fs.writeFile(getGlobalStatePath(), JSON.stringify(globalState, null, 2));
+    await managedFiles.writeFile(getGlobalStatePath(), JSON.stringify(globalState, null, 2));
 
     const secrets = (await readJson(getSecretsPath())) || {};
     secrets.openAiApiKey = apiKey;
-    await fs.writeFile(getSecretsPath(), JSON.stringify(secrets, null, 2));
+    await managedFiles.writeFile(getSecretsPath(), JSON.stringify(secrets, null, 2));
 
     return NextResponse.json({ success: true, message: "Cline settings applied successfully!", globalStatePath: getGlobalStatePath() });
   } catch (error) {
@@ -121,11 +123,11 @@ export async function DELETE() {
       globalState.actModeApiProvider = "cline";
       globalState.planModeApiProvider = "cline";
     }
-    await fs.writeFile(getGlobalStatePath(), JSON.stringify(globalState, null, 2));
+    await managedFiles.writeFile(getGlobalStatePath(), JSON.stringify(globalState, null, 2));
 
     const secrets = (await readJson(getSecretsPath())) || {};
     delete secrets.openAiApiKey;
-    await fs.writeFile(getSecretsPath(), JSON.stringify(secrets, null, 2));
+    await managedFiles.writeFile(getSecretsPath(), JSON.stringify(secrets, null, 2));
 
     return NextResponse.json({ success: true, message: "9Router settings removed from Cline" });
   } catch (error) {

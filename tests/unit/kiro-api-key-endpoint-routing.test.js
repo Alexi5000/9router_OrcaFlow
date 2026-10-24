@@ -64,4 +64,8 @@ describe("Kiro auth-aware endpoint routing", () => {
     );
     expect(runtimeHeaders["X-Amz-Target"]).toBeUndefined();
   });
+  it.each(["us-east-1/escape", "us-east-1@evil.example", "us-east-1?x=y", "../us-east-1"])("rejects region authority injection %s", (region) => {
+    expect(() => executor.getOrderedBaseUrls(credentials("idc", region))).toThrow("Invalid AWS region");
+  });
+
 });

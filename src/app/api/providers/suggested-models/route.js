@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { fetchPublic } from "@/shared/utils/ssrfGuard.js";
 import { FILTERS } from "./filters.js";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export async function GET(request) {
   }
 
   try {
-    const res = await fetch(url);
+    const res = await fetchPublic(url, { signal: AbortSignal.timeout(10000) });
     if (!res.ok) {
       return NextResponse.json({ data: [] });
     }

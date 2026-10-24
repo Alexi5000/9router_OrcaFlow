@@ -1,6 +1,6 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { access, constants, readFile } from "fs/promises";
+import { readFile } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
 import { randomUUID } from "crypto";
@@ -18,7 +18,6 @@ export async function resolveZedCredentialsUrl() {
   const settingsPaths = getZedSettingsPaths();
   for (const settingsPath of settingsPaths) {
     try {
-      await access(settingsPath, constants.R_OK);
       const raw = await readFile(settingsPath, "utf8");
       const settings = JSON.parse(raw);
       const url =

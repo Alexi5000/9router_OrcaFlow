@@ -29,6 +29,14 @@ export default function GitLabAuthModal({ isOpen, providerInfo, onSuccess, onClo
   const [showOAuth, setShowOAuth] = useState(false);
   const [oauthMeta, setOauthMeta] = useState(null);
 
+  let profileBaseUrl = GITLAB_COM;
+  try {
+    const parsed = new URL(baseUrl.trim() || GITLAB_COM);
+    if (["http:", "https:"].includes(parsed.protocol) && !parsed.username && !parsed.password) {
+      profileBaseUrl = parsed.href.replace(/\/+$/, "");
+    }
+  } catch {}
+
   const reset = () => {
     setMode(null);
     setBaseUrl(GITLAB_COM);
@@ -135,7 +143,7 @@ export default function GitLabAuthModal({ isOpen, providerInfo, onSuccess, onClo
           <>
             <p className="text-xs text-text-muted">
               Create an OAuth app at{" "}
-              <a href={`${baseUrl.trim() || GITLAB_COM}/-/profile/applications`} target="_blank" rel="noreferrer" className="text-primary underline">
+              <a href={`${profileBaseUrl}/-/profile/applications`} target="_blank" rel="noreferrer" className="text-primary underline">
                 GitLab Applications
               </a>{" "}
               with redirect URI{" "}
@@ -161,7 +169,7 @@ export default function GitLabAuthModal({ isOpen, providerInfo, onSuccess, onClo
           <>
             <p className="text-xs text-text-muted">
               Create a PAT at{" "}
-              <a href={`${baseUrl.trim() || GITLAB_COM}/-/user_settings/personal_access_tokens`} target="_blank" rel="noreferrer" className="text-primary underline">
+              <a href={`${profileBaseUrl}/-/user_settings/personal_access_tokens`} target="_blank" rel="noreferrer" className="text-primary underline">
                 GitLab Access Tokens
               </a>{" "}
               with scopes: <code className="bg-sidebar px-1 rounded text-xs">api</code>,{" "}

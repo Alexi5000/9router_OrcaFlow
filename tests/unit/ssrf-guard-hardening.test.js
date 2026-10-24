@@ -97,6 +97,29 @@ describe("assertPublicUrlResolved: DNS-resolving hostname bypass from #3714", ()
   });
 });
 
+describe("fetchPublic: connection and credential boundaries", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("rejects a DNS answer changed to loopback at connection time", async () => {
+    lookupMock.mockReset();
+    lookupMock.mockResolvedValueOnce([{ address: "93.184.216.34", family: 4 }]);
+    lookupMock.mockResolvedValue([{ address: "127.0.0.1", family: 4 }]);
+    await expect(fetchPublic("http://rebind-security.example.test/")).rejects.toThrow();
+    expect(lookupMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not forward credentials to another public origin", async () => {
+    lookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, {
+      status: 307, headers: { location: "https://other.example.test/" },
+    }));
+    await expect(fetchPublic("https://provider.example.test/", {
+      headers: { authorization: "Bearer regression-only" },
+    })).rejects.toThrow(/credential-bearing/);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("fetchPublic: redirect-target re-validation from #3714", () => {
   const originalFetch = global.fetch;
   afterEach(() => { global.fetch = originalFetch; });

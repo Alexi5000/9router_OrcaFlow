@@ -1,5 +1,7 @@
 "use server";
 
+import managedFiles from "@/lib/managedFiles";
+
 import { NextResponse } from "next/server";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
@@ -39,7 +41,7 @@ const has9RouterConfig = (settings) => {
 
 const readConfig = async () => {
   try {
-    const content = await fs.readFile(getSmeltConfigPath(), "utf-8");
+    const content = await managedFiles.readFile(getSmeltConfigPath(), "utf-8");
     return JSON.parse(content);
   } catch {
     return null;
@@ -89,7 +91,7 @@ export async function POST(request) {
 
     let existing = {};
     try {
-      const raw = await fs.readFile(configPath, "utf-8");
+      const raw = await managedFiles.readFile(configPath, "utf-8");
       existing = JSON.parse(raw);
     } catch {}
 
@@ -102,7 +104,7 @@ export async function POST(request) {
       _managedBy: "9router",
     };
 
-    await fs.writeFile(configPath, JSON.stringify(updated, null, 2), "utf-8");
+    await managedFiles.writeFile(configPath, JSON.stringify(updated, null, 2), "utf-8");
 
     return NextResponse.json({
       success: true,
@@ -119,7 +121,7 @@ export async function DELETE() {
     const configPath = getSmeltConfigPath();
     let existing = {};
     try {
-      const raw = await fs.readFile(configPath, "utf-8");
+      const raw = await managedFiles.readFile(configPath, "utf-8");
       existing = JSON.parse(raw);
     } catch {
       return NextResponse.json({ success: true, message: "No config file to reset" });
@@ -133,7 +135,7 @@ export async function DELETE() {
     if (Object.keys(existing).length === 0) {
       await fs.rm(configPath, { force: true });
     } else {
-      await fs.writeFile(configPath, JSON.stringify(existing, null, 2), "utf-8");
+      await managedFiles.writeFile(configPath, JSON.stringify(existing, null, 2), "utf-8");
     }
 
     return NextResponse.json({ success: true, message: "Smelt 9Router settings removed" });

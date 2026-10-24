@@ -626,7 +626,7 @@ export async function proxyAccountRequest(sess, req, origin) {
       }
       // Cross-host redirect to mimo-server: rewrite into our takeover space so
       // the browser stays on our origin.
-      if (/mimo-server-(cn|sgp)\.xiaomimimo\.com/.test(nextAbs.hostname)) {
+      if (/^mimo-server-(cn|sgp)\.xiaomimimo\.com$/.test(nextAbs.hostname)) {
         const proxiedLoc = rewriteMimoBases(nextAbs.toString(), "toProxy", origin);
         return new Response(null, { status: res.status, headers: { Location: proxiedLoc, "Cache-Control": "no-store" } });
       }

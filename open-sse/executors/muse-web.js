@@ -321,7 +321,9 @@ function pickMediaUrl(links, kind) {
     if (MEDIA_PATHS.some((seg) => low.includes(seg))) return 1;
     return 0;
   };
-  const cands = links.filter((u) => u && !u.startsWith("mailto:") && !u.startsWith("javascript:"));
+  const cands = links.filter((value) => {
+    try { return ["https:", "http:"].includes(new URL(value).protocol); } catch { return false; }
+  });
   cands.sort((a, b) => score(b) - score(a));
   return cands.length && score(cands[0]) > 0 ? cands[0] : null;
 }

@@ -1,5 +1,7 @@
 "use server";
 
+import managedFiles from "@/lib/managedFiles";
+
 import { NextResponse } from "next/server";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "fs/promises";
@@ -38,7 +40,7 @@ const checkOmpInstalled = async () => {
 
 const readModelsYml = async () => {
   try {
-    return await fs.readFile(getOmpModelsYmlPath(), "utf-8");
+    return await managedFiles.readFile(getOmpModelsYmlPath(), "utf-8");
   } catch {
     return "";
   }
@@ -120,7 +122,7 @@ export async function POST(request) {
       ymlContent = `${ymlContent.trim()}\n\nproviders:\n${providerBlock}\n`;
     }
 
-    await fs.writeFile(getOmpModelsYmlPath(), ymlContent, "utf-8");
+    await managedFiles.writeFile(getOmpModelsYmlPath(), ymlContent, "utf-8");
 
     // Best-effort update to agent.db if better-sqlite3 or node:sqlite is present
     try {
@@ -169,7 +171,7 @@ export async function DELETE() {
     if (ymlContent.trim() === "providers:") {
       await fs.rm(getOmpModelsYmlPath(), { force: true });
     } else {
-      await fs.writeFile(getOmpModelsYmlPath(), ymlContent, "utf-8");
+      await managedFiles.writeFile(getOmpModelsYmlPath(), ymlContent, "utf-8");
     }
 
     return NextResponse.json({

@@ -301,15 +301,26 @@ export class KiroExecutor extends BaseExecutor {
     // q/codewhisperer first is safe for every auth method (CLIRO parity).
 
     const region = (credentials?.providerSpecificData?.region || "us-east-1").trim();
-    const regionalize = (u) =>
-      region && region !== "us-east-1" && u.includes("amazonaws.com")
-        ? u.replace(/([a-z]+)\.[a-z0-9-]+\.amazonaws\.com/, `$1.${region}.amazonaws.com`)
-        : u;
-
-    const amazon = baseUrls.filter((u) => u.includes("amazonaws.com")).map(regionalize);
-    const others = baseUrls.filter((u) => !u.includes("amazonaws.com"));
-    const q = amazon.filter((u) => u.includes("://q."));
-    const remaining = amazon.filter((u) => !u.includes("://q."));
+    if (region.length > 64 || !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)+-\d+$/.test(region)) {
+      throw new Error("Invalid AWS region");
+    }
+    const isAmazon = (value) => {
+      try {
+        const url = new URL(value);
+        return url.protocol === "https:" && !url.username && !url.password &&
+          (url.hostname === "amazonaws.com" || url.hostname.endsWith(".amazonaws.com"));
+      } catch { return false; }
+    };
+    const regionalize = (value) => {
+      const url = new URL(value);
+      const parts = url.hostname.split(".");
+      if (parts.length === 4) url.hostname = `${parts[0]}.${region}.amazonaws.com`;
+      return url.toString();
+    };
+    const amazon = baseUrls.filter(isAmazon).map(regionalize);
+    const others = baseUrls.filter((value) => !isAmazon(value));
+    const q = amazon.filter((value) => new URL(value).hostname.startsWith("q."));
+    const remaining = amazon.filter((value) => !new URL(value).hostname.startsWith("q."));
     return q.length > 0
       ? [...q, ...remaining, ...others]
       : [...amazon, ...others];

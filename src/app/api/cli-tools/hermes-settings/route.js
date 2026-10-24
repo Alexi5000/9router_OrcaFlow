@@ -1,5 +1,7 @@
 "use server";
 
+import managedFiles from "@/lib/managedFiles";
+
 import { NextResponse } from "next/server";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -61,7 +63,7 @@ const resolveHome = (profile) => {
 
 const readTextFile = async (file) => {
   try {
-    return await fs.readFile(file, "utf-8");
+    return await managedFiles.readFile(file, "utf-8");
   } catch (error) {
     if (error.code === "ENOENT") return "";
     throw error;
@@ -75,7 +77,7 @@ const readEnvFile = (home) => readTextFile(home.envPath);
 // without identity files is not a profile, and we must not fabricate one.
 const writeHomeConfig = async (home, yaml) => {
   if (home.isDefault) await fs.mkdir(home.dir, { recursive: true });
-  await fs.writeFile(home.configPath, yaml);
+  await managedFiles.writeFile(home.configPath, yaml);
 };
 
 // Only ever upserts the OPENAI_API_KEY line — per-profile .env files also carry bot tokens
@@ -84,7 +86,7 @@ const writeHomeEnv = async (home, apiKey) => {
   if (!apiKey) return;
   if (home.isDefault) await fs.mkdir(home.dir, { recursive: true });
   const env = upsertEnvVar(await readEnvFile(home), API_KEY_ENV, apiKey);
-  await fs.writeFile(home.envPath, env);
+  await managedFiles.writeFile(home.envPath, env);
 };
 
 const checkHermesInstalled = async () => {
@@ -286,7 +288,7 @@ export async function DELETE(request) {
 
     let yaml = "";
     try {
-      yaml = await fs.readFile(home.configPath, "utf-8");
+      yaml = await managedFiles.readFile(home.configPath, "utf-8");
     } catch (readError) {
       if (readError.code === "ENOENT") {
         return NextResponse.json({ success: true, profile: home.name, message: "No config file to reset" });

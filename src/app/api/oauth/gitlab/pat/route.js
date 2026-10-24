@@ -1,3 +1,5 @@
+import { fetchPublic } from "@/shared/utils/ssrfGuard.js";
+import { isLocalRequest } from "@/dashboardGuard";
 import { NextResponse } from "next/server";
 import { createProviderConnection } from "@/models";
 
@@ -8,6 +10,7 @@ const GITLAB_DEFAULT_BASE = "https://gitlab.com";
  * Authenticate GitLab Duo with a Personal Access Token (PAT)
  */
 export async function POST(request) {
+  const requestProvider = isLocalRequest(request) ? (url, init) => fetch(url, { ...init, redirect: "error" }) : fetchPublic;
   try {
     let body;
     try {
@@ -24,7 +27,7 @@ export async function POST(request) {
     const base = (baseUrl?.trim() || GITLAB_DEFAULT_BASE).replace(/\/$/, "");
 
     // Verify token by fetching current user
-    const userRes = await fetch(`${base}/api/v4/user`, {
+    const userRes = await requestProvider(`${base}/api/v4/user`, {
       headers: { "Private-Token": token.trim(), Accept: "application/json" },
     });
 

@@ -119,12 +119,13 @@ const MIN_BINARY_SIZE = 1024 * 1024; // 1MB - cloudflared is ~30MB+
 // Validate binary is executable on current platform and not truncated
 function isValidBinary(filePath) {
   try {
-    const stat = fs.statSync(filePath);
-    if (stat.size < MIN_BINARY_SIZE) return false;
-    const fd = fs.openSync(filePath, "r");
+    const fd = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK | (fs.constants.O_NOFOLLOW || 0));
     const buf = Buffer.alloc(4);
-    fs.readSync(fd, buf, 0, 4, 0);
-    fs.closeSync(fd);
+    try {
+      const stat = fs.fstatSync(fd);
+      if (!stat.isFile() || stat.size < MIN_BINARY_SIZE) return false;
+      fs.readSync(fd, buf, 0, 4, 0);
+    } finally { fs.closeSync(fd); }
     const magic = buf.toString("hex");
     if (IS_WINDOWS) return magic.startsWith("4d5a"); // PE (MZ)
     if (os.platform() === "darwin") return magic.startsWith("cffaedfe") || magic.startsWith("cefaedfe");

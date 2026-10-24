@@ -1,5 +1,7 @@
 "use server";
 
+import managedFiles from "@/lib/managedFiles";
+
 import { NextResponse } from "next/server";
 import { resolveCliApiKey } from "../resolveApiKey.js";
 import { exec } from "child_process";
@@ -86,7 +88,7 @@ const checkDeepSeekInstalled = async () => {
 
 const readConfigToml = async () => {
     try {
-        return await fs.readFile(getDeepSeekConfigPath(), "utf-8");
+        return await managedFiles.readFile(getDeepSeekConfigPath(), "utf-8");
     } catch (error) {
         if (error.code === "ENOENT") return "";
         throw error;
@@ -134,7 +136,7 @@ export async function POST(request) {
         await fs.mkdir(dir, { recursive: true });
 
         const newConfig = build9RouterConfig(baseUrl, await resolveCliApiKey(apiKey), model);
-        await fs.writeFile(getDeepSeekConfigPath(), newConfig);
+        await managedFiles.writeFile(getDeepSeekConfigPath(), newConfig);
 
         return NextResponse.json({
             success: true,
@@ -156,7 +158,7 @@ export async function DELETE() {
             return NextResponse.json({ success: true, message: "No config file to reset" });
         }
 
-        await fs.writeFile(configPath, DEFAULT_CONFIG);
+        await managedFiles.writeFile(configPath, DEFAULT_CONFIG);
         return NextResponse.json({ success: true, message: `${PROVIDER_NAME} config reset to DeepSeek defaults` });
     } catch (error) {
         console.log("Error resetting deepseek-tui settings:", error);

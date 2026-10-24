@@ -156,6 +156,13 @@ describe("DefaultExecutor.buildHeaders() — anthropic-compatible stripping", ()
     expect(headers["Anthropic-Dangerous-Direct-Browser-Access"]).toBeUndefined();
   });
 
+  it.each(["https://api.anthropic.com.evil.example", "https://evil.example/api.anthropic.com", "https://api.anthropic.com@evil.example", "http://api.anthropic.com"])("strips first-party identity headers for spoofed authority %s", (baseUrl) => {
+    const executor = new DefaultExecutor("anthropic-compatible-custom");
+    const headers = executor.buildHeaders({ apiKey: "key", providerSpecificData: { baseUrl } }, true);
+    expect(headers["x-app"] || headers["X-App"]).toBeUndefined();
+    expect(headers["anthropic-beta"] || headers["Anthropic-Beta"] || "").not.toContain("claude-code-20250219");
+  });
+
   it("removes claude-code-20250219 from anthropic-beta for non-Anthropic host", () => {
     const executor = new DefaultExecutor("anthropic-compatible-custom");
     const headers = executor.buildHeaders(

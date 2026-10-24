@@ -19,6 +19,27 @@
 // same address to hex form ("::ffff:7f00:1") — a mismatch, not an oversight.
 
 import dns from "node:dns";
+import { Agent } from "undici";
+
+const publicDispatcher = new Agent({
+  connect: {
+    lookup(hostname, options, callback) {
+      dns.promises.lookup(hostname, { all: true, verbatim: true }).then((addresses) => {
+        if (!addresses.length || addresses.some(({ address }) => isBlockedHost(normalizeHost(address)))) {
+          callback(new Error("Blocked URL: connection resolves to an internal host"));
+          return;
+        }
+        const candidates = options.family ? addresses.filter((entry) => entry.family === options.family) : addresses;
+        if (!candidates.length) {
+          callback(new Error("No public address for requested family"));
+          return;
+        }
+        if (options.all) callback(null, candidates);
+        else callback(null, candidates[0].address, candidates[0].family);
+      }, callback);
+    },
+  },
+});
 
 const BLOCKED_HOSTNAMES = new Set(["localhost", "ip6-localhost", "ip6-loopback"]);
 const BLOCKED_SUFFIXES = [".internal", ".local", ".localhost"];
@@ -161,6 +182,9 @@ function isBlockedHost(host) {
 // resolution — see assertPublicUrlResolved for that). Caller should map to 400.
 export function assertPublicUrl(rawUrl) {
   const parsed = new URL(rawUrl);
+  if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) {
+    throw new Error("Blocked URL: unsupported protocol or credentials");
+  }
   const host = normalizeHost(parsed.hostname);
   if (isBlockedHost(host)) throw new Error("Blocked URL: internal host");
 }
@@ -171,6 +195,9 @@ export function assertPublicUrl(rawUrl) {
 // pointed at 127.0.0.1) is rejected too, not just IPs typed directly into the URL.
 export async function assertPublicUrlResolved(rawUrl) {
   const parsed = new URL(rawUrl);
+  if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) {
+    throw new Error("Blocked URL: unsupported protocol or credentials");
+  }
   const host = normalizeHost(parsed.hostname);
   if (isBlockedHost(host)) throw new Error("Blocked URL: internal host");
 
@@ -203,12 +230,16 @@ export async function fetchPublic(url, init = {}, { maxRedirects = 5 } = {}) {
   await assertPublicUrlResolved(url);
   let currentUrl = url;
   for (let hop = 0; ; hop++) {
-    const res = await fetch(currentUrl, { ...init, redirect: "manual" });
+    const res = await fetch(currentUrl, { ...init, redirect: "manual", dispatcher: publicDispatcher });
     const isRedirect = res.status >= 300 && res.status < 400;
     const location = isRedirect ? res.headers.get("location") : null;
     if (!location) return res;
     if (hop >= maxRedirects) throw new Error("Blocked URL: too many redirects");
     const nextUrl = new URL(location, currentUrl).toString();
+    if (new URL(nextUrl).origin !== new URL(currentUrl).origin && (init.body || [...new Headers(init.headers).keys()].some((key) => /authorization|cookie|token|api[-_]key/i.test(key)))) {
+      throw new Error("Blocked URL: credential-bearing cross-origin redirect");
+    }
+    await res.body?.cancel();
     await assertPublicUrlResolved(nextUrl);
     currentUrl = nextUrl;
   }

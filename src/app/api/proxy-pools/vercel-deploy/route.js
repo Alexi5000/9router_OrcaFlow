@@ -43,7 +43,7 @@ export default async function handler(req) {
 async function pollDeployment(deploymentId, token, maxMs = 120000) {
   const start = Date.now();
   while (Date.now() - start < maxMs) {
-    const res = await fetch(`${VERCEL_API}/v13/deployments/${deploymentId}`, {
+    const res = await fetch(`${VERCEL_API}/v13/deployments/${encodeURIComponent(deploymentId)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
@@ -112,7 +112,7 @@ export async function POST(request) {
 
     // Disable deployment protection (Vercel Authentication)
     const projectId = deployment.projectId || projectName;
-    await fetch(`${VERCEL_API}/v9/projects/${projectId}`, {
+    await fetch(`${VERCEL_API}/v9/projects/${encodeURIComponent(projectId)}`, {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${vercelToken}`,

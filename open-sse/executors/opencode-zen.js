@@ -31,10 +31,9 @@ function hasValidOpencodeVersion(ua) {
 }
 
 function unstableRandom() {
-  const bytes = crypto.randomBytes(14);
   let randomPart = "";
   for (let i = 0; i < 14; i++) {
-    randomPart += BASE62_CHARS[bytes[i] % 62];
+    randomPart += BASE62_CHARS[crypto.randomInt(62)];
   }
   return randomPart;
 }

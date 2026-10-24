@@ -264,3 +264,23 @@ describe("hermes config.yaml helpers", () => {
     });
   });
 });
+
+
+describe("Hermes configuration input boundaries", () => {
+  it("rejects role expressions and environment line injection", () => {
+    expect(() => upsertAuxRole("auxiliary:\n", ".*", "replacement")).toThrow(/key/);
+    expect(() => upsertEnvVar("", "OPENAI_API_KEY", "value\nOTHER=override")).toThrow(/value/);
+  });
+
+  it("quotes model values and preserves replacement metacharacters literally", () => {
+    const model = '$&"\nother: true';
+    const block = buildModelBlock(model, BASE);
+    expect(block).toContain(`default: ${JSON.stringify(model)}\n`);
+    expect(upsertModelBlock(EXISTING_MAPPING, block)).toBe(block);
+  });
+
+  it("handles many blank indented lines while retaining adjacent sections", () => {
+    const yaml = "model:\n" + "    \n".repeat(20000) + "other: retained\n";
+    expect(removeModelBlock(yaml)).toBe("other: retained\n");
+  }, 1000);
+});

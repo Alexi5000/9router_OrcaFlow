@@ -97,7 +97,9 @@ export async function POST(request) {
     const meRes = await hop(sess, `${sess.upstreamBase}/api/user/xiaomi/me`, API_UA);
     absorbResponseCookies(sess, meRes, `${sess.upstreamBase}/api/user/xiaomi/me`);
     const ssoLoc = meRes.headers.get("location");
-    if (!ssoLoc || !/account\.xiaomi\.com/.test(ssoLoc)) {
+    let ssoUrl;
+    try { ssoUrl = new URL(ssoLoc); } catch {}
+    if (!ssoUrl || ssoUrl.protocol !== "https:" || ssoUrl.hostname !== "account.xiaomi.com" || ssoUrl.username || ssoUrl.password) {
       return NextResponse.json(
         { error: `Unexpected me response (${meRes.status}) — no account redirect` },
         { status: 502 },

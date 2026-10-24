@@ -59,7 +59,7 @@ export async function POST(request) {
     }
 
     // 1. Upload Worker Script
-    const workerScriptUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/${projectName}`;
+    const workerScriptUrl = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/workers/scripts/${projectName}`;
     
     // Cloudflare requires multipart/form-data for worker script upload
     const formData = new FormData();
@@ -105,7 +105,7 @@ export async function POST(request) {
 
     // 3. Get the workers.dev subdomain for the account to construct the final URL
     let deployUrl = "";
-    const subdomainRes = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/subdomain`, {
+    const subdomainRes = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/workers/subdomain`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${apiToken}`,

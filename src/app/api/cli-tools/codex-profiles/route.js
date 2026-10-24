@@ -1,3 +1,4 @@
+import managedFiles from "@/lib/managedFiles";
 import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
@@ -35,7 +36,7 @@ export async function GET() {
       profileFiles.map(async (file) => {
         const name = file.replace(/\.config\.toml$/, "");
         try {
-          const content = await fs.readFile(path.join(codexDir, file), "utf-8");
+          const content = await managedFiles.readFile(path.join(codexDir, file), "utf-8");
           const match = content.match(/^\s*model\s*=\s*(["'])([^"\n]+)\1/m);
           return {
             name,
@@ -79,7 +80,7 @@ export async function POST(request) {
 
     const filePath = path.join(codexDir, `${cleanName}.config.toml`);
     const content = `# codex -p ${cleanName}\nmodel = "${cleanModel}"\nmodel_provider = "9router"\n`;
-    await fs.writeFile(filePath, content, "utf-8");
+    await managedFiles.writeFile(filePath, content, "utf-8");
 
     return NextResponse.json({
       success: true,
@@ -107,7 +108,7 @@ export async function DELETE(request) {
 
     const filePath = path.join(getCodexDir(), `${cleanName}.config.toml`);
     try {
-      await fs.unlink(filePath);
+      await managedFiles.unlink(filePath);
     } catch (err) {
       if (err.code === "ENOENT") {
         return NextResponse.json({ error: "Profile not found" }, { status: 404 });
