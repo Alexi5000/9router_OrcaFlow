@@ -7,7 +7,9 @@ import {
   getProxyPoolById,
 } from "@/models";
 import { APIKEY_PROVIDERS } from "@/shared/constants/config";
-import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
+import { AI_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider } from "@/shared/constants/providers";
+import { normalizeProviderId, normalizeProviderSpecificData } from "@/lib/providerNormalization";
+import { toProviderConnectionResponse } from "@/lib/providerConnectionResponse";
 
 export const dynamic = "force-dynamic";
 
@@ -63,15 +65,11 @@ export async function GET() {
     const safeConnections = connections.map(c => {
       const isCompatible = isOpenAICompatibleProvider(c.provider) || isAnthropicCompatibleProvider(c.provider);
       const name = isCompatible
-        ? (nodeNameMap[c.provider] || c.providerSpecificData?.nodeName || c.provider)
+        ? (c.name || nodeNameMap[c.provider] || c.providerSpecificData?.nodeName || c.provider)
         : c.name;
       return {
-        ...c,
+        ...toProviderConnectionResponse(c),
         name,
-        apiKey: undefined,
-        accessToken: undefined,
-        refreshToken: undefined,
-        idToken: undefined,
       };
     });
 
@@ -88,7 +86,8 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { provider, apiKey, name, priority, globalPriority, defaultModel, testStatus } = body;
+    const provider = normalizeProviderId(body.provider);
+    const { apiKey, name, displayName, priority, globalPriority, defaultModel, testStatus } = body;
     const proxyConfig = normalizeProxyConfig(body);
     if (proxyConfig.error) {
       return NextResponse.json({ error: proxyConfig.error }, { status: 400 });
@@ -101,33 +100,43 @@ export async function POST(request) {
     const proxyPoolId = proxyPoolResult.proxyPoolId;
 
     // Validation
+    const isWebCookieProvider = !!WEB_COOKIE_PROVIDERS[provider];
+    // Dual-auth providers (e.g. codebuddy-cn, xai) live under category "oauth" but also
+    // accept an API key via authModes — they aren't in APIKEY_PROVIDERS, so allow them here.
+    const supportsApiKeyMode = !!AI_PROVIDERS[provider]?.authModes?.includes("apikey");
     const isValidProvider = APIKEY_PROVIDERS[provider] ||
+      FREE_TIER_PROVIDERS[provider] ||
+      supportsApiKeyMode ||
+      isWebCookieProvider ||
       isOpenAICompatibleProvider(provider) ||
-      isAnthropicCompatibleProvider(provider);
+      isAnthropicCompatibleProvider(provider) ||
+      isCustomEmbeddingProvider(provider);
 
     if (!provider || !isValidProvider) {
       return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
     }
-    if (!apiKey) {
-      return NextResponse.json({ error: "API Key is required" }, { status: 400 });
+    // A provider may declare a providerSpecificData field that stands in for an API key — e.g.
+    // Bedrock's `profile`, where the credential lives in the local AWS config and there is no
+    // key to paste. Without this, following such a provider's own setup notice returns 400.
+    const apiKeySubstitute = AI_PROVIDERS[provider]?.apiKeyOptionalWith;
+    const hasApiKeySubstitute = !!(apiKeySubstitute && body.providerSpecificData?.[apiKeySubstitute]);
+    if (!apiKey && provider !== "ollama-local" && !hasApiKeySubstitute) {
+      return NextResponse.json({ error: `${isWebCookieProvider ? "Cookie value" : "API Key"} is required` }, { status: 400 });
     }
-    if (!name) {
+    const connectionName = name || displayName || AI_PROVIDERS[provider]?.name;
+    if (!connectionName) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
-    let providerSpecificData = null;
+    let providerSpecificData = normalizeProviderSpecificData(provider, body, body.providerSpecificData);
 
+    // Compatible LLM nodes support multiple API-key connections (key pool); runtime
+    // rotates/fails over via getProviderCredentials. Embedding nodes stay single-connection.
     if (isOpenAICompatibleProvider(provider)) {
       const node = await getProviderNodeById(provider);
       if (!node) {
         return NextResponse.json({ error: "OpenAI Compatible node not found" }, { status: 404 });
       }
-
-      const existingConnections = await getProviderConnections({ provider });
-      if (existingConnections.length > 0) {
-        return NextResponse.json({ error: "Only one connection is allowed for this OpenAI Compatible node" }, { status: 400 });
-      }
-
       providerSpecificData = {
         prefix: node.prefix,
         apiType: node.apiType,
@@ -139,12 +148,16 @@ export async function POST(request) {
       if (!node) {
         return NextResponse.json({ error: "Anthropic Compatible node not found" }, { status: 404 });
       }
-
-      const existingConnections = await getProviderConnections({ provider });
-      if (existingConnections.length > 0) {
-        return NextResponse.json({ error: "Only one connection is allowed for this Anthropic Compatible node" }, { status: 400 });
+      providerSpecificData = {
+        prefix: node.prefix,
+        baseUrl: node.baseUrl,
+        nodeName: node.name,
+      };
+    } else if (isCustomEmbeddingProvider(provider)) {
+      const node = await getProviderNodeById(provider);
+      if (!node) {
+        return NextResponse.json({ error: "Custom Embedding node not found" }, { status: 404 });
       }
-
       providerSpecificData = {
         prefix: node.prefix,
         baseUrl: node.baseUrl,
@@ -165,23 +178,31 @@ export async function POST(request) {
 
     const newConnection = await createProviderConnection({
       provider,
-      authType: "apikey",
-      name,
-      apiKey,
+      authType: isWebCookieProvider ? "cookie" : "apikey",
+      name: connectionName,
+      apiKey: apiKey || "",
       priority: priority || 1,
       globalPriority: globalPriority || null,
       defaultModel: defaultModel || null,
       providerSpecificData: mergedProviderSpecificData,
       isActive: true,
       testStatus: testStatus || "unknown",
+      // POST with an id is an explicit edit of that connection; without one, a
+      // name collision is refused rather than silently overwriting a key. #4311
+      allowOverwrite: body.id ? true : (body.allowOverwrite === true || body.overwrite === true),
     });
 
-    // Hide sensitive fields
-    const result = { ...newConnection };
-    delete result.apiKey;
-
-    return NextResponse.json({ connection: result }, { status: 201 });
+    return NextResponse.json(
+      { connection: toProviderConnectionResponse(newConnection) },
+      { status: 201 },
+    );
   } catch (error) {
+    if (error?.code === "PROVIDER_NAME_CONFLICT") {
+      return NextResponse.json(
+        { error: error.message, code: error.code, existingId: error.existingId, existingName: error.existingName },
+        { status: 409 }
+      );
+    }
     console.log("Error creating provider:", error);
     return NextResponse.json({ error: "Failed to create provider" }, { status: 500 });
   }

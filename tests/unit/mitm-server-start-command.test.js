@@ -24,7 +24,7 @@ async function launch(apiKeyFor, hostilePath = false) {
   let invocation;
   const writes = [];
   const result = await vm.runInNewContext(`${functionSource}\nstartServer(apiKey, "test-password")`, {
-    apiKey, IS_WIN: false, serverProcess: null, serverPid: null, PID_FILE: "/unused/pid", MITM_DIR: "/unused/mitm", MITM_PORT: 443,
+    _updateSettings: null, log() {}, err() {}, isCertExpired: () => false, isSudoAvailable: () => true, isSudoPasswordRequired: () => true, resolveMitmRouterBaseUrl: async () => "http://localhost:20128", checkAllDNSStatus: () => ({}), mitmLastStartTime: 0, LOCK_FILE: "/unused/lock", os, IS_MAC: false, apiKey, IS_WIN: false, serverProcess: null, serverPid: null, PID_FILE: "/unused/pid", MITM_DIR: "/unused/mitm", MITM_PORT: 443,
     SERVER_PATH: serverPath, process: { execPath: process.execPath, env: { ...process.env, ORCA_TEST_SETTING: "preserved" } }, path,
     fs: { existsSync: file => !file.endsWith("pid"), writeFileSync() {}, unlinkSync() {} },
     console: { log() {}, error() {} },

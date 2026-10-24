@@ -1,6 +1,7 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { resolveCliApiKey } from "../resolveApiKey.js";
 import fs from "@/lib/managedFiles";
 import path from "path";
 import os from "os";
@@ -21,10 +22,12 @@ const getConfigPath = () => {
 const readConfig = async () => {
   try {
     const content = await fs.readFile(getConfigPath(), "utf-8");
-    return JSON.parse(content);
+    // Tolerate JSONC (trailing commas) and treat unparseable files as "no config"
+    // rather than throwing a 500 that the UI misreads as "tool not installed".
+    const stripped = content.replace(/,(\s*[}\]])/g, "$1");
+    return JSON.parse(stripped);
   } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
+    return null;
   }
 };
 
@@ -79,7 +82,7 @@ export async function POST(request) {
     } catch (error) { if (error.code !== "ENOENT") throw error; }
 
     const endpointUrl = `${baseUrl}/chat/completions#models.ai.azure.com`;
-    const keyToUse = apiKey || "sk_9router";
+    const keyToUse = await resolveCliApiKey(apiKey);
 
     const newEntry = {
       name: "9Router",

@@ -83,6 +83,23 @@ function CollapsibleSection({ title, children, defaultOpen = false, icon = null 
   );
 }
 
+function getCachedTokens(tokens) {
+  return tokens?.cached_tokens || tokens?.cache_read_input_tokens || 0;
+}
+
+function getCacheCreationTokens(tokens) {
+  return tokens?.cache_creation_input_tokens || 0;
+}
+
+function getInputTokens(tokens) {
+  const prompt = tokens?.prompt_tokens || tokens?.input_tokens || 0;
+  // Canonical storage keeps prompt cache-inclusive. Legacy Claude rows may have
+  // stored prompt cache-exclusive; fall back to cache when it's larger so old
+  // rows don't under-report input.
+  const cache = getCachedTokens(tokens);
+  return prompt < cache ? cache : prompt;
+}
+
 export default function RequestDetailsTab() {
   const [details, setDetails] = useState([]);
   const [pagination, setPagination] = useState({
@@ -164,10 +181,10 @@ export default function RequestDetailsTab() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <Card padding="md">
-        <div className="flex flex-wrap gap-4">
-          <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="flex min-w-0 flex-col gap-2">
             <label htmlFor="provider-filter" className="text-sm font-medium text-text-main">Provider</label>
             <select
               id="provider-filter"
@@ -176,8 +193,9 @@ export default function RequestDetailsTab() {
               className={cn(
                 "h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface",
                 "text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20",
-                "cursor-pointer min-w-[150px]"
+                "w-full min-w-0 cursor-pointer"
               )}
+              style={{ colorScheme: 'auto' }}
             >
               <option value="">All Providers</option>
               {providers.map((provider) => (
@@ -188,7 +206,7 @@ export default function RequestDetailsTab() {
             </select>
           </div>
           
-          <div className="flex flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
             <label htmlFor="start-date-filter" className="text-sm font-medium text-text-main">Start Date</label>
             <input
               id="start-date-filter"
@@ -197,12 +215,12 @@ export default function RequestDetailsTab() {
               onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
               className={cn(
                 "h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface",
-                "text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20"
+                "w-full min-w-0 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20"
               )}
             />
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
             <label htmlFor="end-date-filter" className="text-sm font-medium text-text-main">End Date</label>
             <input
               id="end-date-filter"
@@ -211,17 +229,18 @@ export default function RequestDetailsTab() {
               onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
               className={cn(
                 "h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface",
-                "text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20"
+                "w-full min-w-0 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20"
               )}
             />
           </div>
           
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-text-main opacity-0" aria-hidden="true">Clear</span>
+          <div className="flex min-w-0 flex-col gap-2 sm:col-span-2 lg:col-span-1">
+            <span className="hidden text-sm font-medium text-text-main opacity-0 lg:block" aria-hidden="true">Clear</span>
             <Button 
               variant="ghost" 
               onClick={handleClearFilters}
               disabled={!filters.provider && !filters.startDate && !filters.endDate}
+              className="w-full"
             >
               Clear Filters
             </Button>
@@ -231,13 +250,15 @@ export default function RequestDetailsTab() {
 
       <Card padding="none">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[880px]">
             <thead>
               <tr className="border-b border-black/5 dark:border-white/5">
                 <th className="text-left p-4 text-sm font-semibold text-text-main">Timestamp</th>
                 <th className="text-left p-4 text-sm font-semibold text-text-main">Model</th>
                 <th className="text-left p-4 text-sm font-semibold text-text-main">Provider</th>
                 <th className="text-right p-4 text-sm font-semibold text-text-main">Input Tokens</th>
+                <th className="text-right p-4 text-sm font-semibold text-text-main">Cached</th>
+                <th className="text-right p-4 text-sm font-semibold text-text-main">Cache Creation</th>
                 <th className="text-right p-4 text-sm font-semibold text-text-main">Output Tokens</th>
                 <th className="text-left p-4 text-sm font-semibold text-text-main">Latency</th>
                 <th className="text-center p-4 text-sm font-semibold text-text-main">Action</th>
@@ -275,7 +296,7 @@ export default function RequestDetailsTab() {
                     key={`${detail.id}-${index}`}
                     className="border-b border-black/5 dark:border-white/5 last:border-b-0 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors"
                   >
-                    <td className="p-4 text-sm text-text-main">
+                    <td className="whitespace-nowrap p-4 text-sm text-text-main">
                       {new Date(detail.timestamp).toLocaleString()}
                     </td>
                     <td className="p-4 text-sm text-text-main">
@@ -288,13 +309,19 @@ export default function RequestDetailsTab() {
                         )}
                       </div>
                     </td>
-                    <td className="p-4 text-sm text-text-main">
+                    <td className="max-w-[180px] truncate p-4 text-sm text-text-main">
                        <span className="font-medium">
                          {getProviderName(detail.provider, providerNameCache)}
                        </span>
                      </td>
                     <td className="p-4 text-sm text-text-main text-right font-mono">
-                      {detail.tokens?.prompt_tokens?.toLocaleString() || 0}
+                      {getInputTokens(detail.tokens).toLocaleString()}
+                    </td>
+                    <td className="p-4 text-sm text-text-main text-right font-mono">
+                      {getCachedTokens(detail.tokens) > 0 ? getCachedTokens(detail.tokens).toLocaleString() : "—"}
+                    </td>
+                    <td className="p-4 text-sm text-text-main text-right font-mono">
+                      {getCacheCreationTokens(detail.tokens) > 0 ? getCacheCreationTokens(detail.tokens).toLocaleString() : "—"}
                     </td>
                     <td className="p-4 text-sm text-text-main text-right font-mono">
                       {detail.tokens?.completion_tokens?.toLocaleString() || 0}
@@ -353,10 +380,10 @@ export default function RequestDetailsTab() {
 
             return (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid min-w-0 grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               <div>
                 <span className="text-text-muted">ID:</span>{" "}
-                <span className="text-text-main font-mono">{selectedDetail.id}</span>
+                <span className="break-all font-mono text-text-main">{selectedDetail.id}</span>
               </div>
               <div>
                 <span className="text-text-muted">Timestamp:</span>{" "}
@@ -394,9 +421,25 @@ export default function RequestDetailsTab() {
               <div>
                 <span className="text-text-muted">Input Tokens:</span>{" "}
                 <span className="text-text-main font-mono">
-                  {selectedDetail.tokens?.prompt_tokens?.toLocaleString() || 0}
+                  {getInputTokens(selectedDetail.tokens).toLocaleString()}
                 </span>
               </div>
+              {getCachedTokens(selectedDetail.tokens) > 0 && (
+                <div>
+                  <span className="text-text-muted">Cached Tokens:</span>{" "}
+                  <span className="text-text-main font-mono">
+                    {getCachedTokens(selectedDetail.tokens).toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {getCacheCreationTokens(selectedDetail.tokens) > 0 && (
+                <div>
+                  <span className="text-text-muted">Cache Creation:</span>{" "}
+                  <span className="text-text-main font-mono">
+                    {getCacheCreationTokens(selectedDetail.tokens).toLocaleString()}
+                  </span>
+                </div>
+              )}
               <div>
                 <span className="text-text-muted">Output Tokens:</span>{" "}
                 <span className="text-text-main font-mono">
@@ -405,6 +448,48 @@ export default function RequestDetailsTab() {
               </div>
             </div>
             
+            {selectedDetail.pxpipe && (
+              <div className="rounded-lg border border-black/5 dark:border-white/5 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-[18px] text-text-muted">image</span>
+                  <span className="font-semibold text-sm text-text-main">PXPIPE</span>
+                  <span className={cn(
+                    "text-xs px-2 py-0.5 rounded",
+                    selectedDetail.pxpipe.applied
+                      ? "bg-green-500/15 text-green-600"
+                      : "bg-amber-500/15 text-amber-600"
+                  )}>
+                    {selectedDetail.pxpipe.applied ? "Activated" : "Skipped"}
+                  </span>
+                </div>
+                {selectedDetail.pxpipe.applied ? (
+                  <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                    <div>
+                      <span className="text-text-muted block text-xs">Original (est.)</span>
+                      <span className="font-mono">{(selectedDetail.pxpipe.tokensBeforeEst || 0).toLocaleString()} tokens</span>
+                    </div>
+                    <div>
+                      <span className="text-text-muted block text-xs">Compressed (est.)</span>
+                      <span className="font-mono">{(selectedDetail.pxpipe.tokensAfterEst || 0).toLocaleString()} tokens</span>
+                    </div>
+                    <div>
+                      <span className="text-text-muted block text-xs">Saved</span>
+                      <span className="font-mono text-green-600">{selectedDetail.pxpipe.savedPct || 0}%</span>
+                    </div>
+                    <div>
+                      <span className="text-text-muted block text-xs">Images</span>
+                      <span className="font-mono">{selectedDetail.pxpipe.imageCount || 0} ({selectedDetail.pxpipe.durationMs || 0}ms)</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-text-muted">
+                    Reason: <span className="font-mono">{selectedDetail.pxpipe.reason}</span>
+                    {selectedDetail.pxpipe.detail ? ` — ${selectedDetail.pxpipe.detail}` : ""}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-4">
               <CollapsibleSection title="0. Route Summary" defaultOpen={true} icon="route">
                 <div className="grid grid-cols-1 gap-3 text-sm">
@@ -446,14 +531,14 @@ export default function RequestDetailsTab() {
               </CollapsibleSection>
 
               <CollapsibleSection title="1. Client Request (Input)" defaultOpen={true} icon="input">
-                <pre className="bg-black/5 dark:bg-white/5 p-4 rounded-lg overflow-auto max-h-[300px] text-xs font-mono text-text-main border border-black/5 dark:border-white/5">
+                <pre className="max-h-[300px] max-w-full overflow-auto rounded-lg border border-black/5 bg-black/5 p-3 font-mono text-xs text-text-main dark:border-white/5 dark:bg-white/5 sm:p-4">
                   {JSON.stringify(selectedDetail.request, null, 2)}
                 </pre>
               </CollapsibleSection>
 
               {selectedDetail.providerRequest && (
                 <CollapsibleSection title="2. Provider Request (Translated)" icon="translate">
-                  <pre className="bg-black/5 dark:bg-white/5 p-4 rounded-lg overflow-auto max-h-[300px] text-xs font-mono text-text-main border border-black/5 dark:border-white/5">
+                  <pre className="max-h-[300px] max-w-full overflow-auto rounded-lg border border-black/5 bg-black/5 p-3 font-mono text-xs text-text-main dark:border-white/5 dark:bg-white/5 sm:p-4">
                     {JSON.stringify(selectedDetail.providerRequest, null, 2)}
                   </pre>
                 </CollapsibleSection>
@@ -461,7 +546,7 @@ export default function RequestDetailsTab() {
 
               {selectedDetail.providerResponse && (
                 <CollapsibleSection title="3. Provider Response (Raw)" icon="data_object">
-                  <pre className="bg-black/5 dark:bg-white/5 p-4 rounded-lg overflow-auto max-h-[300px] text-xs font-mono text-text-main border border-black/5 dark:border-white/5">
+                  <pre className="max-h-[300px] max-w-full overflow-auto rounded-lg border border-black/5 bg-black/5 p-3 font-mono text-xs text-text-main dark:border-white/5 dark:bg-white/5 sm:p-4">
                     {typeof selectedDetail.providerResponse === 'object'
                       ? JSON.stringify(selectedDetail.providerResponse, null, 2)
                       : selectedDetail.providerResponse
@@ -477,7 +562,7 @@ export default function RequestDetailsTab() {
                       <span className="material-symbols-outlined text-[16px]">psychology</span>
                       Thinking Process
                     </h4>
-                    <pre className="bg-amber-50 dark:bg-amber-950/30 p-4 rounded-lg overflow-auto max-h-[200px] text-xs font-mono text-amber-900 dark:text-amber-100 border border-amber-200 dark:border-amber-800">
+                    <pre className="max-h-[200px] max-w-full overflow-auto rounded-lg border border-amber-200 bg-amber-50 p-3 font-mono text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100 sm:p-4">
                       {selectedDetail.response.thinking}
                     </pre>
                   </div>
@@ -486,7 +571,7 @@ export default function RequestDetailsTab() {
                 <h4 className="font-semibold text-text-main mb-2 text-xs uppercase tracking-wide opacity-70">
                   Content
                 </h4>
-                <pre className="bg-black/5 dark:bg-white/5 p-4 rounded-lg overflow-auto max-h-[300px] text-xs font-mono text-text-main border border-black/5 dark:border-white/5">
+                <pre className="max-h-[300px] max-w-full overflow-auto rounded-lg border border-black/5 bg-black/5 p-3 font-mono text-xs text-text-main dark:border-white/5 dark:bg-white/5 sm:p-4">
                   {selectedDetail.response?.content || "[No content]"}
                 </pre>
               </CollapsibleSection>

@@ -2,12 +2,25 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { FREE_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
+
+// Keep providers without serviceKinds (default LLM) or with "llm" in serviceKinds
+function isLLMProvider(id) {
+  const p = AI_PROVIDERS[id];
+  if (!p?.serviceKinds) return true;
+  return p.serviceKinds.includes("llm");
+}
 import Badge from "./Badge";
 import Card from "./Card";
 import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/OverviewCards";
 import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
-import ProviderTopology from "@/app/(dashboard)/dashboard/usage/components/ProviderTopology";
-import UsageChart from "@/app/(dashboard)/dashboard/usage/components/UsageChart";
+import dynamic from "next/dynamic";
+// Lazy-load: keeps @xyflow/react and recharts out of the initial bundle
+const ProviderTopology = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/ProviderTopology"), { ssr: false });
+const UsageChart = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/UsageChart"), { ssr: false });
+const ProviderBarChart = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/ProviderBarChart"), { ssr: false });
+const TopModelsChart = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/TopModelsChart"), { ssr: false });
+
 import { TOPOLOGY_RECENT_WINDOW_MS, getRecentLastProvider, getRecentProvidersFromRequests } from "@/shared/utils/usageTopology";
 import { buildRequestRouteSummary, normalizeRequestRoute } from "@/shared/utils/requestRoute";
 
@@ -33,7 +46,7 @@ function TimeAgo({ timestamp }) {
 
 function RecentRequests({ requests = [] }) {
   return (
-    <Card className="flex flex-col overflow-hidden" padding="sm" style={{ height: 480 }}>
+    <Card className="flex min-w-0 flex-col overflow-hidden" padding="sm" style={{ height: 480 }}>
       {/* Header */}
       <div className="px-1 py-2 border-b border-border shrink-0">
         <span className="text-xs font-semibold text-text-muted uppercase tracking-wide">Recent Requests</span>
@@ -43,7 +56,7 @@ function RecentRequests({ requests = [] }) {
         <div className="flex-1 flex items-center justify-center text-text-muted text-sm">No requests yet.</div>
       ) : (
         <div className="flex-1 overflow-y-auto">
-          <table className="w-full text-xs border-collapse">
+          <table className="w-full min-w-[300px] border-collapse text-xs">
             <thead className="sticky top-0 bg-bg z-10">
               <tr className="border-b border-border">
                 <th className="py-1.5 text-left font-semibold text-text-muted w-2"></th>
@@ -100,9 +113,16 @@ function sortData(dataMap, pendingMap = {}, sortBy, sortOrder) {
     .map(([key, data]) => {
       const totalTokens = (data.promptTokens || 0) + (data.completionTokens || 0);
       const totalCost = data.cost || 0;
-      const inputCost = totalTokens > 0 ? (data.promptTokens || 0) * (totalCost / totalTokens) : 0;
+      // ponytail: cost split is a token-share allocation of the (rate-accurate)
+      // server total, not a per-rate recompute. cached is a subset of prompt, so
+      // peel it out of the input share. Upgrade to a stored per-component cost
+      // breakdown if exact cached-rate cost display is needed.
+      const cachedTokens = data.cachedTokens || 0;
+      const nonCachedInput = Math.max(0, (data.promptTokens || 0) - cachedTokens);
+      const inputCost = totalTokens > 0 ? nonCachedInput * (totalCost / totalTokens) : 0;
+      const cachedCost = totalTokens > 0 ? cachedTokens * (totalCost / totalTokens) : 0;
       const outputCost = totalTokens > 0 ? (data.completionTokens || 0) * (totalCost / totalTokens) : 0;
-      return { ...data, key, totalTokens, totalCost, inputCost, outputCost, pending: pendingMap[key] || 0 };
+      return { ...data, key, totalTokens, totalCost, inputCost, cachedCost, outputCost, pending: pendingMap[key] || 0 };
     })
     .sort((a, b) => {
       let valA = a[sortBy];
@@ -119,7 +139,7 @@ function getGroupKey(item, keyField) {
   switch (keyField) {
     case "rawModel": return item.rawModel || "Unknown Model";
     case "accountName": return item.accountName || `Account ${item.connectionId?.slice(0, 8)}...` || "Unknown Account";
-    case "keyName": return item.keyName || "Unknown Key";
+    case "keyName": return item.apiKeyMasked ? `${item.keyName} (${item.apiKeyMasked})` : item.keyName || "Unknown Key";
     case "endpoint": return item.endpoint || "Unknown Endpoint";
     default: return item[keyField] || "Unknown";
   }
@@ -133,7 +153,7 @@ function groupDataByKey(data, keyField) {
     if (!groups[gk]) {
       groups[gk] = {
         groupKey: gk,
-        summary: { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, cost: 0, inputCost: 0, outputCost: 0, lastUsed: null, pending: 0 },
+        summary: { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, totalTokens: 0, cost: 0, inputCost: 0, cachedCost: 0, outputCost: 0, lastUsed: null, pending: 0 },
         items: [],
       };
     }
@@ -141,9 +161,11 @@ function groupDataByKey(data, keyField) {
     s.requests += item.requests || 0;
     s.promptTokens += item.promptTokens || 0;
     s.completionTokens += item.completionTokens || 0;
+    s.cachedTokens += item.cachedTokens || 0;
     s.totalTokens += item.totalTokens || 0;
     s.cost += item.cost || 0;
     s.inputCost += item.inputCost || 0;
+    s.cachedCost += item.cachedCost || 0;
     s.outputCost += item.outputCost || 0;
     s.pending += item.pending || 0;
     if (item.lastUsed && (!s.lastUsed || new Date(item.lastUsed) > new Date(s.lastUsed))) {
@@ -193,10 +215,12 @@ const TABLE_OPTIONS = [
 ];
 
 const PERIODS = [
+  { value: "today", label: "Today" },
   { value: "24h", label: "24h" },
   { value: "7d", label: "7D" },
   { value: "30d", label: "30D" },
   { value: "60d", label: "60D" },
+  { value: "all", label: "All" },
 ];
 
 const STATS_FETCH_TIMEOUT_MS = 10000;
@@ -226,7 +250,7 @@ async function fetchJsonWithTimeout(url, timeoutMs = STATS_FETCH_TIMEOUT_MS) {
   }
 }
 
-export default function UsageStats() {
+export default function UsageStats({ period: periodProp, setPeriod: setPeriodProp, hidePeriodSelector = false } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -237,8 +261,11 @@ export default function UsageStats() {
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [tableView, setTableView] = useState("model");
+  const [viewMode, setViewMode] = useState("costs");
   const [providers, setProviders] = useState([]);
-  const [period, setPeriod] = useState("7d");
+  const [periodLocal, setPeriodLocal] = useState("7d");
+  const period = periodProp ?? periodLocal;
+  const setPeriod = setPeriodProp ?? setPeriodLocal;
   const [chartRefreshNonce, setChartRefreshNonce] = useState(0);
   const [topologyNow, setTopologyNow] = useState(() => Date.now());
   const hasLoadedStatsRef = useRef(false);
@@ -480,7 +507,7 @@ export default function UsageStats() {
           ),
           renderDetailCells: (item) => (
             <>
-              <td className="px-6 py-3 font-medium">{item.keyName}</td>
+              <td className="px-6 py-3 font-medium font-mono text-xs">{item.apiKeyMasked || item.keyName}</td>
               <td className="px-6 py-3">{item.rawModel}</td>
               <td className="px-6 py-3"><Badge variant="neutral" size="sm">{item.provider}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
@@ -527,32 +554,34 @@ export default function UsageStats() {
   );
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Period selector */}
-      <div className="flex items-center gap-2 self-end">
-        <div className="flex items-center gap-1 bg-bg-subtle rounded-lg p-1 border border-border">
-          {PERIODS.map((p) => (
-            <button
-              key={p.value}
-              onClick={() => setPeriod(p.value)}
-              disabled={fetching}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${period === p.value ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
-            >
-              {p.label}
-            </button>
-          ))}
+    <div className="flex min-w-0 flex-col gap-6">
+      {/* Period selector (hidden when controlled by parent) */}
+      {!hidePeriodSelector && (
+        <div className="flex w-full items-center gap-2 sm:w-auto sm:self-end">
+          <div className="grid flex-1 grid-cols-6 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex sm:flex-none">
+            {PERIODS.map((p) => (
+              <button
+                key={p.value}
+                onClick={() => setPeriod(p.value)}
+                disabled={fetching}
+                className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${period === p.value ? "bg-primary text-white shadow-sm" : "text-text-muted hover:bg-bg-hover hover:text-text"}`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {fetching && (
+            <span className="material-symbols-outlined text-[16px] text-text-muted animate-spin">progress_activity</span>
+          )}
         </div>
-        {fetching && (
-          <span className="material-symbols-outlined text-[16px] text-text-muted animate-spin">progress_activity</span>
-        )}
-      </div>
+      )}
 
       {/* Overview cards */}
       {loading ? spinner : <OverviewCards stats={stats} />}
 
       {/* Provider topology + Recent Requests */}
       {loading ? spinner : (
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-2 items-stretch">
+        <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
           <ProviderTopology
             providers={providers}
             activeRequests={stats.activeRequests || []}
@@ -568,18 +597,41 @@ export default function UsageStats() {
       {/* Token / Cost chart - sync period */}
       {loading ? spinner : <UsageChart period={period} refreshNonce={chartRefreshNonce} />}
 
+      {/* Provider and model breakdown charts */}
+      {!loading && (stats.byProvider || stats.byModel) && (
+        <div className="grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-2">
+          <ProviderBarChart byProvider={stats.byProvider} />
+          <TopModelsChart byModel={stats.byModel} />
+        </div>
+      )}
+
       {/* Table with dropdown selector */}
       <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <select
             value={tableView}
             onChange={(e) => setTableView(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-border bg-bg-subtle text-sm font-medium text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-main focus:outline-none focus:ring-2 focus:ring-primary/50 sm:w-auto"
+            style={{ colorScheme: 'auto' }}
           >
             {TABLE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
+          <div className="grid grid-cols-2 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex">
+            <button
+              onClick={() => setViewMode("costs")}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "costs" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
+            >
+              Costs
+            </button>
+            <button
+              onClick={() => setViewMode("tokens")}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${viewMode === "tokens" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-bg-hover"}`}
+            >
+              Tokens
+            </button>
+          </div>
         </div>
         {loading ? spinner : activeTableConfig && (
           <UsageTable
@@ -590,6 +642,7 @@ export default function UsageStats() {
             sortBy={sortBy}
             sortOrder={sortOrder}
             onToggleSort={toggleSort}
+            viewMode={viewMode}
             storageKey={activeTableConfig.storageKey}
             renderSummaryCells={activeTableConfig.renderSummaryCells}
             renderDetailCells={activeTableConfig.renderDetailCells}

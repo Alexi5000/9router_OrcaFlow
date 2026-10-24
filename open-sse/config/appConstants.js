@@ -1,20 +1,42 @@
-import { platform, arch } from "os";
+import { platform, arch, hostname } from "os";
+import { PROVIDERS, PROVIDER_OAUTH } from "./providers.js";
+import { ANTIGRAVITY_IDE_USER_AGENT } from "../providers/shared.js";
+import { createRequire } from "module";
 
-// === Gemini CLI ===
-export const GEMINI_CLI_VERSION = "0.31.0";
-export const GEMINI_CLI_API_CLIENT = "google-genai-sdk/1.41.0 gl-node/v22.19.0";
+// Nous Portal requires attribution for some API-key models. Use a neutral
+// router identity rather than exposing a credential or claiming another client.
+export const NOUS_ATTRIBUTION = {
+  hostname: "inference-api.nousresearch.com",
+  chatCompletionsPath: "/v1/chat/completions",
+  tags: ["product=9router", "client=9router", "user=9router"],
+};
+
+// === Gemini CLI === derive từ registry gemini-cli.transport
+export const GEMINI_CLI_VERSION = PROVIDERS["gemini-cli"]?.cliVersion;
+export const GEMINI_CLI_API_CLIENT = PROVIDERS["gemini-cli"]?.apiClient;
+
+// === Codex CLI === derive từ registry codex.transport
+export const CODEX_CLI_VERSION = PROVIDERS["codex"]?.cliVersion;
+
+// Map Node arch to Gemini CLI arch string (x64/x86/arm64/...)
+function geminiCLIArch() {
+  const a = arch();
+  if (a === "ia32") return "x86";
+  return a;
+}
 
 export function geminiCLIUserAgent(model = "unknown") {
-  const os = platform() === "win32" ? "windows" : platform();
-  return `GeminiCLI/${GEMINI_CLI_VERSION}/${model || "unknown"} (${os}; ${arch()})`;
+  return `GeminiCLI/${GEMINI_CLI_VERSION}/${model || "unknown"} (${platform()}; ${geminiCLIArch()}; terminal)`;
 }
 
 // === GitHub Copilot ===
+// Derive từ registry github.transport.copilot
+const _ghCopilot = PROVIDERS.github?.copilot || {};
 export const GITHUB_COPILOT = {
-  VSCODE_VERSION: "1.110.0",
-  COPILOT_CHAT_VERSION: "0.38.0",
-  USER_AGENT: "GitHubCopilotChat/0.38.0",
-  API_VERSION: "2025-04-01",
+  VSCODE_VERSION: _ghCopilot.vscodeVersion,
+  COPILOT_CHAT_VERSION: _ghCopilot.chatVersion,
+  USER_AGENT: _ghCopilot.userAgent,
+  API_VERSION: _ghCopilot.apiVersion,
 };
 
 // === Antigravity enums ===
@@ -50,7 +72,7 @@ export function getPlatformEnum() {
 }
 
 export function getPlatformUserAgent() {
-  return `antigravity/1.104.0 ${platform()}/${arch()}`;
+  return ANTIGRAVITY_IDE_USER_AGENT;
 }
 
 export const CLIENT_METADATA = {
@@ -62,72 +84,170 @@ export const CLIENT_METADATA = {
 // Internal anti-loop header
 export const INTERNAL_REQUEST_HEADER = { name: "x-request-source", value: "local" };
 
+// Suffix added to client tools when forwarding to Antigravity provider (anti-ban cloaking)
+export const AG_TOOL_SUFFIX = "_ide";
+
+// Suffix added to client tools when forwarding to Claude provider (anti-ban cloaking)
+export const CLAUDE_TOOL_SUFFIX = "_ide";
+
+// CC native default tools — these are Claude Code's own tools, kept as decoys
+// Client tools matching these names are skipped (not renamed), others get _cc suffix
+export const CC_DEFAULT_TOOLS = new Set([
+  "Task",
+  "TaskOutput",
+  "TaskStop",
+  "TaskCreate",
+  "TaskGet",
+  "TaskUpdate",
+  "TaskList",
+  "Bash",
+  "Glob",
+  "Grep",
+  "Read",
+  "Edit",
+  "Write",
+  "NotebookEdit",
+  "WebFetch",
+  "WebSearch",
+  "AskUserQuestion",
+  "Skill",
+  "EnterPlanMode",
+  "ExitPlanMode",
+]);
+
+// AG native default tools — kept as decoys with neutral description/properties
+// These names must match exactly what AG sends in the real request log
+export const AG_DEFAULT_TOOLS = new Set([
+  "browser_subagent",
+  "command_status",
+  "find_by_name",
+  "generate_image",
+  "grep_search",
+  "list_dir",
+  "list_resources",
+  "multi_replace_file_content",
+  "notify_user",
+  "read_resource",
+  "read_terminal",
+  "read_url_content",
+  "replace_file_content",
+  "run_command",
+  "search_web",
+  "send_command_input",
+  "task_boundary",
+  "view_content_chunk",
+  "view_file",
+  "write_to_file"
+]);
+
 // Antigravity chat/stream headers
 export const ANTIGRAVITY_HEADERS = {
-  "X-Client-Name": "antigravity",
-  "X-Client-Version": "1.107.0",
-  "x-goog-api-client": "gl-node/18.18.2 fire/0.8.6 grpc/1.10.x",
-  "User-Agent": "antigravity/1.107.0 darwin/arm64"
+  "User-Agent": ANTIGRAVITY_IDE_USER_AGENT
 };
 
-// Cloud Code Assist API
+// Cloud Code Assist API endpoints differ by client ecosystem.
 export const CLOUD_CODE_API = {
-  loadCodeAssist: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
-  onboardUser: "https://cloudcode-pa.googleapis.com/v1internal:onboardUser",
+  "gemini-cli": {
+    loadCodeAssist: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+    onboardUser: "https://cloudcode-pa.googleapis.com/v1internal:onboardUser",
+  },
+  // Project discovery (loadCodeAssist/onboardUser) stays on PROD — the daily host
+  // rejects these auth/onboarding calls. Only chat traffic uses the daily host
+  // (see transport.apiEndpoint in registry/antigravity.js, set to bypass prod 429).
+  antigravity: {
+    loadCodeAssist: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+    onboardUser: "https://cloudcode-pa.googleapis.com/v1internal:onboardUser",
+  },
 };
 
 export const LOAD_CODE_ASSIST_HEADERS = {
   "Content-Type": "application/json",
   "User-Agent": "google-api-nodejs-client/9.15.1",
   "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
-  "Client-Metadata": JSON.stringify({ ideType: "IDE_UNSPECIFIED", platform: "PLATFORM_UNSPECIFIED", pluginType: "GEMINI" }),
+  "Client-Metadata": JSON.stringify({ ideType: IDE_TYPE.ANTIGRAVITY, platform: getPlatformEnum(), pluginType: PLUGIN_TYPE.GEMINI }),
+};
+
+// Real Antigravity IDE doesn't send X-Goog-Api-Client/Client-Metadata on loadCodeAssist/onboardUser —
+// Google's backend fingerprints those and silently refuses to provision a cloudaicompanionProject.
+export const ANTIGRAVITY_LOAD_CODE_ASSIST_HEADERS = {
+  "Content-Type": "application/json",
+  "User-Agent": ANTIGRAVITY_IDE_USER_AGENT,
 };
 
 export const LOAD_CODE_ASSIST_METADATA = {
-  ideType: "IDE_UNSPECIFIED",
-  platform: "PLATFORM_UNSPECIFIED",
-  pluginType: "GEMINI",
+  ideType: IDE_TYPE.ANTIGRAVITY,
+  platform: getPlatformEnum(),
+  pluginType: PLUGIN_TYPE.GEMINI,
 };
 
 // System prompts
-export const CLAUDE_SYSTEM_PROMPT = "You are a Claude agent, built on Anthropic's Claude Agent SDK.";
+export const CLAUDE_SYSTEM_PROMPT = "You are Claude Code, Anthropic's official CLI for Claude.";
+// Rewrite rules applied to Antigravity system prompts: competing-client branding
+// makes the backend flag the request and answer 429 Quota Exhausted.
+export const ANTIGRAVITY_PROMPT_REWRITES = [
+  { from: "You are a Claude agent, built on Anthropic's Claude Agent SDK.", to: "" },
+  { from: /You are Hermes(?: Agent)?(?:,\s*(?:an intelligent AI assistant|an AI assistant|an AI agent))?(?:,?\s*(?:built|created)\s+by\s+Nous Research)?\./gi, to: "You are an AI assistant." },
+  // Claude Code prepends this line to its system prompt. The Claude-format translator strips it,
+  // but OpenAI-format clients (e.g. proxies that convert Claude Code to /v1/chat/completions)
+  // pass it through, and any system text containing it gets a fake 429 RESOURCE_EXHAUSTED.
+  { from: /^x-anthropic-billing-header:[^\n]*(?:\r?\n)*/gim, to: "" },
+  { from: /opencode/gi, to: (m) => (m === "OpenCode" ? "Antigravity" : m === "OPENCODE" ? "ANTIGRAVITY" : "antigravity") }
+];
+
 export const ANTIGRAVITY_DEFAULT_SYSTEM = "You are Antigravity, a powerful agentic AI coding assistant designed by the Google Deepmind team working on Advanced Agentic Coding.You are pair programming with a USER to solve their coding task. The task may require creating a new codebase, modifying or debugging an existing codebase, or simply answering a question.**Absolute paths only****Proactiveness**";
+
+// Derive từ registry oauth.refreshLeadMs
+export const REFRESH_LEAD_MS = Object.fromEntries(
+  Object.entries(PROVIDER_OAUTH).filter(([, o]) => o.refreshLeadMs).map(([id, o]) => [id, o.refreshLeadMs])
+);
 
 // OAuth endpoints
 export const OAUTH_ENDPOINTS = {
-  google: {
-    token: "https://oauth2.googleapis.com/token",
-    auth: "https://accounts.google.com/o/oauth2/auth"
-  },
-  openai: {
-    token: "https://auth.openai.com/oauth/token",
-    auth: "https://auth.openai.com/oauth/authorize"
-  },
-  anthropic: {
-    token: "https://api.anthropic.com/v1/oauth/token",
-    auth: "https://api.anthropic.com/v1/oauth/authorize"
-  },
-  qwen: {
-    token: "https://chat.qwen.ai/api/v1/oauth2/token",
-    auth: "https://chat.qwen.ai/api/v1/oauth2/device/code"
-  },
-  iflow: {
-    token: "https://iflow.cn/oauth/token",
-    auth: "https://iflow.cn/oauth"
-  },
-  github: {
-    token: "https://github.com/login/oauth/access_token",
-    auth: "https://github.com/login/oauth/authorize",
-    deviceCode: "https://github.com/login/device/code"
-  }
+  google:    { token: "https://oauth2.googleapis.com/token", auth: "https://accounts.google.com/o/oauth2/auth" },
+  openai:    { token: PROVIDER_OAUTH["codex"]?.tokenUrl, auth: PROVIDER_OAUTH["codex"]?.authorizeUrl },
+  anthropic: { token: PROVIDER_OAUTH["claude"]?.tokenUrl, auth: "https://api.anthropic.com/v1/oauth/authorize" }, // ≠ claude.authorizeUrl (claude.ai login) — keep
+  iflow:     { token: PROVIDER_OAUTH["iflow"]?.tokenUrl, auth: PROVIDER_OAUTH["iflow"]?.authorizeUrl },
+  github:    { token: PROVIDER_OAUTH["github"]?.tokenUrl, auth: PROVIDER_OAUTH["github"]?.authorizeUrl, deviceCode: PROVIDER_OAUTH["github"]?.deviceCodeUrl },
 };
 
-// Generate Kimi OAuth custom headers
-export function buildKimiHeaders() {
+let _appVersion;
+function getAppPackageVersion() {
+  if (_appVersion) return _appVersion;
+  try {
+    const require = createRequire(import.meta.url);
+    _appVersion = require("../../package.json").version || "0.0.0";
+  } catch {
+    _appVersion = process.env.npm_package_version || "0.0.0";
+  }
+  return _appVersion;
+}
+
+// Kimi Code OAuth / API headers (CLIProxyAPI internal/auth/kimi commonHeaders parity).
+// deviceId must stay stable per connection for the whole OAuth session.
+export function buildKimiHeaders(deviceId) {
+  const osName = platform();
+  const architecture = arch();
+  let deviceModel = `${osName} ${architecture}`;
+  if (osName === "darwin") deviceModel = `macOS ${architecture}`;
+  else if (osName === "win32") deviceModel = `Windows ${architecture}`;
+  else if (osName === "linux") deviceModel = `Linux ${architecture}`;
+
+  let deviceName = "unknown";
+  try {
+    deviceName = hostname() || "unknown";
+  } catch {
+    deviceName = "unknown";
+  }
+
+  const resolvedId = (typeof deviceId === "string" && deviceId.trim())
+    ? deviceId.trim()
+    : `kimi-${Date.now()}`;
+
   return {
     "X-Msh-Platform": "9router",
-    "X-Msh-Version": "2.1.2",
-    "X-Msh-Device-Model": typeof process !== "undefined" ? `${process.platform} ${process.arch}` : "unknown",
-    "X-Msh-Device-Id": `kimi-${Date.now()}`
+    "X-Msh-Version": getAppPackageVersion(),
+    "X-Msh-Device-Name": deviceName,
+    "X-Msh-Device-Model": deviceModel,
+    "X-Msh-Device-Id": resolvedId,
   };
 }

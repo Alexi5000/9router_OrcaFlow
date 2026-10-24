@@ -83,7 +83,7 @@ describe("OpenAI Responses schema sanitizer", () => {
     expect(result.parameters.additionalProperties).toBeUndefined();
     expect(result.parameters.required).toEqual(["choice"]);
     expect(result.parameters.properties.choice.anyOf).toBeUndefined();
-    expect(result.parameters.properties.choice.pattern).toBeUndefined();
+    expect(result.parameters.properties.choice.pattern).toBe("^[a-z]+$");
     expect(result.parameters.properties.merged.allOf).toBeUndefined();
     expect(result.parameters.properties.merged.properties.left.enum).toEqual(["1"]);
     expect(result.parameters.properties.merged.properties.right.default).toBeUndefined();

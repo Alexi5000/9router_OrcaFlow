@@ -11,15 +11,22 @@ function loadServer() {
   const resolve4 = vi.fn((host, callback) => callback(null, ["142.250.1.1"]));
   const server = { listen() {}, on() {}, close() {} };
   const modules = {
+    http2: {},
+    child_process: {},
+    "./logger": { log() {}, err() {}, clearDumpDir() {} },
+    "./config": { TARGET_HOSTS: ["daily-cloudcode-pa.googleapis.com", "cloudcode-pa.googleapis.com", "api.individual.githubcopilot.com"], getToolForHost: () => null },
+    "./dbReader": { getMitmAlias: () => null },
+    "./antigravityIdeVersion": { applyAntigravityIdeVersionOverride: (bodyBuffer, headers) => ({bodyBuffer, headers}) },
+    "./dns/dnsConfig": { removeAllDNSEntriesSync() {} },
     https: { createServer(options, callback) { ssl = options; handler = callback; return server; }, request },
-    fs: { readFileSync: () => "certificate", existsSync: () => false },
+    fs: { readFileSync: () => "certificate", existsSync: () => true },
     path,
     dns: { Resolver: class { setServers() {} resolve4(...args) { resolve4(...args); } } },
     util: { promisify },
     crypto: { randomUUID: () => "unique-log-id" },
     "./paths": { DATA_DIR: "/data", MITM_DIR: "/certs" },
     "./cert/generate": { getCertForDomain: vi.fn(() => ({ key: "key", cert: "cert" })) },
-    tls: { createSecureContext: () => ({}) },
+    tls: { createSecureContext: () => ({}), connect() { throw new Error("force HTTP1 fallback"); } },
   };
   vm.runInNewContext(readFileSync(new URL("../../src/mitm/server.js", import.meta.url), "utf8"), {
     require: name => modules[name],

@@ -1,51 +1,24 @@
-// Provider alias to ID mapping
-const ALIAS_TO_PROVIDER_ID = {
-  cc: "claude",
-  cx: "codex",
-  gc: "gemini-cli",
-  qw: "qwen",
-  if: "iflow",
-  ag: "antigravity",
-  gh: "github",
-  kr: "kiro",
-  cu: "cursor",
-  kc: "kilocode",
-  kmc: "kimi-coding",
-  cl: "cline",
-  // API Key providers
-  openai: "openai",
-  anthropic: "anthropic",
-  gemini: "gemini",
-  openrouter: "openrouter",
-  glm: "glm",
-  kimi: "kimi",
-  minimax: "minimax",
-  "minimax-cn": "minimax-cn",
-  ds: "deepseek",
-  deepseek: "deepseek",
-  groq: "groq",
-  xai: "xai",
-  mistral: "mistral",
-  pplx: "perplexity",
-  perplexity: "perplexity",
-  together: "together",
-  fireworks: "fireworks",
-  cerebras: "cerebras",
-  cohere: "cohere",
-  nvidia: "nvidia",
-  nebius: "nebius",
-  siliconflow: "siliconflow",
-  hyp: "hyperbolic",
-  hyperbolic: "hyperbolic",
-  dg: "deepgram",
-  deepgram: "deepgram",
-  aai: "assemblyai",
-  assemblyai: "assemblyai",
-  nb: "nanobanana",
-  nanobanana: "nanobanana",
-  ch: "chutes",
-  chutes: "chutes",
-  cursor: "cursor",
+import REGISTRY from "../providers/registry/index.js";
+
+// Alias→id derived from registry single-source: id→id, alias→id, aliases[]→id.
+// Media-only providers without a registry transport entry keep explicit aliases here.
+const MEDIA_ONLY_ALIASES = {
+  el: "elevenlabs",
+  jina: "jina-ai",
+  "jina-ai": "jina-ai",
+  polly: "aws-polly",
+  "aws-polly": "aws-polly",
+};
+
+const ALIAS_TO_PROVIDER_ID = { ...MEDIA_ONLY_ALIASES };
+for (const entry of REGISTRY) {
+  ALIAS_TO_PROVIDER_ID[entry.id] = entry.id;
+  if (entry.alias) ALIAS_TO_PROVIDER_ID[entry.alias] = entry.id;
+  for (const a of entry.aliases || []) ALIAS_TO_PROVIDER_ID[a] = entry.id;
+}
+
+const BUILTIN_MODEL_ALIASES = {
+  "grok-build": "gcli/grok-build",
 };
 
 /**
@@ -169,7 +142,9 @@ export async function getModelInfoCore(modelStr, aliasesOrGetter, options = {}) 
   }
 
   // Resolve alias
-  const resolved = resolveModelAliasFromMap(parsed.model, aliases);
+  const resolved =
+    resolveModelAliasFromMap(parsed.model, aliases) ||
+    resolveModelAliasFromMap(parsed.model, BUILTIN_MODEL_ALIASES);
   if (resolved) {
     return resolved;
   }
@@ -181,6 +156,32 @@ export async function getModelInfoCore(modelStr, aliasesOrGetter, options = {}) 
   };
 }
 
+// Config-driven prefix → provider inference (first match wins, fallback "openai").
+const MODEL_PREFIX_PROVIDERS = [
+  // Codex CLI sends this bare virtual model for auto-review - keep it on OAuth Codex (#1398).
+  [/^codex-auto-review$/, "codex"],
+  // Codex-only GPT model slugs: present in backend-api/codex/models but not on the
+  // OpenAI API.  Without these rules a bare model id (e.g. "gpt-5.6-terra" from the
+  // Codex CLI /model picker) resolves to provider "openai", which 404s for users that
+  // only have a Codex OAuth account and no OpenAI API key (#4405).
+  // Ranges covered: gpt-5.x, gpt-6.x, gpt-daybreak-*, gpt-reserve* — all are
+  // Codex-backend models.  Plain "gpt-4*" / "gpt-3.5*" / "gpt-4o*" fall through to
+  // the generic gpt-* → openai rule below.
+  [/^gpt-[56]\./, "codex"],
+  [/^gpt-6-/, "codex"],
+  [/^gpt-daybreak-/, "codex"],
+  [/^gpt-reserve/, "codex"],
+  [/^claude-/, "anthropic"],
+  // Bedrock inference profile IDs: us.anthropic.*, global.anthropic.*, eu.anthropic.*, etc.
+  // Claude Code stores the Bedrock model ID directly (e.g. us.anthropic.claude-sonnet-4-6),
+  // so bare usage without a provider/ prefix must route to bedrock, not fall through to openai.
+  [/^(us|eu|ap|global)\.(anthropic|meta|amazon|mistral|xai)\./, "bedrock"],
+  [/^gemini-/, "gemini"],
+  [/^gpt-/, "openai"],
+  [/^o[134]/, "openai"],
+  [/^deepseek-/, "openrouter"],
+];
+
 /**
  * Infer provider from model name prefix
  * Used as fallback when no provider prefix or alias is given
@@ -188,14 +189,7 @@ export async function getModelInfoCore(modelStr, aliasesOrGetter, options = {}) 
 function inferProviderFromModelName(modelName) {
   if (!modelName) return "openai";
   const m = modelName.toLowerCase();
-  // In this fork, bare Claude model names should resolve to the Claude OAuth
-  // provider unless the caller explicitly requested the Anthropic API provider.
   if (m.startsWith("claude-")) return "claude";
-  if (m.startsWith("gemini-")) return "gemini";
-  if (m.startsWith("gpt-")) return "openai";
-  if (m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4"))
-    return "openai";
   if (m.startsWith("deepseek-")) return "openrouter";
-  // Default fallback
-  return "openai";
+  return MODEL_PREFIX_PROVIDERS.find(([re]) => re.test(m))?.[1] || "openai";
 }

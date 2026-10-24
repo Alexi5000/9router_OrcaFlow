@@ -1,14 +1,115 @@
 import crypto from "crypto";
 import { BaseExecutor } from "./base.js";
-import { PROVIDERS, OAUTH_ENDPOINTS, HTTP_STATUS, ANTIGRAVITY_HEADERS, INTERNAL_REQUEST_HEADER } from "../config/constants.js";
-import { deriveSessionId } from "../utils/sessionManager.js";
+import { PROVIDERS } from "../config/providers.js";
+import { OAUTH_ENDPOINTS, ANTIGRAVITY_HEADERS, AG_DEFAULT_TOOLS, AG_TOOL_SUFFIX, ANTIGRAVITY_PROMPT_REWRITES } from "../config/appConstants.js";
+import { HTTP_STATUS } from "../config/runtimeConfig.js";
+import { resolveSessionId, toNumericSessionId } from "../utils/sessionManager.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
+import { cleanJSONSchemaForAntigravity, normalizeGeminiContents } from "../translator/formats/gemini.js";
+import { DEFAULT_THINKING_AG_SIGNATURE } from "../config/defaultThinkingSignature.js";
+import { getGeminiThoughtSignatureSync } from "../services/thoughtSignatureStore.js";
+
+// Sanitize function name: Gemini requires [a-zA-Z_][a-zA-Z0-9_.:\-]{0,63}
+function sanitizeFunctionName(name) {
+  if (!name) return "_unknown";
+  let s = name.replace(/[^a-zA-Z0-9_.:\-]/g, "_");
+  if (!/^[a-zA-Z_]/.test(s)) s = "_" + s;
+  return s.substring(0, 64);
+}
 
 const MAX_RETRY_AFTER_MS = 10000;
+const ANTIGRAVITY_TRANSIENT_RETRY_MAX_MS = 15000;
+const MAX_ANTIGRAVITY_OUTPUT_TOKENS = 64000;
+const ANTIGRAVITY_IDE_REQUEST_ID_RE = /^agent\/[^/]+\/\d+\/[^/]+\/\d+$/;
 
-// Self-imposed rate limits to avoid triggering Google's abuse detection.
-// The antigravity endpoint is an internal Google API — high-volume or concurrent
-// access from the same token is the most likely cause of account suspension.
+const ANTIGRAVITY_TRANSIENT_ERROR_PATTERNS = [
+  /high\s+traffic/i,
+  /agent\s+(execution\s+)?terminated\s+due\s+to\s+error/i,
+  /capacity/i,
+  /temporarily\s+unavailable/i,
+  /timeout/i,
+  /stream\s+(ended|closed|terminated|interrupted)/i,
+  /empty\s+response/i,
+];
+
+const ANTIGRAVITY_TRANSIENT_STATUSES = new Set([
+  HTTP_STATUS.SERVER_ERROR,
+  HTTP_STATUS.BAD_GATEWAY,
+  HTTP_STATUS.SERVICE_UNAVAILABLE,
+  HTTP_STATUS.GATEWAY_TIMEOUT,
+]);
+
+// Fields Google generateContent rejects (Claude/OpenAI/Qwen thinking fields set at body root by thinkingUnified.js)
+const ANTIGRAVITY_REQUEST_BLACKLIST = [
+  "output_config",
+  "thinking",
+  "reasoning_effort",
+  "reasoning",
+  "enable_thinking",
+  "thinking_budget",
+  "thinkingConfig",
+];
+
+// Strip blacklisted fields from an object (used for both body.request and top-level body)
+const stripBlacklisted = obj => {
+  for (const key of ANTIGRAVITY_REQUEST_BLACKLIST) delete obj[key];
+};
+
+// Image generation model name patterns
+const IMAGE_MODEL_PATTERNS = [
+  /image/i,
+  /imagen/i,
+  /image-generation/i,
+];
+
+// Detect if a model is an image generation model
+function isImageModel(model) {
+  if (!model) return false;
+  return IMAGE_MODEL_PATTERNS.some(p => p.test(model));
+}
+
+// Parse aspect ratio / resolution from model name suffixes
+// e.g. "gemini-3.1-flash-image-16x9" -> { aspectRatio: "16:9" }
+// e.g. "gemini-3.1-flash-image-1024x768" -> { aspectRatio: "4:3" }
+function parseImageConfig(model) {
+  const config = { aspectRatio: "1:1" };
+  const resMatch = model.match(/(\d+)x(\d+)$/);
+  if (resMatch) {
+    const w = parseInt(resMatch[1]);
+    const h = parseInt(resMatch[2]);
+    if (w <= 16 && h <= 16) {
+      config.aspectRatio = `${w}:${h}`;
+    } else {
+      // Resolution like 1024x768 — derive aspect ratio
+      const gcd = (a, b) => b ? gcd(b, a % b) : a;
+      const d = gcd(w, h);
+      config.aspectRatio = `${w/d}:${h/d}`;
+    }
+  }
+  return config;
+}
+
+function uuidFromSeed(seed) {
+  const bytes = crypto.createHash("sha256").update(String(seed || "antigravity")).digest().subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function buildIdeRequestId({ body, request, credentials, model, requestType }) {
+  if (ANTIGRAVITY_IDE_REQUEST_ID_RE.test(body?.requestId || "")) {
+    return body.requestId;
+  }
+
+  const sessionId = request?.sessionId || body?.request?.sessionId || credentials?._clientSessionId || credentials?.connectionId || credentials?.email || "anonymous";
+  const conversationId = uuidFromSeed(`antigravity:conversation:${sessionId}`);
+  const trajectoryId = uuidFromSeed(`antigravity:trajectory:${sessionId}:${model}:${requestType}`);
+  const contentCount = Array.isArray(request?.contents) ? request.contents.length : 1;
+  const step = Math.max(1, contentCount * 2 - 1);
+  return `agent/${conversationId}/${Date.now()}/${trajectoryId}/${step}`;
+}
+
 const SELF_RATE_LIMIT = {
   MAX_PER_HOUR: 80,        // Max requests per account per hour
   MIN_GAP_MS: 5000,        // Minimum ms between consecutive requests per account
@@ -16,20 +117,8 @@ const SELF_RATE_LIMIT = {
 };
 
 export class AntigravityExecutor extends BaseExecutor {
-  // Per-account sliding window: connectionId -> [timestamp, ...]
   static requestTracker = new Map();
-  // Per-account in-flight lock: Set of connectionId strings
   static inFlight = new Set();
-
-  constructor() {
-    super("antigravity", PROVIDERS.antigravity);
-  }
-
-  /**
-   * Enforce self-imposed rate limits per account.
-   * Returns the number of ms to wait before proceeding (0 = proceed now).
-   * Throws if the hourly cap is exceeded.
-   */
   checkRateLimit(connectionId) {
     const now = Date.now();
     const key = connectionId || "default";
@@ -60,30 +149,149 @@ export class AntigravityExecutor extends BaseExecutor {
     return 0;
   }
 
+  async execute(options) {
+    const { credentials, signal } = options;
+    const key = credentials?.connectionId || credentials?.email || "default";
+    if (AntigravityExecutor.inFlight.has(key)) {
+      throw new Error("ANTIGRAVITY_CONCURRENT_LIMIT: request already in flight for this account");
+    }
+    AntigravityExecutor.inFlight.add(key);
+    try {
+      signal?.throwIfAborted();
+      const waitMs = this.checkRateLimit(key);
+      if (waitMs > 0) {
+        await new Promise(resolve => setTimeout(resolve, waitMs));
+        signal?.throwIfAborted();
+        this.checkRateLimit(key);
+      }
+      return await super.execute(options);
+    } finally {
+      AntigravityExecutor.inFlight.delete(key);
+    }
+  }
+
+  constructor() {
+    super("antigravity", PROVIDERS.antigravity);
+  }
+
+  // Parse Antigravity quota error to extract precise resetsAtMs from ErrorInfo/RetryInfo
+  parseError(response, bodyText) {
+    if ((response.status === 429 || response.status === 409) && bodyText) {
+      try {
+        const json = JSON.parse(bodyText);
+        const err = json?.error;
+        let resetsAtMs = null;
+        const details = Array.isArray(err?.details) ? err.details : [];
+        for (const d of details) {
+          if (d?.metadata?.quotaResetTimeStamp) {
+            const ms = new Date(d.metadata.quotaResetTimeStamp).getTime();
+            if (!isNaN(ms) && ms > Date.now()) {
+              resetsAtMs = ms;
+              break;
+            }
+          }
+          if (typeof d?.retryDelay === "string") {
+            const sec = parseFloat(d.retryDelay);
+            if (!isNaN(sec) && sec > 0) {
+              const ms = Date.now() + Math.round(sec * 1000);
+              if (ms > Date.now()) {
+                resetsAtMs = ms;
+                break;
+              }
+            }
+          }
+        }
+        if (resetsAtMs) {
+          return { status: response.status, message: err?.message || bodyText, resetsAtMs };
+        }
+      } catch { /* fall through to default */ }
+    }
+    return super.parseError(response, bodyText);
+  }
+
   buildUrl(model, stream, urlIndex = 0) {
     const baseUrls = this.getBaseUrls();
     const baseUrl = baseUrls[urlIndex] || baseUrls[0];
-    const action = stream ? "streamGenerateContent?alt=sse" : "generateContent";
+    // Image generation MUST use non-streaming generateContent
+    const forceNonStream = isImageModel(model);
+    const action = (stream && !forceNonStream) ? "streamGenerateContent?alt=sse" : "generateContent";
     return `${baseUrl}/v1internal:${action}`;
   }
 
+  // sessionId comes from transformRequest output; base.execute runs transformRequest before
+  // buildHeaders, so we read it from instance state cached there (fallback: explicit arg).
   buildHeaders(credentials, stream = true, sessionId = null) {
     return {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${credentials.accessToken}`,
-      "User-Agent": this.config.headers?.["User-Agent"] || ANTIGRAVITY_HEADERS['User-Agent'],
-      [INTERNAL_REQUEST_HEADER.name]: INTERNAL_REQUEST_HEADER.value,
-      ...ANTIGRAVITY_HEADERS,
-      ...(sessionId && { "X-Machine-Session-Id": sessionId }),
-      "Accept": stream ? "text/event-stream" : "application/json"
+      "User-Agent": this.config.headers?.["User-Agent"] || ANTIGRAVITY_HEADERS["User-Agent"],
     };
   }
 
   transformRequest(model, body, stream, credentials) {
     const projectId = credentials?.projectId || this.generateProjectId();
 
+    // OpenAI clients may include stream_options even for non-streaming calls.
+    // Google generateContent rejects that combination before processing the request.
+    if (stream !== true) delete body.stream_options;
+
+    // ─── Image generation: completely different request structure ───
+    if (isImageModel(model)) {
+      const imageConfig = parseImageConfig(model);
+      // Strip model name suffixes for the actual API model name
+      const cleanModel = model.replace(/-(\d+)x(\d+)$/, "");
+
+      // Build simplified contents — keep text and inlineData (reference images), merge all user messages
+      const contents = [];
+      const srcContents = body.request?.contents || body.contents || [];
+      for (const c of srcContents) {
+        const imageParts = (c.parts || []).flatMap(p => {
+          if (p.text !== undefined) return [{ text: p.text }];
+          if (p.inlineData?.data) return [{ inlineData: p.inlineData }];
+          return [];
+        });
+        if (imageParts.length > 0) {
+          contents.push({ role: c.role || "user", parts: imageParts });
+        }
+      }
+
+      const sessionId = resolveSessionId({
+        headers: credentials?.rawHeaders,
+        body,
+        connectionId: credentials?.email || credentials?.connectionId,
+        scope: "antigravity",
+      });
+
+      this._lastSessionId = sessionId;
+      const request = {
+        contents,
+        generationConfig: {
+          temperature: 1.0,
+          topP: 0.95,
+          topK: 40,
+          maxOutputTokens: 8192,
+          imageConfig,
+        },
+        sessionId,
+        // No tools, no systemInstruction, no safetySettings for image gen
+      };
+
+      return {
+        project: projectId,
+        model: cleanModel,
+        userAgent: "antigravity",
+        requestType: "image_gen",
+        requestId: buildIdeRequestId({ body, request, credentials, model: cleanModel, requestType: "image_gen" }),
+        request,
+      };
+    }
+
+    const rawSessionId = body.request?.sessionId || resolveSessionId({ headers: credentials?.rawHeaders, body, connectionId: credentials?.email || credentials?.connectionId, scope: "antigravity" });
+    const sessionId = toNumericSessionId(rawSessionId) || rawSessionId;
+
+    // ─── Standard (non-image) request ───
     // Fix contents for Claude models via Antigravity
-    const contents = body.request?.contents?.map(c => {
+    const rawContents = (body.request?.contents || []).map(c => {
       let role = c.role;
       // functionResponse must be role "user" for Claude models
       if (c.parts?.some(p => p.functionResponse)) {
@@ -95,38 +303,117 @@ export class AntigravityExecutor extends BaseExecutor {
         if (p.thoughtSignature && !p.functionCall && !p.text) return false;
         return true;
       });
-      if (role !== c.role || parts?.length !== c.parts?.length) {
-        return { ...c, role, parts };
-      }
-      return c;
+      // Gemini 3+ rejects functionCall parts without thoughtSignature. Clients (Claude Code, IDE)
+      // don't persist thoughtSignature in their history, so backfill from cache or default signature.
+      // In parallel function calls, only the first call needs a signature; siblings stay unsigned.
+      let firstFunctionCallSeen = false;
+      const modifiedParts = parts?.map(p => {
+        if (!p.functionCall) return p;
+        const callId = p.functionCall.id;
+        const cachedSig = callId ? getGeminiThoughtSignatureSync(callId, sessionId, body.model || model) : null;
+        const callSig = p.thoughtSignature || cachedSig || (!firstFunctionCallSeen ? DEFAULT_THINKING_AG_SIGNATURE : undefined);
+        firstFunctionCallSeen = true;
+        if (callSig) {
+          return { ...p, thoughtSignature: callSig };
+        }
+        if (p.thoughtSignature && !cachedSig) {
+          // Unsigned sibling call
+          const { thoughtSignature: _, ...rest } = p;
+          return rest;
+        }
+        return p;
+      });
+
+      return {
+        ...c,
+        role,
+        parts: modifiedParts || parts || [],
+      };
     });
+    const contents = normalizeGeminiContents(rawContents, model);
+
+    // Sanitize tool schemas and function names before sending to Antigravity.
+    let tools = body.request?.tools;
+
+    if (tools && tools.length > 0) {
+      // Merge all groups into a single functionDeclarations group (Gemini expects 1 group)
+      const seenToolNames = new Set();
+      const allDeclarations = [];
+      for (const group of tools) {
+        for (const fn of group.functionDeclarations || []) {
+          const name = sanitizeFunctionName(fn.name);
+          if (seenToolNames.has(name)) continue;
+          seenToolNames.add(name);
+          allDeclarations.push({
+            ...fn,
+            name,
+            parameters: fn.parameters
+              ? cleanJSONSchemaForAntigravity(structuredClone(fn.parameters))
+              : { type: "object", properties: { reason: { type: "string", description: "Brief explanation" } }, required: ["reason"] }
+          });
+        }
+      }
+      tools = allDeclarations.length > 0 ? [{ functionDeclarations: allDeclarations }] : [];
+    }
+
+    // Strip tools/toolConfig (handled separately) and blacklisted fields that Google rejects
+    const { tools: _originalTools, toolConfig: _originalToolConfig, ...requestWithoutTools } = body.request || {};
+    stripBlacklisted(requestWithoutTools);
+    
+    // Rewrite competing-client branding in system prompts (e.g. Zed's Claude prompt,
+    // OpenCode naming) so Antigravity doesn't flag the request with a 429 Quota Exhausted.
+    if (requestWithoutTools.systemInstruction?.parts) {
+      for (const part of requestWithoutTools.systemInstruction.parts) {
+        if (typeof part.text !== "string") continue;
+        for (const { from, to } of ANTIGRAVITY_PROMPT_REWRITES) {
+          part.text = part.text.replaceAll(from, to);
+        }
+      }
+    }
+
+    const generationConfig = { ...(requestWithoutTools.generationConfig || {}) };
+    if (generationConfig.maxOutputTokens > MAX_ANTIGRAVITY_OUTPUT_TOKENS) {
+      generationConfig.maxOutputTokens = MAX_ANTIGRAVITY_OUTPUT_TOKENS;
+    }
 
     const transformedRequest = {
-      ...body.request,
+      ...requestWithoutTools,
+      generationConfig,
       ...(contents && { contents }),
-      sessionId: body.request?.sessionId || deriveSessionId(credentials?.email || credentials?.connectionId),
+      ...(tools && { tools }),
+      sessionId,
       safetySettings: undefined,
-      toolConfig: body.request?.tools?.length > 0
-        ? { functionCallingConfig: { mode: "VALIDATED" } }
-        : body.request?.toolConfig
+      ...(tools?.length > 0 && { toolConfig: { functionCallingConfig: { mode: "VALIDATED" } } })
     };
+
+    // Strip blacklisted thinking fields from top-level body (set by thinkingUnified.js at root, not body.request)
+    stripBlacklisted(body);
+
+    this._lastSessionId = transformedRequest.sessionId; // cached for buildHeaders (base.execute order)
+
+    // Official Antigravity client omits `requestType` entirely on the agent
+    // (chat) path. Sending `requestType: "agent"` here (or leaking it through
+    // from an upstream envelope via the ...body spread below) makes Google
+    // bucket the request and return a detail-free 429 RESOURCE_EXHAUSTED even
+    // with quota available. `image_gen` and
+    // `search` buckets are unaffected and keep their own requestType.
+    delete body.requestType;
 
     return {
       ...body,
       project: projectId,
-      model: model,
+      model: body.model || model,
       userAgent: "antigravity",
-      requestType: "agent",
-      requestId: `agent-${crypto.randomUUID()}`,
+      requestId: buildIdeRequestId({ body, request: transformedRequest, credentials, model, requestType: "agent" }),
       request: transformedRequest
     };
   }
 
-  async refreshCredentials(credentials, log) {
+  async refreshCredentials(credentials, log, proxyOptions = null) {
     if (!credentials.refreshToken) return null;
 
     try {
-      const response = await fetch(OAUTH_ENDPOINTS.google.token, {
+      const response = await proxyAwareFetch(OAUTH_ENDPOINTS.google.token, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
         body: new URLSearchParams({
@@ -135,7 +422,7 @@ export class AntigravityExecutor extends BaseExecutor {
           client_id: this.config.clientId,
           client_secret: this.config.clientSecret
         })
-      });
+      }, proxyOptions);
 
       if (!response.ok) return null;
 
@@ -211,115 +498,260 @@ export class AntigravityExecutor extends BaseExecutor {
     return totalMs > 0 ? totalMs : null;
   }
 
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
-    const connKey = credentials?.connectionId || credentials?.email || "default";
+  extractErrorMessage(errorJson, bodyText = "") {
+    return [
+      errorJson?.error?.message,
+      errorJson?.message,
+      errorJson?.error,
+      bodyText,
+    ].filter(Boolean).map(v => typeof v === "string" ? v : JSON.stringify(v)).join("\n");
+  }
 
-    // Concurrency lock — one in-flight request per account at a time.
-    // Multiple tools routing through the same Google token concurrently is a
-    // primary abuse signal. Throw so 9Router routes to the next provider.
-    if (AntigravityExecutor.inFlight.has(connKey)) {
-      throw new Error("ANTIGRAVITY_CONCURRENT_LIMIT: request already in flight for this account");
-    }
+  isTransientAntigravityError(status, message) {
+    if (status === HTTP_STATUS.RATE_LIMITED) return true;
+    if (ANTIGRAVITY_TRANSIENT_STATUSES.has(status)) return true;
+    return ANTIGRAVITY_TRANSIENT_ERROR_PATTERNS.some(pattern => pattern.test(message || ""));
+  }
 
-    // Self rate limit — check hourly cap and minimum gap.
-    const waitMs = this.checkRateLimit(connKey);
-    if (waitMs > 0) {
-      log?.debug?.("RATE", `Antigravity self-limit: waiting ${waitMs}ms before request`);
-      await new Promise(resolve => setTimeout(resolve, waitMs));
-    }
-
-    AntigravityExecutor.inFlight.add(connKey);
+  // Hook called by BaseExecutor.tryRetry: derive delay from Retry-After (header → body),
+  // cap at MAX_RETRY_AFTER_MS, else retry transient Antigravity failures with backoff.
+  // Return false to veto (fallback URL / final error).
+  async computeRetryDelay(response, attempt) {
+    let bodyText = "";
+    let errorJson = null;
+    let retryMs = this.parseRetryHeaders(response.headers);
 
     try {
-    const fallbackCount = this.getFallbackCount();
-    let lastError = null;
-    let lastStatus = 0;
-    const MAX_AUTO_RETRIES = 3;
-    const retryAttemptsByUrl = {}; // Track retry attempts per URL
+      bodyText = await response.clone().text();
+      errorJson = bodyText ? JSON.parse(bodyText) : null;
+    } catch {
+      // ignore parse errors → fall through to status/message based retry
+    }
 
-    for (let urlIndex = 0; urlIndex < fallbackCount; urlIndex++) {
-      const url = this.buildUrl(model, stream, urlIndex);
-      const transformedBody = this.transformRequest(model, body, stream, credentials);
-      const sessionId = transformedBody.request?.sessionId;
-      const headers = this.buildHeaders(credentials, stream, sessionId);
+    const errorMessage = this.extractErrorMessage(errorJson, bodyText);
 
-      // Initialize retry counter for this URL
-      if (!retryAttemptsByUrl[urlIndex]) {
-        retryAttemptsByUrl[urlIndex] = 0;
+    if (!retryMs) {
+      retryMs = this.parseRetryFromErrorMessage(errorMessage);
+    }
+    if (retryMs) return retryMs <= MAX_RETRY_AFTER_MS ? retryMs : false;
+
+    if (!this.isTransientAntigravityError(response.status, errorMessage)) return false;
+
+    const cap = response.status === HTTP_STATUS.RATE_LIMITED
+      ? MAX_RETRY_AFTER_MS
+      : ANTIGRAVITY_TRANSIENT_RETRY_MAX_MS;
+    return Math.min(1000 * (2 ** attempt), cap); // exponential backoff
+  }
+
+  /**
+   * Cloak tools before sending to Antigravity provider (anti-ban):
+   * - Rename client tools with _ide suffix
+   * - Inject AG default decoy tools after client tools
+   * Returns { cloakedBody, toolNameMap } where toolNameMap maps suffixed → original
+   */
+  static cloakTools(body, clientTool = null) {
+    const tools = body.request?.tools;
+    if (!tools || tools.length === 0) {
+      return { cloakedBody: body, toolNameMap: null };
+    }
+
+    const isCopilot = clientTool === "github-copilot";
+    const toolNameMap = new Map();
+    const clientDeclarations = [];
+    const decoyNames = new Set(AG_DECOY_TOOLS.map(tool => tool.name));
+
+    // First: collect renamed client tools
+    for (const toolGroup of tools) {
+      if (!toolGroup.functionDeclarations) continue;
+
+      for (const func of toolGroup.functionDeclarations) {
+        // For GitHub Copilot, avoid emitting duplicate native Antigravity tool names.
+        // Keep the decoys only once in the final declaration list.
+        if (isCopilot && AG_DEFAULT_TOOLS.has(func.name)) {
+          continue;
+        }
+
+        // Skip if already covered by decoys for Copilot
+        if (isCopilot && decoyNames.has(func.name)) {
+          continue;
+        }
+
+        // Preserve native AG names for non-Copilot clients
+        if (AG_DEFAULT_TOOLS.has(func.name)) {
+          clientDeclarations.push(func);
+          continue;
+        }
+
+        const suffixed = `${func.name}${AG_TOOL_SUFFIX}`;
+        toolNameMap.set(suffixed, func.name);
+        clientDeclarations.push({ ...func, name: suffixed });
       }
+    }
 
-      try {
-        const response = await proxyAwareFetch(url, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(transformedBody),
-          signal
-        }, proxyOptions);
+    // Client tools first, then AG decoy tools
+    const allDeclarations = [];
+    const seenNames = new Set();
+    for (const decl of [...clientDeclarations, ...AG_DECOY_TOOLS]) {
+      if (!decl?.name || seenNames.has(decl.name)) continue;
+      seenNames.add(decl.name);
+      allDeclarations.push(decl);
+    }
 
-        if (response.status === HTTP_STATUS.RATE_LIMITED || response.status === HTTP_STATUS.SERVICE_UNAVAILABLE) {
-          // Try to get retry time from headers first
-          let retryMs = this.parseRetryHeaders(response.headers);
-
-          // If no retry time in headers, try to parse from error message body
-          if (!retryMs) {
-            try {
-              const errorBody = await response.clone().text();
-              const errorJson = JSON.parse(errorBody);
-              const errorMessage = errorJson?.error?.message || errorJson?.message || "";
-              retryMs = this.parseRetryFromErrorMessage(errorMessage);
-            } catch (e) {
-              // Ignore parse errors, will fall back to exponential backoff
+    // Rename tool names in conversation history (contents)
+    const cloakedContents = body.request?.contents?.map(msg => {
+      if (!msg.parts) return msg;
+      
+      const cloakedParts = msg.parts.map(part => {
+        // Rename functionCall.name
+        if (part.functionCall && !AG_DEFAULT_TOOLS.has(part.functionCall.name)) {
+          return {
+            ...part,
+            functionCall: {
+              ...part.functionCall,
+              name: `${part.functionCall.name}${AG_TOOL_SUFFIX}`
             }
-          }
-
-          if (retryMs && retryMs <= MAX_RETRY_AFTER_MS) {
-            log?.debug?.("RETRY", `${response.status} with Retry-After: ${Math.ceil(retryMs / 1000)}s, waiting...`);
-            await new Promise(resolve => setTimeout(resolve, retryMs));
-            urlIndex--;
-            continue;
-          }
-
-          // Auto retry only for 429 when retryMs is 0 or undefined
-          if (response.status === HTTP_STATUS.RATE_LIMITED && (!retryMs || retryMs === 0) && retryAttemptsByUrl[urlIndex] < MAX_AUTO_RETRIES) {
-            retryAttemptsByUrl[urlIndex]++;
-            // Exponential backoff: 2s, 4s, 8s...
-            const backoffMs = Math.min(1000 * (2 ** retryAttemptsByUrl[urlIndex]), MAX_RETRY_AFTER_MS);
-            log?.debug?.("RETRY", `429 auto retry ${retryAttemptsByUrl[urlIndex]}/${MAX_AUTO_RETRIES} after ${backoffMs / 1000}s`);
-            await new Promise(resolve => setTimeout(resolve, backoffMs));
-            urlIndex--;
-            continue;
-          }
-
-          log?.debug?.("RETRY", `${response.status}, Retry-After ${retryMs ? `too long (${Math.ceil(retryMs / 1000)}s)` : 'missing'}, trying fallback`);
-          lastStatus = response.status;
-
-          if (urlIndex + 1 < fallbackCount) {
-            continue;
-          }
+          };
         }
-
-        if (this.shouldRetry(response.status, urlIndex)) {
-          log?.debug?.("RETRY", `${response.status} on ${url}, trying fallback ${urlIndex + 1}`);
-          lastStatus = response.status;
-          continue;
+        
+        // Rename functionResponse.name
+        if (part.functionResponse && !AG_DEFAULT_TOOLS.has(part.functionResponse.name)) {
+          return {
+            ...part,
+            functionResponse: {
+              ...part.functionResponse,
+              name: `${part.functionResponse.name}${AG_TOOL_SUFFIX}`
+            }
+          };
         }
+        
+        return part;
+      });
+      
+      return { ...msg, parts: cloakedParts };
+    });
 
-        return { response, url, headers, transformedBody };
-      } catch (error) {
-        lastError = error;
-        if (urlIndex + 1 < fallbackCount) {
-          log?.debug?.("RETRY", `Error on ${url}, trying fallback ${urlIndex + 1}`);
-          continue;
+    // Single functionDeclarations group: client tools first, then decoys
+    return {
+      cloakedBody: {
+        ...body,
+        request: {
+          ...body.request,
+          tools: [{ functionDeclarations: allDeclarations }],
+          contents: cloakedContents || body.request.contents
         }
-        throw error;
-      }
-    }
-
-    throw lastError || new Error(`All ${fallbackCount} URLs failed with status ${lastStatus}`);
-    } finally {
-      AntigravityExecutor.inFlight.delete(connKey);
-    }
+      },
+      toolNameMap
+    };
   }
 }
+
+// AG decoy tools — same names as AG native defaults, redirect to _ide suffixed tools
+const AG_DECOY_TOOLS = [
+  {
+    name: "browser_subagent",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "command_status",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "find_by_name",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "generate_image",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "grep_search",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "list_dir",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "list_resources",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "mcp_sequential-thinking_sequentialthinking",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "multi_replace_file_content",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "notify_user",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "read_resource",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "read_terminal",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "read_url_content",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "replace_file_content",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "run_command",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "search_web",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "send_command_input",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "task_boundary",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "view_content_chunk",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "view_file",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  },
+  {
+    name: "write_to_file",
+    description: "This tool is currently unavailable.",
+    parameters: { type: "OBJECT", properties: {}, required: [] }
+  }
+];
 
 export default AntigravityExecutor;

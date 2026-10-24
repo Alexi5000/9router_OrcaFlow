@@ -34,7 +34,20 @@ function validateCertificateDirectory() {
 }
 
 /**
- * Generate Root CA certificate (only once)
+ * Check if cert file is expired or expiring within 30 days
+ */
+function isCertExpired(certPath) {
+  try {
+    const cert = forge.pki.certificateFromPem(readCertificateFile(certPath));
+    const expiryThreshold = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    return cert.validity.notAfter < expiryThreshold;
+  } catch {
+    return true; // treat unreadable cert as expired
+  }
+}
+
+/**
+ * Generate Root CA certificate (only once; expired pairs require explicit trusted rotation)
  * This Root CA will sign all dynamic leaf certificates
  */
 async function generateRootCA() {
@@ -60,6 +73,7 @@ async function generateRootCA() {
     if (key.n.compareTo(cert.publicKey.n) !== 0 || key.e.compareTo(cert.publicKey.e) !== 0) {
       throw new Error("Root CA key and certificate do not match");
     }
+    if (cert.validity.notAfter <= new Date()) throw new Error("Root CA expired; rotate the trusted certificate pair before retrying");
     console.log("✅ Root CA already exists");
     return { key: ROOT_CA_KEY_PATH, cert: ROOT_CA_CERT_PATH };
   }
@@ -189,6 +203,7 @@ module.exports = {
   generateRootCA,
   loadRootCA,
   generateLeafCert,
+  isCertExpired,
   ROOT_CA_CERT_PATH,
   ROOT_CA_KEY_PATH
 };

@@ -19,7 +19,7 @@ it("never forwards the internal credential to the incoming host", async () => {
   const request = completeChat.mock.calls.at(-1)[0];
   expect(request.url).toBe("http://localhost/api/v1/chat/completions");
   expect(request.headers.get("authorization")).toBe("Bearer internal-test-key");
-  expect(await request.json()).toMatchObject({ model: "test-model", max_tokens: 1, stream: false });
+  expect(await request.json()).toMatchObject({ model: "test-model", max_tokens: 1024, stream: false });
 });
 
 it("preserves local provider error reporting", async () => {

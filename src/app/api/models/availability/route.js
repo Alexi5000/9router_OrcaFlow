@@ -8,7 +8,7 @@ function getActiveModelLocks(connection, now = Date.now()) {
       const expiry = new Date(value).getTime();
       if (!Number.isFinite(expiry) || expiry <= now) return null;
       return {
-        model: key.slice("modelLock_".length),
+        model: key.slice("modelLock_".length) || "__all",
         until: new Date(expiry).toISOString(),
       };
     })
@@ -31,6 +31,7 @@ export async function GET() {
         status: "cooldown",
         until: lock.until,
         connectionId: connection.id,
+        lastError: connection.lastError || null,
         connectionName: connection.displayName || connection.name || connection.email || connection.id,
       });
     }
@@ -43,6 +44,7 @@ export async function GET() {
         status: "unavailable",
         until: connection.lastErrorAt || null,
         connectionId: connection.id,
+        lastError: connection.lastError || null,
         connectionName: connection.displayName || connection.name || connection.email || connection.id,
         error: connection.lastError || null,
       });

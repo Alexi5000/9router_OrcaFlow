@@ -1,13 +1,15 @@
-import { COOLDOWN_MS, BACKOFF_CONFIG, HTTP_STATUS } from "../config/constants.js";
+import { HTTP_STATUS } from "../config/runtimeConfig.js";
+import { ERROR_RULES, BACKOFF_CONFIG, TRANSIENT_COOLDOWN_MS } from "../config/errorConfig.js";
 
 /**
  * Calculate exponential backoff cooldown for rate limits (429)
- * Level 0: 1s, Level 1: 2s, Level 2: 4s... → max 2 min
+ * Level 1: 1s, Level 2: 2s, Level 3: 4s... → max 4 min
  * @param {number} backoffLevel - Current backoff level
  * @returns {number} Cooldown in milliseconds
  */
 export function getQuotaCooldown(backoffLevel = 0) {
-  const cooldown = BACKOFF_CONFIG.base * Math.pow(2, backoffLevel);
+  const level = Math.max(0, backoffLevel - 1);
+  const cooldown = BACKOFF_CONFIG.base * Math.pow(2, level);
   return Math.min(cooldown, BACKOFF_CONFIG.max);
 }
 
@@ -55,93 +57,64 @@ export function getProviderCooldownOverride({ provider = null, model = null, sta
 
 /**
  * Check if error should trigger account fallback (switch to next account)
+ * Config-driven: matches ERROR_RULES top-to-bottom (text rules first, then status)
  * @param {number} status - HTTP status code
  * @param {string} errorText - Error message text
  * @param {number} backoffLevel - Current backoff level for exponential backoff
- * @returns {{ shouldFallback: boolean, cooldownMs: number, newBackoffLevel?: number }}
+ * @returns {{ shouldFallback: boolean, cooldownMs: number, newBackoffLevel?: number, requestScoped?: boolean }}
+ *
+ * `shouldFallback` answers "is the CREDENTIAL at fault?" (account rotation).
+ * `requestScoped` answers "is the REQUEST itself what this member rejected?"
+ * (combo rotation). They are different questions: a context overflow or a
+ * validation 400 means the credential is healthy but this member cannot serve
+ * this request, so combo rotation must still try the next member.
  */
-export function checkFallbackError(status, errorText, backoffLevel = 0) {
-  // Check error message FIRST - specific patterns take priority over status codes
-  if (errorText) {
-    const errorStr = typeof errorText === "string" ? errorText : JSON.stringify(errorText);
-    const lowerError = errorStr.toLowerCase();
+export function checkFallbackError(status, errorText, backoffLevel = 0, provider = null) {
+  const lowerError = errorText
+    ? (typeof errorText === "string" ? errorText : JSON.stringify(errorText)).toLowerCase()
+    : "";
 
-    if (lowerError.includes("no credentials")) {
-      return { shouldFallback: true, cooldownMs: COOLDOWN_MS.notFound };
+  for (const rule of ERROR_RULES) {
+    if (rule.provider && rule.provider !== provider) continue;
+    // Text-based rule: match substring in error message
+    if (rule.text && lowerError && lowerError.includes(rule.text)) {
+      if (rule.backoff) {
+        const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
+        return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel };
+      }
+      return { shouldFallback: true, cooldownMs: rule.cooldownMs };
     }
 
-    if (lowerError.includes("request not allowed")) {
-      return { shouldFallback: true, cooldownMs: COOLDOWN_MS.requestNotAllowed };
-    }
-
-    // Rate limit keywords - exponential backoff
-    if (
-      lowerError.includes("rate limit") ||
-      lowerError.includes("too many requests") ||
-      lowerError.includes("quota exceeded") ||
-      lowerError.includes("capacity") ||
-      lowerError.includes("overloaded")
-    ) {
-      const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
-      return {
-        shouldFallback: true,
-        cooldownMs: getQuotaCooldown(backoffLevel),
-        newBackoffLevel: newLevel
-      };
-    }
-
-    // Request-scoped / client-side 400s should not poison provider health.
-    if (
-      lowerError.includes("not a valid model id") ||
-      lowerError.includes("invalid model") ||
-      lowerError.includes("invalid json") ||
-      lowerError.includes("missing required field") ||
-      lowerError.includes("input required") ||
-      lowerError.includes("input must be") ||
-      lowerError.includes("messages must be") ||
-      lowerError.includes("messages array cannot be empty") ||
-      lowerError.includes("tool schema incompatible") ||
-      lowerError.includes("unsupported provider") ||
-      lowerError.includes("invalid request")
-    ) {
-      return { shouldFallback: false, cooldownMs: 0 };
+    // Status-based rule: match HTTP status code
+    if (rule.status && rule.status === status) {
+      if (rule.backoff) {
+        const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
+        return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel };
+      }
+      return { shouldFallback: true, cooldownMs: rule.cooldownMs };
     }
   }
 
-  if (status === HTTP_STATUS.UNAUTHORIZED) {
-    return { shouldFallback: true, cooldownMs: COOLDOWN_MS.unauthorized };
+  if (status === 400 && lowerError.includes("provider returned error")) {
+    return { shouldFallback: true, cooldownMs: TRANSIENT_COOLDOWN_MS };
   }
 
-  if (status === HTTP_STATUS.PAYMENT_REQUIRED || status === HTTP_STATUS.FORBIDDEN) {
-    return { shouldFallback: true, cooldownMs: COOLDOWN_MS.paymentRequired };
+  // Request-scoped client errors that matched no rule above: a 400 caused by the
+  // request itself (context overflow, malformed body, unsupported parameter) says
+  // nothing about the credential, so cooling the account down only removes a
+  // healthy connection from rotation. With a single connection it is worse: every
+  // later request in the window fails with a copy of this very error
+  // ("all 1 accounts locked for <model> | lastError=[400]: ..."), which hides the
+  // real cause from the caller and makes unrelated sessions look like they hit the
+  // same limit. Hand the upstream error back for this request instead.
+  // Account-scoped statuses keep their rules above (401/402/403/404/429), and the
+  // text rules still win for rate-limit / quota / capacity wording.
+  if (status >= 400 && status < 500 && status !== 401 && status !== 402 && status !== 403 && status !== 429) {
+    return { shouldFallback: false, cooldownMs: 0, requestScoped: true };
   }
 
-  if (status === HTTP_STATUS.NOT_FOUND) {
-    return { shouldFallback: true, cooldownMs: COOLDOWN_MS.notFound };
-  }
-
-  // 429 - Rate limit with exponential backoff
-  if (status === HTTP_STATUS.RATE_LIMITED) {
-    const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
-    return {
-      shouldFallback: true,
-      cooldownMs: getQuotaCooldown(backoffLevel),
-      newBackoffLevel: newLevel
-    };
-  }
-
-  // Transient errors
-  const transientStatuses = [
-    HTTP_STATUS.NOT_ACCEPTABLE, HTTP_STATUS.REQUEST_TIMEOUT,
-    HTTP_STATUS.SERVER_ERROR, HTTP_STATUS.BAD_GATEWAY,
-    HTTP_STATUS.SERVICE_UNAVAILABLE, HTTP_STATUS.GATEWAY_TIMEOUT
-  ];
-  if (transientStatuses.includes(status)) {
-    return { shouldFallback: true, cooldownMs: COOLDOWN_MS.transient };
-  }
-
-  // All other errors - fallback with transient cooldown
-  return { shouldFallback: true, cooldownMs: COOLDOWN_MS.transient };
+  // Default: transient cooldown for any unmatched error
+  return { shouldFallback: true, cooldownMs: TRANSIENT_COOLDOWN_MS };
 }
 
 /**

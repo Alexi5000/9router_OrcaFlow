@@ -36,7 +36,7 @@ async function resolveAddresses(hostname) {
   }
 }
 
-export async function validateProvider(baseUrl, apiKey, type) {
+export async function validateProvider(baseUrl, apiKey, type, modelId = null) {
   let url;
   try {
     if (typeof baseUrl !== "string" || typeof apiKey !== "string") throw new Error();
@@ -83,16 +83,44 @@ export async function validateProvider(baseUrl, apiKey, type) {
     headers["anthropic-version"] = "2023-06-01";
   }
 
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers,
-      redirect: "error",
-      signal: AbortSignal.timeout(10000),
-      dispatcher,
+  const send = (endpoint, body = null) => {
+    const target = new URL(url);
+    target.pathname = path + endpoint;
+    return fetch(target, {
+      method: body ? "POST" : "GET",
+      headers: body ? { ...headers, "Content-Type": "application/json" } : headers,
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      redirect: "error", signal: AbortSignal.timeout(10000), dispatcher,
     });
+  };
+  try {
+    if (type === "custom-embedding") {
+      if (typeof modelId !== "string" || !modelId.trim()) throw new ProviderUrlError("Embedding model ID required");
+      const response = await send("/embeddings", { model: modelId.trim(), input: "ping" });
+      if (!response.ok) { await response.body?.cancel(); return { valid: false, error: "Embedding validation failed", method: "embeddings" }; }
+      const reader = response.body?.getReader();
+      const chunks = [];
+      let size = 0;
+      try {
+        if (!reader) throw new Error("Missing embedding response");
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          size += value.length;
+          if (size > 1024 * 1024) throw new Error("Embedding validation response too large");
+          chunks.push(value);
+        }
+      } finally { await reader?.cancel(); }
+      const data = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      const dimensions = Array.isArray(data?.data?.[0]?.embedding) ? data.data[0].embedding.length : null;
+      return { valid: dimensions !== null, method: "embeddings", dimensions };
+    }
+    const response = await send("/models");
     await response.body?.cancel();
-    return response.ok;
+    if (response.ok || [401, 403].includes(response.status) || typeof modelId !== "string" || !modelId.trim()) return response.ok;
+    const chat = await send("/chat/completions", { model: modelId.trim(), messages: [{ role: "user", content: "ping" }], max_tokens: 1 });
+    await chat.body?.cancel();
+    return chat.ok;
   } finally {
     await dispatcher.destroy();
   }

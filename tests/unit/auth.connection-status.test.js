@@ -27,6 +27,7 @@ vi.mock("open-sse/services/accountFallback.js", () => ({
 
 vi.mock("@/shared/constants/providers.js", () => ({
   resolveProviderId: vi.fn((provider) => provider),
+  FREE_PROVIDERS: {},
 }));
 
 vi.mock("@/shared/utils/providerHealth.js", () => ({

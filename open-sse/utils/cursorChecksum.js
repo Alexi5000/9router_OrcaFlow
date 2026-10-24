@@ -1,3 +1,4 @@
+import os from "node:os";
 /**
  * Cursor Checksum Utility (Jyh Cipher)
  *
@@ -115,7 +116,12 @@ export function buildCursorHeaders(accessToken, machineId = null, ghostMode = tr
     "x-amzn-trace-id": `Root=${crypto.randomUUID()}`,
     "x-client-key": clientKey,
     "x-cursor-checksum": checksum,
-    "x-cursor-client-version": "1.1.3",
+    "x-cursor-client-version": "3.12.17",
+    "x-cursor-client-commit": "0fb762053c34788bb7760d5673f8a6d4c8589d50",
+    "x-cursor-client-type": "ide",
+    "x-cursor-client-os": os.platform(),
+    "x-cursor-client-arch": os.arch(),
+    "x-cursor-client-device-type": "desktop",
     "x-cursor-config-version": crypto.randomUUID(),
     "x-cursor-timezone": Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     "x-ghost-mode": ghostMode ? "true" : "false",

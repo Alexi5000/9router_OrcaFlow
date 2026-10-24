@@ -13,7 +13,7 @@ describe("combo exception disclosure", () => {
       body: {}, models: ["provider/model"], log,
       handleSingleModel: async () => { throw failure; },
     });
-    expect(response.status).toBe(406);
+    expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: { message: "Model request failed" } });
     expect(JSON.stringify(log.warn.mock.calls)).not.toContain("credential-canary");
   });

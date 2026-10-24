@@ -2,10 +2,32 @@ const fs = require("fs");
 const crypto = require("crypto");
 const { execFile } = require("child_process");
 const path = require("path");
+const os = require("os");
+const { isSudoAvailable } = require("../dns/dnsConfig.js");
 
 const IS_WIN = process.platform === "win32";
 const IS_MAC = process.platform === "darwin";
-const LINUX_CERT_DIR = "/usr/local/share/ca-certificates";
+const LINUX_CERT_PATHS = [
+  // Debian / Ubuntu
+  { dir: "/usr/local/share/ca-certificates", cmd: "update-ca-certificates" },
+  // Arch Linux / CachyOS / Manjaro
+  { dir: "/etc/ca-certificates/trust-source/anchors", cmd: "update-ca-trust" },
+  // Fedora / RHEL / CentOS
+  { dir: "/etc/pki/ca-trust/source/anchors", cmd: "update-ca-trust" },
+  // openSUSE
+  { dir: "/etc/pki/trust/anchors", cmd: "update-ca-certificates" }
+];
+
+function getLinuxCertConfig() {
+  for (const config of LINUX_CERT_PATHS) {
+    if (fs.existsSync(config.dir)) {
+      return config;
+    }
+  }
+  // Fallback to Debian default if none exist
+  return LINUX_CERT_PATHS[0];
+}
+const ROOT_CA_CN = "9Router MITM Root CA";
 
 // Get SHA1 fingerprint from cert file using Node.js crypto
 function getCertFingerprint(certPath) {
@@ -44,7 +66,9 @@ function checkCertInstalledMac(certPath) {
 function checkCertInstalledWindows(certPath) {
   return new Promise((resolve) => {
     // Check Root store for our Root CA by common name
-    execFile("certutil", ["-store", "Root", "9Router MITM Root CA"], (error) => {
+    let fingerprint;
+    try { fingerprint = getCertFingerprint(certPath).replace(/:/g, ""); } catch { return resolve(false); }
+    execFile("certutil", ["-store", "Root", fingerprint], (error) => {
       resolve(!error);
     });
   });
@@ -140,42 +164,72 @@ function runWindowsCertutil(args) {
 
 function runElevated(file, args, password) {
   return new Promise((resolve, reject) => {
-    const child = execFile("sudo", ["-S", "--", file, ...args], error => {
+    const useSudo = typeof isSudoAvailable !== "function" || isSudoAvailable();
+    const child = execFile(useSudo ? "sudo" : file, useSudo ? ["-S", "--", file, ...args] : args, error => {
       if (error) reject(error);
       else resolve();
     });
-    child.stdin.on("error", reject);
-    child.stdin.end(`${password}\n`);
+    if (useSudo) { child.stdin.on("error", reject); child.stdin.end(`${password}\n`); }
   });
 }
 
 async function refreshLinuxTrust(password) {
-  try {
-    await runElevated("update-ca-certificates", [], password);
-  } catch {
+  const command = getLinuxCertConfig().cmd;
+  try { await runElevated(command, [], password); } catch (error) {
+    if (command !== "update-ca-certificates") throw error;
     await runElevated("update-ca-trust", [], password);
   }
 }
 
 function checkCertInstalledLinux() {
-  const certFile = `${LINUX_CERT_DIR}/9router-root-ca.crt`;
+  const config = getLinuxCertConfig();
+  const certFile = `${config.dir}/9router-root-ca.crt`;
   return Promise.resolve(fs.existsSync(certFile));
 }
 
+async function updateNssDatabases(certPath, action = "add") {
+  const home = os.homedir();
+  const dirs = [path.join(home, ".pki/nssdb"), path.join(home, "snap/chromium/current/.pki/nssdb")];
+  for (const root of [path.join(home, ".mozilla/firefox"), path.join(home, "snap/firefox/common/.mozilla/firefox")]) {
+    try {
+      for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+        const dir = path.join(root, entry.name);
+        if (entry.isDirectory() && (fs.existsSync(path.join(dir, "cert9.db")) || fs.existsSync(path.join(dir, "cert8.db")))) dirs.push(dir);
+      }
+    } catch {}
+  }
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) continue;
+    const args = action === "add" ? ["-A", "-t", "C,,", "-n", ROOT_CA_CN, "-i", path.resolve(certPath)] : ["-D", "-n", ROOT_CA_CN];
+    for (const database of [`sql:${dir}`, dir]) {
+      const ok = await new Promise(resolve => execFile("certutil", ["-d", database, ...args], { timeout: 30000 }, error => resolve(!error)));
+      if (ok) break;
+    }
+  }
+}
+
 async function installCertLinux(sudoPassword, certPath) {
-  const destFile = `${LINUX_CERT_DIR}/9router-root-ca.crt`;
+  if (typeof isSudoAvailable === "function" && !isSudoAvailable() && process.getuid?.() !== 0) {
+    await updateNssDatabases(certPath, "add");
+    console.log(`System trust unchanged: install this certificate as administrator: ${certPath}`);
+    return;
+  }
+  const destFile = `${getLinuxCertConfig().dir}/9router-root-ca.crt`;
 
   try {
     await runElevated("cp", ["--", path.resolve(certPath), destFile], sudoPassword);
     await refreshLinuxTrust(sudoPassword);
+    await updateNssDatabases(certPath, "add");
     console.log("✅ Installed certificate to Linux trust store");
   } catch (error) {
-    throw new Error("Certificate install failed");
+    throw new Error(`Certificate install failed: ${error.message}`);
   }
 }
 
 async function uninstallCertLinux(sudoPassword) {
-  const destFile = `${LINUX_CERT_DIR}/9router-root-ca.crt`;
+  await updateNssDatabases(null, "delete");
+  if (typeof isSudoAvailable === "function" && !isSudoAvailable() && process.getuid?.() !== 0) return;
+  const destFile = `${getLinuxCertConfig().dir}/9router-root-ca.crt`;
 
   try {
     await runElevated("rm", ["-f", "--", destFile], sudoPassword);

@@ -14,6 +14,7 @@ on:
       - tests/**
       - open-sse/**
       - src/**
+      - cli/**
       - watchdog.mjs
       - Dockerfile
       - .github/workflows/dependency-validation.yml
@@ -35,7 +36,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install audio conversion runtime
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pnpm test:unit
+      - name: Install browser regression runtime
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify encrypted browser preset migration
+        run: node --test tests/security/endpoint-preset-storage.test.mjs
       - run: node --test tests/security/private-elevation.test.cjs tests/security/windows-server-start.test.cjs
 
   container:
