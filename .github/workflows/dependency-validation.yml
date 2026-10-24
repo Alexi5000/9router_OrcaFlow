@@ -35,6 +35,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install audio conversion runtime
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pnpm test:unit
       - run: node --test tests/security/private-elevation.test.cjs tests/security/windows-server-start.test.cjs
 
