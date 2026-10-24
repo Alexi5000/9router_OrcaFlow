@@ -125,7 +125,7 @@ export async function GET(request, { params }) {
       const redirectUri = searchParams.get("redirect_uri") || "http://localhost:8080/callback";
       // Collect provider-specific meta params (e.g. gitlab passes baseUrl, clientId, clientSecret)
       const reservedParams = new Set(["redirect_uri"]);
-      const meta = {};
+      const meta = Object.create(null);
       searchParams.forEach((value, key) => { if (!reservedParams.has(key)) meta[key] = value; });
       // Zed: derive native_app_port from the local callback URL so the RSA keypair
       // is bound to the port the proxy is actually listening on.

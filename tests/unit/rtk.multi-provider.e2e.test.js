@@ -19,9 +19,9 @@ function logOffset() {
 
 function readLogSince(offset) {
   if (!LOG_FILE || !fs.existsSync(LOG_FILE)) return "";
-  const stat = fs.statSync(LOG_FILE);
-  if (stat.size <= offset) return "";
   const fd = fs.openSync(LOG_FILE, "r");
+  const stat = fs.fstatSync(fd);
+  if (stat.size <= offset) { fs.closeSync(fd); return ""; }
   const buf = Buffer.alloc(stat.size - offset);
   fs.readSync(fd, buf, 0, buf.length, offset);
   fs.closeSync(fd);

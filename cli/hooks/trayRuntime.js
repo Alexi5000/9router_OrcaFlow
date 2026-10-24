@@ -1,3 +1,4 @@
+const managedFiles = require("../src/cli/managedFiles.js");
 // Lazy install systray2 for macOS/Linux into USER_DATA_DIR/runtime/node_modules.
 // Windows uses PowerShell NotifyIcon (no binary) → no systray needed.
 // This keeps the published npm tarball free of unsigned Go binaries that
@@ -82,13 +83,11 @@ function ensureRuntimeDir() {
   const dir = getRuntimeDir();
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const pkgPath = path.join(dir, "package.json");
-  if (!fs.existsSync(pkgPath)) {
-    fs.writeFileSync(pkgPath, JSON.stringify({
+  managedFiles.writeFileExclusive(pkgPath, JSON.stringify({
       name: "9router-runtime",
       version: "1.0.0",
       private: true
     }, null, 2));
-  }
   return dir;
 }
 

@@ -30,22 +30,20 @@ function baseId(model) {
 }
 
 function load() {
-  let mtime;
+  let fd;
   try {
-    mtime = fs.statSync(CATALOG_FILE).mtimeMs;
-  } catch {
-    cache = EMPTY;
-    cachedMtime = -1;
-    return cache;
-  }
-  if (mtime === cachedMtime) return cache;
-
-  cachedMtime = mtime;
-  try {
-    const parsed = JSON.parse(fs.readFileSync(CATALOG_FILE, "utf8"));
+    fd = fs.openSync(CATALOG_FILE, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK | (fs.constants.O_NOFOLLOW || 0));
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.size > 16 * 1024 * 1024) throw new Error("Invalid model catalog");
+    if (stat.mtimeMs === cachedMtime) return cache;
+    const parsed = JSON.parse(fs.readFileSync(fd, "utf8"));
+    cachedMtime = stat.mtimeMs;
     cache = { models: parsed?.models || {}, providers: parsed?.providers || {} };
   } catch {
     cache = EMPTY;
+    cachedMtime = -1;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
   }
   return cache;
 }

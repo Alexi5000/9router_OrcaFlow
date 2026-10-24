@@ -317,3 +317,12 @@ it("allows a verified loopback CLI token and rejects cross-origin management wri
   crossOrigin.method = "POST";
   expect((await proxy(crossOrigin)).status).toBe(403);
 });
+
+it("uses the browser authority when Next normalizes loopback URLs", async () => {
+  const req = localRequest("/api/auth/login", { host: "127.0.0.1:23128", origin: "http://127.0.0.1:23128" });
+  req.method = "POST";
+  req.nextUrl = new URL("http://localhost:23128/api/auth/login");
+  expect((await proxy(req)).status).not.toBe(403);
+  req.headers.set("origin", "http://evil.example:23128");
+  expect((await proxy(req)).status).toBe(403);
+});

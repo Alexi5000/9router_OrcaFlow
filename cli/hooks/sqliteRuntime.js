@@ -1,3 +1,4 @@
+const managedFiles = require("../src/cli/managedFiles.js");
 // Ensure better-sqlite3 is installed in USER_DATA_DIR/runtime/node_modules
 // (user-writable, avoids Windows EBUSY locks during npm i -g updates).
 // sql.js is bundled in bin/app already; node:sqlite / bun:sqlite are built-in.
@@ -36,14 +37,12 @@ function ensureRuntimeDir() {
 
   // Minimal package.json so npm treats it as a project root
   const pkgPath = path.join(dir, "package.json");
-  if (!fs.existsSync(pkgPath)) {
-    fs.writeFileSync(pkgPath, JSON.stringify({
+  managedFiles.writeFileExclusive(pkgPath, JSON.stringify({
       name: "9router-runtime",
       version: "1.0.0",
       private: true,
       description: "User-writable runtime deps for 9router (better-sqlite3 native binary)",
     }, null, 2));
-  }
   return dir;
 }
 

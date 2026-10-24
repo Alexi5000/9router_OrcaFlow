@@ -1,3 +1,4 @@
+import managedFiles from "@/lib/managedFiles.js";
 import fs from "fs";
 import path from "path";
 import { spawn, execSync } from "child_process";
@@ -81,9 +82,7 @@ async function runInstall() {
 
   ensureDir();
   const pkgJson = path.join(PXPIPE_DIR, "package.json");
-  if (!fs.existsSync(pkgJson)) {
-    fs.writeFileSync(pkgJson, JSON.stringify({ name: "9router-pxpipe-host", private: true }, null, 2));
-  }
+  managedFiles.writeFileExclusive(pkgJson, JSON.stringify({ name: "9router-pxpipe-host", private: true }, null, 2));
 
   const outFd = fs.openSync(INSTALL_LOG, "a");
   fs.writeSync(outFd, `\n[${new Date().toISOString()}] npm install ${PXPIPE_PACKAGE}@latest\n`);

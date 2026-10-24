@@ -14,9 +14,9 @@ const maybe = RUN ? describe : describe.skip;
 
 function readLogTail(bytes = 8192) {
   if (!LOG_FILE || !fs.existsSync(LOG_FILE)) return "";
-  const stat = fs.statSync(LOG_FILE);
-  const start = Math.max(0, stat.size - bytes);
   const fd = fs.openSync(LOG_FILE, "r");
+  const stat = fs.fstatSync(fd);
+  const start = Math.max(0, stat.size - bytes);
   const buf = Buffer.alloc(stat.size - start);
   fs.readSync(fd, buf, 0, buf.length, start);
   fs.closeSync(fd);
@@ -26,9 +26,9 @@ function readLogTail(bytes = 8192) {
 // Read new bytes appended to log since `offset`. Returns text + new offset.
 function readLogSince(offset) {
   if (!LOG_FILE || !fs.existsSync(LOG_FILE)) return { text: "", next: offset };
-  const stat = fs.statSync(LOG_FILE);
-  if (stat.size <= offset) return { text: "", next: stat.size };
   const fd = fs.openSync(LOG_FILE, "r");
+  const stat = fs.fstatSync(fd);
+  if (stat.size <= offset) { fs.closeSync(fd); return { text: "", next: stat.size }; }
   const buf = Buffer.alloc(stat.size - offset);
   fs.readSync(fd, buf, 0, buf.length, offset);
   fs.closeSync(fd);

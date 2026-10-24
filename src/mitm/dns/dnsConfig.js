@@ -303,14 +303,18 @@ async function removeAllDNSEntries(sudoPassword) {
 
 function removeAllDNSEntriesSync() {
   try {
-    if (!fs.existsSync(HOSTS_FILE)) return;
     const allHosts = Object.values(TOOL_HOSTS).flat();
-    const content = fs.readFileSync(HOSTS_FILE, "utf8");
+    const fd = fs.openSync(HOSTS_FILE, fs.constants.O_RDWR | fs.constants.O_NONBLOCK | (fs.constants.O_NOFOLLOW || 0));
+    try {
+    if (!fs.fstatSync(fd).isFile()) throw new Error("Invalid hosts file");
+    const content = fs.readFileSync(fd, "utf8");
     const eol = IS_WIN ? "\r\n" : "\n";
     const filtered = content.split(/\r?\n/).filter(l => !allHosts.some(h => l.includes(h))).join(eol);
     const next = filtered.replace(/[\r\n\s]+$/g, "") + eol;
     if (next === content) return;
-    fs.writeFileSync(HOSTS_FILE, next, "utf8");
+    fs.writeSync(fd, next, 0, "utf8");
+    fs.ftruncateSync(fd, Buffer.byteLength(next));
+    } finally { fs.closeSync(fd); }
     if (IS_WIN) {
       try { execSync("ipconfig /flushdns", { windowsHide: true, stdio: "ignore" }); } catch { /* ignore */ }
     } else if (IS_MAC) {

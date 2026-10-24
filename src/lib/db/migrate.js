@@ -292,7 +292,7 @@ export async function runMigrationOnce(adapter) {
       throw err;
     }
 
-    try { fs.writeFileSync(MIGRATED_MARKER, new Date().toISOString()); } catch {}
+    try { fs.writeFileSync(MIGRATED_MARKER, new Date().toISOString(), { flag: "wx", mode: 0o600 }); } catch {}
     pruneOldBackups();
     console.log(`[DB][migrate] JSON → SQLite in ${Date.now() - t0}ms | legacy JSON kept at DATA_DIR | backup: ${backupDir}`);
     _migratedAdapters.add(adapter);

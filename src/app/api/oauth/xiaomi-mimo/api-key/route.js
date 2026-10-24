@@ -32,7 +32,8 @@ export async function POST(request) {
       );
     }
 
-    const effectiveBaseUrl = (baseUrl || "https://api.xiaomimimo.com/v1").replace(/\/+$/, "");
+    let effectiveBaseUrl = String(baseUrl || "https://api.xiaomimimo.com/v1");
+    while (effectiveBaseUrl.endsWith("/")) effectiveBaseUrl = effectiveBaseUrl.slice(0, -1);
 
     // Validate the key against the models endpoint (skipped for session-only)
     let validated = false;

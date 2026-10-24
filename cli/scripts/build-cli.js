@@ -335,8 +335,8 @@ function buildCliPackage() {
   console.log(`📁 Output: ${cliAppDir}`);
 
   try {
-    const { execSync: exec } = require("child_process");
-    const size = exec(`du -sh "${cliAppDir}"`, { encoding: "utf8" }).trim();
+    const { execFileSync } = require("child_process");
+    const size = execFileSync("du", ["-sh", cliAppDir], { encoding: "utf8" }).trim();
     console.log(`📊 Package size: ${size.split("\t")[0]}`);
   } catch (e) {
     // Silent fail on size check

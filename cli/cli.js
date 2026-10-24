@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { spawn, exec, execSync } = require("child_process");
+const { spawn, exec, execSync, execFile } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const https = require("https");
@@ -524,21 +524,12 @@ function checkForUpdate() {
 
 // Open browser
 function openBrowser(url) {
-  const platform = process.platform;
-  let cmd;
-
-  if (platform === "darwin") {
-    cmd = `open "${url}"`;
-  } else if (platform === "win32") {
-    cmd = `start "" "${url}"`;
-  } else {
-    cmd = `xdg-open "${url}"`;
-  }
-
-  exec(cmd, { windowsHide: true }, (err) => {
-    if (err) {
-      console.log(`Open browser manually: ${url}`);
-    }
+  const parsed = new URL(url);
+  if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Unsupported browser URL");
+  const command = process.platform === "darwin" ? "open" : process.platform === "win32" ? "rundll32.exe" : "xdg-open";
+  const args = process.platform === "win32" ? ["url.dll,FileProtocolHandler", parsed.href] : [parsed.href];
+  execFile(command, args, { windowsHide: true }, (error) => {
+    if (error) console.log(`Open browser manually: ${parsed.href}`);
   });
 }
 
@@ -858,9 +849,9 @@ function startServer(updatePromise) {
       try {
         const dbPath = path.join(os.homedir(), process.platform === "win32" ? path.join("AppData", "Roaming", "9router", "db.json") : path.join(".9router", "db.json"));
         if (fs.existsSync(dbPath)) {
-          const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+          const db = JSON.parse(require("./src/cli/managedFiles").readFile(dbPath));
           if (db.settings) db.settings.mitmEnabled = false;
-          fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+          require("./src/cli/managedFiles").writeFile(dbPath, JSON.stringify(db, null, 2));
         }
       } catch { /* best effort */ }
       restartCount = 0;

@@ -46,6 +46,7 @@ describe("headroom detect", () => {
       throw new Error("unexpected execSync");
     });
     mocks.execFileSync.mockImplementation((py, args) => {
+      if (args.length === 1 && args[0] === "--version") return Buffer.from("Python 3.13.0\n");
       if (args.join(" ") === "-m pip show headroom-ai") {
         if (py === binPython) return Buffer.from("Name: headroom-ai\nVersion: 0.26.0\n");
         throw new Error(`not installed in ${py}`);
@@ -54,6 +55,7 @@ describe("headroom detect", () => {
     });
 
     expect(findPython310()).toBe(binPython);
+    expect(mocks.execFileSync).toHaveBeenCalledWith(binPython, ["--version"], expect.any(Object));
   });
 
   it("keeps top-level installed flag true when extras are readable", async () => {
@@ -65,6 +67,7 @@ describe("headroom detect", () => {
       throw new Error("unexpected execSync");
     });
     mocks.execFileSync.mockImplementation((py, args) => {
+      if (["python", "python3"].includes(py) && args.length === 1 && args[0] === "--version") return Buffer.from("Python 3.13.0\n");
       if (py === "python3" && args.join(" ") === "-m pip show headroom-ai") throw new Error("not installed in python3");
       if (py === "python" && args.join(" ") === "-m pip show headroom-ai") return Buffer.from("Name: headroom-ai\nVersion: 0.26.0\n");
       if (py === "python" && args.join(" ").startsWith("-m pip list ")) return Buffer.from(JSON.stringify([

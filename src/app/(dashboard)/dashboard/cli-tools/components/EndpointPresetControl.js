@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const STORAGE_KEY = "9router.cliToolEndpointPresets";
+import { readEndpointPresets, writeEndpointPresets } from "@/shared/utils/endpointPresetStorage";
 
 function maskApiKey(apiKey) {
   if (!apiKey) return "No API key";
@@ -15,20 +15,6 @@ function normalizePresets(value) {
   return value.filter((preset) => preset?.name && preset?.baseUrl && preset?.apiKey);
 }
 
-function readPresets() {
-  if (typeof window === "undefined") return [];
-  try {
-    return normalizePresets(JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]"));
-  } catch {
-    return [];
-  }
-}
-
-function writePresets(presets) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizePresets(presets)));
-}
-
 export default function EndpointPresetControl({
   baseUrl,
   apiKey,
@@ -37,9 +23,10 @@ export default function EndpointPresetControl({
 }) {
   const [presets, setPresets] = useState([]);
   const [selectedName, setSelectedName] = useState("");
+  const [storageError, setStorageError] = useState("");
 
   useEffect(() => {
-    setPresets(readPresets());
+    readEndpointPresets().then((saved) => setPresets(normalizePresets(saved))).catch((error) => setStorageError(error.message));
   }, []);
 
   const selectedPreset = useMemo(
@@ -55,7 +42,7 @@ export default function EndpointPresetControl({
     onApiKeyChange(preset.apiKey);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const trimmedBaseUrl = (baseUrl || "").trim();
     const trimmedApiKey = (apiKey || "").trim();
     if (!trimmedBaseUrl || !trimmedApiKey) return;
@@ -75,21 +62,34 @@ export default function EndpointPresetControl({
       nextPreset,
     ].sort((a, b) => a.name.localeCompare(b.name));
 
+    try {
+      await writeEndpointPresets(nextPresets);
+      setStorageError("");
+    } catch (error) {
+      setStorageError(error.message);
+      return;
+    }
     setPresets(nextPresets);
     setSelectedName(nextPreset.name);
-    writePresets(nextPresets);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedPreset) return;
     const nextPresets = presets.filter((preset) => preset.name !== selectedPreset.name);
+    try {
+      await writeEndpointPresets(nextPresets);
+      setStorageError("");
+    } catch (error) {
+      setStorageError(error.message);
+      return;
+    }
     setPresets(nextPresets);
     setSelectedName("");
-    writePresets(nextPresets);
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
+      {storageError && <p role="alert" className="w-full text-sm text-red-500">{storageError}</p>}
       <span className="w-32 shrink-0 text-sm font-semibold text-text-main text-right">Preset</span>
       <span className="material-symbols-outlined text-text-muted text-[14px]">arrow_forward</span>
       <select
@@ -109,7 +109,7 @@ export default function EndpointPresetControl({
         onClick={handleSave}
         disabled={!baseUrl || !apiKey}
         className="px-2 py-1.5 rounded border text-xs bg-surface border-border text-text-main hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-        title="Save current Base URL and API key as a browser-local preset"
+        title="Save current Base URL and API key as an encrypted browser-local preset"
       >
         Save
       </button>

@@ -211,7 +211,10 @@ export async function proxy(request) {
   const { pathname } = request.nextUrl;
   if (pathname.startsWith("/api/") && !isPublicLlmApi(pathname) && pathname !== "/api/auth/saml/acs" && !["GET", "HEAD", "OPTIONS"].includes(request.method)) {
     const origin = request.headers.get("origin");
-    if (origin && origin !== request.nextUrl.origin) {
+    const expectedOrigin = origin ? new URL(request.nextUrl.origin) : null;
+    const authority = request.headers.get("host");
+    if (authority && expectedOrigin) expectedOrigin.host = authority;
+    if (origin && origin !== expectedOrigin?.origin) {
       return NextResponse.json({ error: "Cross-origin management request rejected" }, { status: 403 });
     }
   }

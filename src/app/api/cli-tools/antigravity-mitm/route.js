@@ -21,7 +21,8 @@ function normalizeMitmRouterBaseUrlInput(input) {
   if (input == null || String(input).trim() === "") {
     return DEFAULT_MITM_ROUTER_BASE;
   }
-  const t = String(input).trim().replace(/\/+$/, "");
+  let t = String(input).trim();
+  while (t.endsWith("/")) t = t.slice(0, -1);
   let u;
   try {
     u = new URL(t);

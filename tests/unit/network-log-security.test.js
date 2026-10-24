@@ -34,6 +34,8 @@ describe("network log record boundaries", () => {
         if (name === "./paths") return { DATA_DIR: "/fixture" };
         if (name === "./config") return { LOG_BLACKLIST_URL_PARTS: [] };
         if (name === "zlib") return {};
+        if (name === "node:crypto") return { randomUUID: () => "fixture-id" };
+        if (name.endsWith("/managedFiles.js")) return {};
         throw new Error(`Unexpected import ${name}`);
       },
       console: { log: (line) => records.push(line), error: (line) => records.push(line) },

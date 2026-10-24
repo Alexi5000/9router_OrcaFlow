@@ -10,6 +10,7 @@
  */
 
 const fs = require("fs");
+const managedFiles = require("../managedFiles");
 const path = require("path");
 const os = require("os");
 
@@ -24,7 +25,7 @@ function stripTrailingCommas(text) {
 
 function readJson(file) {
   try {
-    return JSON.parse(stripTrailingCommas(fs.readFileSync(file, "utf8")));
+    return JSON.parse(stripTrailingCommas(managedFiles.readFile(file)));
   } catch (err) {
     if (err.code === "ENOENT") return null;
     throw new Error(`Cannot parse ${file}: ${err.message}`);
@@ -36,19 +37,17 @@ const SECRET_MODE = 0o600;
 
 // Rewrite an existing file on reset (no backup, existing mode kept).
 function rewriteFile(file, content) {
-  fs.writeFileSync(file, content, { mode: SECRET_MODE });
+  managedFiles.writeFile(file, content);
 }
 
-// One-time backup of the user's pre-9router file, then write.
 function writeFile(file, content) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const backup = `${file}.bak-9router`;
-  if (fs.existsSync(file) && !fs.existsSync(backup)) {
-    fs.copyFileSync(file, backup);
-    fs.chmodSync(backup, SECRET_MODE);
+  try {
+    const previous = managedFiles.readFile(file);
+    managedFiles.writeFileExclusive(`${file}.bak-9router`, previous);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
   }
-  fs.writeFileSync(file, content, { mode: SECRET_MODE });
-  fs.chmodSync(file, SECRET_MODE); // mode above only applies when creating
+  managedFiles.writeFile(file, content);
 }
 
 const writeJson = (file, data) => writeFile(file, JSON.stringify(data, null, 2));
@@ -125,7 +124,7 @@ const codex = {
     const { parseTOML, stringifyTOML } = await toml();
     const file = codexPath();
     let cfg = {};
-    try { cfg = parseTOML(fs.readFileSync(file, "utf8")) || {}; } catch (err) { if (err.code !== "ENOENT") throw err; }
+    try { cfg = parseTOML(managedFiles.readFile(file)) || {}; } catch (err) { if (err.code !== "ENOENT") throw err; }
     cfg.model = model;
     cfg.model_provider = "9router";
     cfg.model_providers = cfg.model_providers || {};
@@ -168,7 +167,7 @@ const codex = {
     const { parseTOML, stringifyTOML } = await toml();
     const file = codexPath();
     let cfg;
-    try { cfg = parseTOML(fs.readFileSync(file, "utf8")) || {}; } catch (err) { if (err.code === "ENOENT") return []; throw err; }
+    try { cfg = parseTOML(managedFiles.readFile(file)) || {}; } catch (err) { if (err.code === "ENOENT") return []; throw err; }
     if (cfg.model_provider === "9router") { delete cfg.model; delete cfg.model_provider; }
     if (cfg.model_providers) delete cfg.model_providers["9router"];
     if (cfg.agents) { delete cfg.agents.default_subagent_model; delete cfg.agents.subagent; }
@@ -485,7 +484,7 @@ const ompPath = () => path.join(home(), ".omp", "agent", "models.yml");
 
 async function readYaml(file) {
   let text;
-  try { text = fs.readFileSync(file, "utf8"); } catch (err) { if (err.code === "ENOENT") return null; throw err; }
+  try { text = managedFiles.readFile(file); } catch (err) { if (err.code === "ENOENT") return null; throw err; }
   try {
     const { parseYAML } = await toml();
     return parseYAML(text) || {};

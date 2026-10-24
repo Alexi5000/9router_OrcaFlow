@@ -1,3 +1,5 @@
+const { randomUUID } = require("node:crypto");
+const managedFiles = require("../../cli/src/cli/managedFiles.js");
 const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
@@ -53,10 +55,10 @@ function dumpRequest(req, bodyBuffer, tag = "raw") {
   try {
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
     const slug = slugify((req.headers.host || "") + req.url);
-    const file = path.join(DUMP_DIR, `${ts}_${tag}_${slug}.req.json`);
+    const file = path.join(DUMP_DIR, `${ts}_${slugify(tag)}_${randomUUID()}.req.json`);
     let parsed = null;
     try { parsed = JSON.parse(bodyBuffer.toString()); } catch { /* not JSON */ }
-    fs.writeFileSync(file, JSON.stringify({
+    managedFiles.writeFile(file, JSON.stringify({
       method: req.method,
       url: req.url,
       host: req.headers.host,
@@ -73,7 +75,7 @@ function createResponseDumper(req, tag = "raw") {
   if (isBlacklisted(req.url)) return null;
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
   const slug = slugify((req.headers.host || "") + req.url);
-  const file = path.join(DUMP_DIR, `${ts}_${tag}_${slug}.res.txt`);
+  const file = path.join(DUMP_DIR, `${ts}_${slugify(tag)}_${randomUUID()}.res.txt`);
   let status = 0;
   let headers = {};
   const chunks = [];
@@ -96,7 +98,7 @@ function createResponseDumper(req, tag = "raw") {
         delete cleanHeaders["content-encoding"];
         delete cleanHeaders["Content-Encoding"];
         const out = `STATUS: ${status}\nHEADERS: ${JSON.stringify(cleanHeaders, null, 2)}\n---BODY---\n${text}`;
-        fs.writeFileSync(file, out);
+        managedFiles.writeFile(file, out);
       } catch { /* ignore */ }
     },
     file
