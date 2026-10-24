@@ -1,4 +1,3 @@
-"use server";
 
 import { parseTOML, stringifyTOML } from "confbox";
 import { NextResponse } from "next/server";
@@ -7,6 +6,8 @@ import { promisify } from "util";
 import fs from "@/lib/managedFiles";
 import path from "path";
 import os from "os";
+
+export const dynamic = "force-dynamic";
 
 const execAsync = promisify(exec);
 
@@ -17,15 +18,23 @@ const getCodexAuthPath = () => path.join(getCodexDir(), "auth.json");
 const parseToml = content => parseTOML(content);
 const toToml = parsed => stringifyTOML(parsed);
 
-// Check if codex CLI is installed
+// Check if codex CLI is installed (via which/where or config file exists)
 const checkCodexInstalled = async () => {
   try {
     const isWindows = os.platform() === "win32";
-    const command = isWindows ? "where codex" : "command -v codex";
-    await execAsync(command, { windowsHide: true });
+    const command = isWindows ? "where codex" : "which codex";
+    const env = isWindows
+      ? { ...process.env, PATH: `${process.env.APPDATA}\\npm;${process.env.PATH}` }
+      : process.env;
+    await execAsync(command, { windowsHide: true, env });
     return true;
   } catch {
-    return false;
+    try {
+      await fs.access(getCodexConfigPath());
+      return true;
+    } catch {
+      return false;
+    }
   }
 };
 
@@ -77,7 +86,7 @@ export async function GET() {
 // POST - Update 9Router settings (merge with existing config)
 export async function POST(request) {
   try {
-    const { baseUrl, apiKey, model } = await request.json();
+    const { baseUrl, apiKey, model, subagentModel } = await request.json();
     
     if (![baseUrl, apiKey, model].every(value => typeof value === "string" && value.trim())) {
       return NextResponse.json({ error: "baseUrl, apiKey and model are required" }, { status: 400 });
@@ -105,7 +114,13 @@ export async function POST(request) {
       name: "9Router",
       base_url: normalizedBaseUrl,
       wire_api: "responses",
+      http_headers: { Authorization: `Bearer ${apiKey}` },
     };
+
+    // Subagent model is a scalar under [agents]; agents.<role> now means a custom role
+    delete parsed.agents?.subagent;
+    parsed.agents ??= {};
+    parsed.agents.default_subagent_model = subagentModel || model;
 
     // Write merged config
     const configContent = toToml(parsed);
@@ -162,6 +177,10 @@ export async function DELETE() {
     // Remove 9router provider section
     if (parsed.model_providers) delete parsed.model_providers["9router"];
 
+    // Remove subagent configuration (both the current key and the legacy role form)
+    delete parsed.agents?.default_subagent_model;
+    delete parsed.agents?.subagent;
+
     // Write updated config
     const configContent = toToml(parsed);
     await fs.writeFile(configPath, configContent);
@@ -173,6 +192,7 @@ export async function DELETE() {
       const authData = JSON.parse(existingAuth);
       if (!authData || typeof authData !== "object" || Array.isArray(authData)) throw new Error("Invalid Codex auth");
       delete authData.OPENAI_API_KEY;
+      delete authData.auth_mode;
       
       // Write back or delete if empty
       if (Object.keys(authData).length === 0) {

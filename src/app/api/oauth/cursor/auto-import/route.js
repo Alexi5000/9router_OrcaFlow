@@ -2,14 +2,17 @@ import { NextResponse } from "next/server";
 import { access, constants } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
-import { execFile, execSync } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
-import { createRequire } from "module";
 
 const execFileAsync = promisify(execFile);
 
 const ACCESS_TOKEN_KEYS = ["cursorAuth/accessToken", "cursorAuth/token"];
-const MACHINE_ID_KEYS = ["storage.serviceMachineId", "storage.machineId", "telemetry.machineId"];
+const MACHINE_ID_KEYS = [
+  "storage.serviceMachineId",
+  "storage.machineId",
+  "telemetry.machineId",
+];
 
 /** Get candidate db paths by platform */
 function getCandidatePaths(platform) {
@@ -17,19 +20,39 @@ function getCandidatePaths(platform) {
 
   if (platform === "darwin") {
     return [
-      join(home, "Library/Application Support/Cursor/User/globalStorage/state.vscdb"),
-      join(home, "Library/Application Support/Cursor - Insiders/User/globalStorage/state.vscdb"),
+      join(
+        home,
+        "Library/Application Support/Cursor/User/globalStorage/state.vscdb",
+      ),
+      join(
+        home,
+        "Library/Application Support/Cursor - Insiders/User/globalStorage/state.vscdb",
+      ),
     ];
   }
 
   if (platform === "win32") {
     const appData = process.env.APPDATA || join(home, "AppData", "Roaming");
-    const localAppData = process.env.LOCALAPPDATA || join(home, "AppData", "Local");
+    const localAppData =
+      process.env.LOCALAPPDATA || join(home, "AppData", "Local");
     return [
       join(appData, "Cursor", "User", "globalStorage", "state.vscdb"),
-      join(appData, "Cursor - Insiders", "User", "globalStorage", "state.vscdb"),
+      join(
+        appData,
+        "Cursor - Insiders",
+        "User",
+        "globalStorage",
+        "state.vscdb",
+      ),
       join(localAppData, "Cursor", "User", "globalStorage", "state.vscdb"),
-      join(localAppData, "Programs", "Cursor", "User", "globalStorage", "state.vscdb"),
+      join(
+        localAppData,
+        "Programs",
+        "Cursor",
+        "User",
+        "globalStorage",
+        "state.vscdb",
+      ),
     ];
   }
 
@@ -39,7 +62,20 @@ function getCandidatePaths(platform) {
   ];
 }
 
-/** Extract tokens using better-sqlite3 (stream-based, no RAM limit) */
+const normalize = (value) => {
+  if (typeof value !== "string") return value;
+  try {
+    const parsed = JSON.parse(value);
+    return typeof parsed === "string" ? parsed : value;
+  } catch {
+    return value;
+  }
+};
+
+/**
+ * Extract tokens via better-sqlite3 (bundled dependency).
+ * This is the preferred strategy — no external CLI required.
+ */
 function extractTokens(db) {
   const desiredKeys = [...ACCESS_TOKEN_KEYS, ...MACHINE_ID_KEYS];
   const rows = db.prepare(
@@ -86,9 +122,15 @@ function extractTokens(db) {
   return tokens;
 }
 
+async function extractTokensViaBetterSqlite(dbPath) {
+  const { default: Database } = await import("better-sqlite3");
+  const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+  try { return extractTokens(db); } finally { db.close(); }
+}
+
 /**
- * Extract tokens via sqlite3 CLI (fallback for Windows when native addon fails)
- * Queries each key individually and parses output
+ * Extract tokens via sqlite3 CLI.
+ * Fallback when better-sqlite3 native bindings are unavailable.
  */
 async function extractTokensViaCLI(dbPath) {
   const normalize = (raw) => {
@@ -102,7 +144,9 @@ async function extractTokensViaCLI(dbPath) {
   };
 
   const query = async (sql) => {
-    const { stdout } = await execFileAsync("sqlite3", [dbPath, sql], { timeout: 10000 });
+    const { stdout } = await execFileAsync("sqlite3", [dbPath, sql], {
+      timeout: 10000,
+    });
     return stdout.trim();
   };
 
@@ -110,17 +154,31 @@ async function extractTokensViaCLI(dbPath) {
   let accessToken = null;
   for (const key of ACCESS_TOKEN_KEYS) {
     try {
-      const raw = await query(`SELECT value FROM itemTable WHERE key='${key}' LIMIT 1`);
-      if (raw) { accessToken = normalize(raw); break; }
-    } catch { /* try next */ }
+      const raw = await query(
+        `SELECT value FROM itemTable WHERE key='${key}' LIMIT 1`,
+      );
+      if (raw) {
+        accessToken = normalize(raw);
+        break;
+      }
+    } catch {
+      /* try next */
+    }
   }
 
   let machineId = null;
   for (const key of MACHINE_ID_KEYS) {
     try {
-      const raw = await query(`SELECT value FROM itemTable WHERE key='${key}' LIMIT 1`);
-      if (raw) { machineId = normalize(raw); break; }
-    } catch { /* try next */ }
+      const raw = await query(
+        `SELECT value FROM itemTable WHERE key='${key}' LIMIT 1`,
+      );
+      if (raw) {
+        machineId = normalize(raw);
+        break;
+      }
+    } catch {
+      /* try next */
+    }
   }
 
   return { accessToken, machineId };
@@ -129,7 +187,7 @@ async function extractTokensViaCLI(dbPath) {
 /**
  * GET /api/oauth/cursor/auto-import
  * Auto-detect and extract Cursor tokens from local SQLite database.
- * Strategy: better-sqlite3 (native, fast) → sqlite3 CLI (fallback) → windowsManual
+ * Strategy: better-sqlite3 → sqlite3 CLI → manual fallback
  */
 export async function GET() {
   try {
@@ -157,55 +215,56 @@ export async function GET() {
       });
     }
 
-    // Strategy 1: better-sqlite3 bundled → then global install fallback
-    let Database = null;
-    try {
-      const mod = await import("better-sqlite3");
-      Database = mod.default;
-    } catch (e1) {
-      console.log("Cursor auto-import: bundled import failed:", e1?.message);
-      // Try loading from global node_modules (user ran: npm i better-sqlite3 -g)
+    // On Linux, verify Cursor is actually installed (not just leftover config)
+    if (platform === "linux") {
+      let cursorInstalled = false;
       try {
-        const globalRoot = execSync("npm root -g", { timeout: 5000 }).toString().trim();
-        console.log("Cursor auto-import: trying global root:", globalRoot);
-        const requireGlobal = createRequire(join(globalRoot, "better-sqlite3", "package.json"));
-        Database = requireGlobal("better-sqlite3");
-      } catch (e2) {
-        console.log("Cursor auto-import: global import failed:", e2?.message);
-        // Try direct require from local node_modules
+        await execFileAsync("which", ["cursor"], { timeout: 5000 });
+        cursorInstalled = true;
+      } catch {
         try {
-          const localRequire = createRequire(join(process.cwd(), "node_modules", "better-sqlite3", "package.json"));
-          Database = localRequire("better-sqlite3");
-        } catch (e3) {
-          console.log("Cursor auto-import: local import failed:", e3?.message);
-        }
+          const desktopFile = join(homedir(), ".local/share/applications/cursor.desktop");
+          await access(desktopFile, constants.R_OK);
+          cursorInstalled = true;
+        } catch { /* not found */ }
+      }
+      if (!cursorInstalled) {
+        return NextResponse.json({
+          found: false,
+          error: "Cursor config files found but Cursor IDE does not appear to be installed. Skipping auto-import.",
+        });
       }
     }
 
     let databaseError = null;
-    if (Database) {
-      let db;
-      try {
-        db = new Database(dbPath, { readonly: true, fileMustExist: true });
-        const tokens = extractTokens(db);
-        db.close();
-
-        if (tokens.accessToken && tokens.machineId) {
-          return NextResponse.json({ found: true, accessToken: tokens.accessToken, machineId: tokens.machineId });
-        }
-      } catch (error) {
-        databaseError = error;
-        db?.close();
+    // Strategy 1: better-sqlite3 (bundled — no external tools required)
+    try {
+      const tokens = await extractTokensViaBetterSqlite(dbPath);
+      if (tokens.accessToken && tokens.machineId) {
+        return NextResponse.json({
+          found: true,
+          accessToken: tokens.accessToken,
+          machineId: tokens.machineId,
+        });
       }
+    } catch (error) {
+      databaseError = error;
+      // Native bindings unavailable — try CLI fallback
     }
 
-    // Strategy 2: sqlite3 CLI (works on Windows if sqlite3 is installed)
+    // Strategy 2: sqlite3 CLI
     try {
       const tokens = await extractTokensViaCLI(dbPath);
       if (tokens.accessToken && tokens.machineId) {
-        return NextResponse.json({ found: true, accessToken: tokens.accessToken, machineId: tokens.machineId });
+        return NextResponse.json({
+          found: true,
+          accessToken: tokens.accessToken,
+          machineId: tokens.machineId,
+        });
       }
-    } catch { /* sqlite3 CLI not available */ }
+    } catch {
+      // sqlite3 CLI not available either
+    }
 
     // Strategy 3: ask user to paste manually
     return NextResponse.json({
@@ -218,6 +277,9 @@ export async function GET() {
     });
   } catch (error) {
     console.log("Cursor auto-import error:", error);
-    return NextResponse.json({ found: false, error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { found: false, error: error.message },
+      { status: 500 },
+    );
   }
 }

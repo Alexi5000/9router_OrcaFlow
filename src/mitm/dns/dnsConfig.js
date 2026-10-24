@@ -1,13 +1,31 @@
-const { execFile, spawn } = require("child_process");
+const { execFile, spawn, execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const { withPrivateTempDirectory } = require("../privateTemp");
 
 // Per-tool DNS hosts mapping
-const TOOL_HOSTS = {
-  antigravity: ["daily-cloudcode-pa.googleapis.com", "cloudcode-pa.googleapis.com"],
-  copilot: ["api.individual.githubcopilot.com"],
-};
+const { TOOL_HOSTS } = require("../../shared/constants/mitmToolHosts.js");
+const { runElevatedPowerShell, isAdmin } = require("../winElevated.js");
+
+function atomicWriteHostsWin(target, originalContent, newContent) {
+  const tmpNew = `${target}.9router.new`;
+  const tmpBak = `${target}.9router.bak`;
+  try {
+    fs.writeFileSync(tmpNew, newContent, "utf8");
+    try { fs.unlinkSync(tmpBak); } catch { /* none */ }
+    fs.renameSync(target, tmpBak);
+    try {
+      fs.renameSync(tmpNew, target);
+    } catch (e) {
+      // Rollback: restore original
+      try { fs.renameSync(tmpBak, target); } catch { fs.writeFileSync(target, originalContent, "utf8"); }
+      throw e;
+    }
+    try { fs.unlinkSync(tmpBak); } catch { /* best effort */ }
+  } finally {
+    try { fs.unlinkSync(tmpNew); } catch { /* already moved or never created */ }
+  }
+}
 
 const IS_WIN = process.platform === "win32";
 const IS_MAC = process.platform === "darwin";
@@ -58,11 +76,37 @@ async function executeElevatedPowerShell(script, timeoutMs = 30000) {
 /**
  * Execute command with sudo password via stdin (macOS/Linux only)
  */
+function isSudoAvailable() {
+  if (IS_WIN) return false;
+  try {
+    execSync("command -v sudo", { stdio: "ignore", windowsHide: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function canRunSudoWithoutPassword() {
+  if (IS_WIN || !isSudoAvailable()) return true;
+  try {
+    execSync("sudo -n true", { stdio: "ignore", windowsHide: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isSudoPasswordRequired() {
+  return !IS_WIN && isSudoAvailable() && !canRunSudoWithoutPassword();
+}
+
+
 function execWithPassword(command, password) {
   return new Promise((resolve, reject) => {
-    const child = spawn("sudo", ["-S", "sh", "-c", command], {
-      stdio: ["pipe", "pipe", "pipe"]
-    });
+    const useSudo = isSudoAvailable();
+    const child = useSudo
+      ? spawn("sudo", ["-S", "sh", "-c", command], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true })
+      : spawn("sh", ["-c", command], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
 
     let stdout = "";
     let stderr = "";
@@ -74,8 +118,8 @@ function execWithPassword(command, password) {
       else reject(new Error(stderr || `Exit code ${code}`));
     });
 
-    child.stdin.write(`${password}\n`);
-    child.stdin.end();
+    child.on("error", reject);
+    if (useSudo) { child.stdin.on("error", reject); child.stdin.end(`${password}\n`); }
   });
 }
 
@@ -137,7 +181,12 @@ async function addDNSEntry(tool, sudoPassword) {
   const entries = entriesToAdd.map(h => `127.0.0.1 ${h}`).join("\n");
 
   try {
-    if (IS_WIN) {
+    if (IS_WIN && isAdmin()) {
+      const current = fs.readFileSync(HOSTS_FILE, "utf8");
+      const next = current.trimEnd() + "\r\n" + entriesToAdd.map(h => `127.0.0.1 ${h}`).join("\r\n") + "\r\n";
+      atomicWriteHostsWin(HOSTS_FILE, current, next);
+      await runElevatedPowerShell("ipconfig /flushdns | Out-Null");
+    } else if (IS_WIN) {
       const hostsPath = HOSTS_FILE.replace(/'/g, "''");
       
       // Build PowerShell script with proper error handling
@@ -192,7 +241,12 @@ async function removeDNSEntry(tool, sudoPassword) {
   }
 
   try {
-    if (IS_WIN) {
+    if (IS_WIN && isAdmin()) {
+      const current = fs.readFileSync(HOSTS_FILE, "utf8");
+      const next = current.split(/\r?\n/).filter(line => !entriesToRemove.some(host => line.includes(host))).join("\r\n").trimEnd() + "\r\n";
+      atomicWriteHostsWin(HOSTS_FILE, current, next);
+      await runElevatedPowerShell("ipconfig /flushdns | Out-Null");
+    } else if (IS_WIN) {
       const content = fs.readFileSync(HOSTS_FILE, "utf8");
       const filtered = content.split(/\r?\n/).filter(l => !entriesToRemove.some(h => l.includes(h))).join("\r\n");
       await executeElevatedPowerShell((temp) => {
@@ -247,7 +301,31 @@ async function removeAllDNSEntries(sudoPassword) {
   }
 }
 
+function removeAllDNSEntriesSync() {
+  try {
+    if (!fs.existsSync(HOSTS_FILE)) return;
+    const allHosts = Object.values(TOOL_HOSTS).flat();
+    const content = fs.readFileSync(HOSTS_FILE, "utf8");
+    const eol = IS_WIN ? "\r\n" : "\n";
+    const filtered = content.split(/\r?\n/).filter(l => !allHosts.some(h => l.includes(h))).join(eol);
+    const next = filtered.replace(/[\r\n\s]+$/g, "") + eol;
+    if (next === content) return;
+    fs.writeFileSync(HOSTS_FILE, next, "utf8");
+    if (IS_WIN) {
+      try { execSync("ipconfig /flushdns", { windowsHide: true, stdio: "ignore" }); } catch { /* ignore */ }
+    } else if (IS_MAC) {
+      try { execSync("dscacheutil -flushcache && killall -HUP mDNSResponder", { stdio: "ignore" }); } catch { /* ignore */ }
+    } else {
+      try { execSync("resolvectl flush-caches 2>/dev/null || true", { stdio: "ignore" }); } catch { /* ignore */ }
+    }
+  } catch { /* best effort during shutdown */ }
+}
+
 module.exports = {
+  removeAllDNSEntriesSync,
+  isSudoAvailable,
+  canRunSudoWithoutPassword,
+  isSudoPasswordRequired,
   TOOL_HOSTS,
   addDNSEntry,
   removeDNSEntry,

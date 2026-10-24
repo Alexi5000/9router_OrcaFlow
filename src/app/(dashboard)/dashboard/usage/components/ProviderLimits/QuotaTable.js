@@ -1,20 +1,23 @@
 "use client";
 
-import { formatResetTime, calculatePercentage } from "./utils";
+import { useEffect, useMemo, useState } from "react";
+import { formatResetTime, getRemainingPercentage } from "./utils";
+
+const PAGE_SIZE = 10;
 
 /**
  * Format reset time display (Today, 12:00 PM)
  */
 function formatResetTimeDisplay(resetTime) {
   if (!resetTime) return null;
-  
+
   try {
     const date = new Date(resetTime);
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+
     let dayStr = "";
     if (date >= today && date < tomorrow) {
       dayStr = "Today";
@@ -23,13 +26,13 @@ function formatResetTimeDisplay(resetTime) {
     } else {
       dayStr = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     }
-    
-    const timeStr = date.toLocaleTimeString("en-US", { 
-      hour: "numeric", 
+
+    const timeStr = date.toLocaleTimeString("en-US", {
+      hour: "numeric",
       minute: "2-digit",
-      hour12: true 
+      hour12: true,
     });
-    
+
     return `${dayStr}, ${timeStr}`;
   } catch {
     return null;
@@ -45,116 +48,283 @@ function getColorClasses(remainingPercentage) {
       text: "text-green-600 dark:text-green-400",
       bg: "bg-green-500",
       bgLight: "bg-green-500/10",
-      emoji: "🟢"
+      emoji: "🟢",
     };
   }
-  
+
   if (remainingPercentage >= 30) {
     return {
       text: "text-yellow-600 dark:text-yellow-400",
       bg: "bg-yellow-500",
       bgLight: "bg-yellow-500/10",
-      emoji: "🟡"
+      emoji: "🟡",
     };
   }
-  
-  // 0-29% including 0% (out of quota) - show red
+
   return {
     text: "text-red-600 dark:text-red-400",
     bg: "bg-red-500",
     bgLight: "bg-red-500/10",
-    emoji: "🔴"
+    emoji: "🔴",
   };
+}
+
+function sortQuotas(quotas, sortMode) {
+  if (sortMode === "remaining-asc") {
+    return [...quotas].sort((a, b) => a.remaining - b.remaining || a.name.localeCompare(b.name));
+  }
+
+  if (sortMode === "remaining-desc") {
+    return [...quotas].sort((a, b) => b.remaining - a.remaining || a.name.localeCompare(b.name));
+  }
+
+  return quotas;
 }
 
 /**
  * Quota Table Component - Table-based display for quota data
  */
-export default function QuotaTable({ quotas = [] }) {
+export default function QuotaTable({
+  quotas = [],
+  compact = false,
+  sortMode = "default",
+  showSortLabel = false,
+  onHideQuota = null,
+}) {
+  const [page, setPage] = useState(1);
+
+  const normalizedQuotas = useMemo(
+    () => quotas.map((quota, index) => ({
+      ...quota,
+      index,
+      remaining: getRemainingPercentage(quota),
+    })),
+    [quotas],
+  );
+
+  const sortedQuotas = useMemo(
+    () => sortQuotas(normalizedQuotas, sortMode),
+    [normalizedQuotas, sortMode],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(sortedQuotas.length / PAGE_SIZE));
+
+  useEffect(() => {
+    setPage(1);
+  }, [sortMode, quotas]);
+
+  useEffect(() => {
+    setPage((currentPage) => Math.min(currentPage, totalPages));
+  }, [totalPages]);
+
   if (!quotas || quotas.length === 0) {
     return null;
   }
 
+  const currentPageRows = sortedQuotas.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
+  );
+  const pageStart = sortedQuotas.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(page * PAGE_SIZE, sortedQuotas.length);
+
+  const cellPad = compact ? "py-1 px-1.5" : "py-2 px-3";
+  const nameText = compact ? "text-[11px]" : "text-sm";
+  const resetPrimary = compact ? "text-[11px]" : "text-sm";
+  const resetSecondary = compact ? "text-[10px] leading-tight" : "text-xs";
+  const sortLabel = "Sorted by account remaining";
+  const hasHideAction = typeof onHideQuota === "function";
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full table-fixed">
-        <colgroup>
-          <col className="w-[30%]" /> {/* Model Name */}
-          <col className="w-[45%]" /> {/* Limit Progress */}
-          <col className="w-[25%]" /> {/* Reset Time */}
-        </colgroup>
-        <tbody>
-          {quotas.map((quota, index) => {
-            const remaining = quota.remainingPercentage !== undefined
-              ? Math.round(quota.remainingPercentage)
-              : calculatePercentage(quota.used, quota.total);
-            
-            const colors = getColorClasses(remaining);
-            const countdown = formatResetTime(quota.resetAt);
-            const resetDisplay = formatResetTimeDisplay(quota.resetAt);
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[10px] text-text-muted">
+          {sortedQuotas.length} quota{sortedQuotas.length > 1 ? "s" : ""}
+        </div>
+        {showSortLabel && (
+          <div className="rounded-md border border-black/10 bg-black/[0.02] px-2 py-1 text-[10px] text-text-muted dark:border-white/10 dark:bg-white/[0.03]">
+            {sortLabel}
+          </div>
+        )}
+      </div>
 
-            return (
-              <tr 
-                key={index}
-                className="border-b border-black/5 dark:border-white/5 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors"
+      <div className="space-y-px">
+        {currentPageRows.map((quota) => {
+          const isUnlimited = quota.unlimited === true;
+          const isCreditBalance = quota.isCreditBalance === true;
+          const colors = isCreditBalance
+            ? { text: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500", bgLight: "bg-blue-500/10", emoji: "💰" }
+            : getColorClasses(quota.colorPercentage ?? quota.remaining);
+          // Qoder flags open-ended plans with `neverExpires` (its API reports a
+          // year-9999 sentinel). Return "-"/"Never expires" rather than an empty
+          // countdown: the render below branches on `countdown !== "-"`, so an
+          // empty string would fall through to the "in " label.
+          const countdown = quota.neverExpires ? "-" : formatResetTime(quota.resetAt);
+          // Providers that expose a detail page but no per-bucket reset date
+          // (Qoder add-on grants) get a pointer to it instead of a bare "N/A".
+          const seeDetails = !quota.neverExpires && !quota.resetAt && Boolean(quota.detailUrl);
+          const resetDisplay = quota.emptyMessage
+            ? quota.emptyMessage
+            : quota.neverExpires
+            ? "Never expires"
+            : seeDetails
+              ? "See details"
+              : formatResetTimeDisplay(quota.resetAt);
+          const resetSecondaryText = seeDetails && quota.detailUrl ? quota.detailUrl : resetDisplay;
+          // recurring defaults true: a missing flag means the quota
+          // refreshes at resetAt. Bonus/one-shot packs set recurring:false
+          // and their resetAt is a hard expiry, so word it as "expires".
+          const recurring = quota.recurring !== false;
+          const countdownLabel = recurring ? `in ${countdown}` : `expires in ${countdown}`;
+
+          // "See details" rows are a link to the provider's own usage page —
+          // used where the API exposes no per-bucket date (Qoder add-on grants).
+          const renderResetCell = (className) =>
+            seeDetails ? (
+              <a
+                href={quota.detailUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${className} inline-flex items-center gap-0.5 hover:text-text-primary hover:underline`}
+                title={`Open usage details: ${resetSecondaryText}`}
+                aria-label={`Open usage details for ${quota.name}`}
               >
-                {/* Model Name with Status Emoji */}
-                <td className="py-2 px-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs">{colors.emoji}</span>
-                    <span className="text-sm font-medium text-text-primary">{quota.name}</span>
-                  </div>
-                </td>
+                {resetDisplay}
+                <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+              </a>
+            ) : (
+              resetDisplay
+            );
 
-                {/* Limit (Progress + Numbers) */}
-                <td className="py-2 px-3">
-                  <div className="space-y-1.5">
-                    {/* Progress bar - always show with border for visibility */}
-                    <div className={`h-1.5 rounded-full overflow-hidden border ${colors.bgLight} ${
-                      remaining === 0 ? 'border-black/10 dark:border-white/10' : 'border-transparent'
-                    }`}>
-                      <div
-                        className={`h-full transition-all duration-300 ${colors.bg}`}
-                        style={{ width: `${Math.min(remaining, 100)}%` }}
-                      />
-                    </div>
-                    
-                    {/* Numbers */}
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-text-muted">
-                        {quota.used.toLocaleString()} / {quota.total > 0 ? quota.total.toLocaleString() : "∞"}
-                      </span>
-                      <span className={`font-medium ${colors.text}`}>
-                        {remaining}%
-                      </span>
-                    </div>
-                  </div>
-                </td>
+          return (
+            <div
+              key={`${quota.name}-${quota.index}`}
+              className={`flex items-center gap-2 border-b border-black/5 dark:border-white/5 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors ${cellPad}`}
+            >
+              {/* Name */}
+              <div className="flex w-36 min-w-0 items-center gap-1.5">
+                <span className="text-[10px] shrink-0">{colors.emoji}</span>
+                <span className={`${nameText} font-medium text-text-primary truncate`}>
+                  {quota.name}
+                </span>
+              </div>
 
-                {/* Reset Time */}
-                <td className="py-2 px-3">
-                  {countdown !== "-" || resetDisplay ? (
-                    <div className="space-y-0.5">
+              {/* Progress + used/total */}
+              <div className={`min-w-0 flex-1 ${compact ? "space-y-1" : "space-y-1.5"}`}>
+                {!isUnlimited && !isCreditBalance && (
+                <div className={`${compact ? "h-1" : "h-1.5"} rounded-full overflow-hidden border ${colors.bgLight} ${
+                  quota.remaining === 0 ? "border-black/10 dark:border-white/10" : "border-transparent"
+                }`}>
+                  <div
+                    className={`h-full transition-all duration-300 ${colors.bg}`}
+                    style={{ width: `${Math.min(quota.remaining, 100)}%` }}
+                  />
+                </div>
+                )}
+
+                <div className={`flex items-center justify-between gap-1 min-w-0 ${compact ? "text-[10px]" : "text-xs"}`}>
+                  <span
+                    className="text-text-muted truncate"
+                    title={
+                      isUnlimited
+                        ? `${quota.used.toLocaleString()} used · Unlimited`
+                        : isCreditBalance
+                        ? `Credit balance: ${quota.total.toFixed(2)} ${quota.currency || ""}`
+                        : `${quota.used.toLocaleString()} / ${quota.total > 0 ? quota.total.toLocaleString() : "∞"}`
+                    }
+                  >
+                    {isUnlimited
+                      ? `${quota.used.toLocaleString()} used · Unlimited`
+                      : isCreditBalance
+                      ? `Credit: ${quota.total.toFixed(2)} ${quota.currency || ""}`
+                      : `${quota.used.toLocaleString()} / ${quota.total > 0 ? quota.total.toLocaleString() : "∞"}${
+                          quota.unit ? ` ${quota.unit}` : ""
+                        }`}
+                  </span>
+                  <span className={`font-medium ${isUnlimited ? "text-green-600 dark:text-green-400" : isCreditBalance ? "text-blue-600 dark:text-blue-400" : colors.text} shrink-0`}>
+                    {isUnlimited ? "Unlimited" : isCreditBalance ? "" : `${quota.remaining}%`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Reset time */}
+              <div className="min-w-0 shrink">
+                {countdown !== "-" || resetDisplay ? (
+                  compact ? (
+                    <div
+                      className={`${resetPrimary} text-text-primary font-medium truncate`}
+                      title={resetSecondaryText || ""}
+                    >
+                      {countdown !== "-" ? countdownLabel : renderResetCell(resetPrimary)}
+                    </div>
+                  ) : (
+                    <div className="min-w-0 space-y-0.5">
                       {countdown !== "-" && (
-                        <div className="text-sm text-text-primary font-medium">
-                          in {countdown}
+                        <div className={`${resetPrimary} text-text-primary font-medium truncate`}>
+                          {countdownLabel}
                         </div>
                       )}
                       {resetDisplay && (
-                        <div className="text-xs text-text-muted">
-                          {resetDisplay}
+                        <div className={`${resetSecondary} text-text-muted truncate`}>
+                          {renderResetCell(resetSecondary)}
                         </div>
                       )}
                     </div>
-                  ) : (
-                    <div className="text-sm text-text-muted italic">N/A</div>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  )
+                ) : (
+                  <div className={`${resetPrimary} text-text-muted italic`}>N/A</div>
+                )}
+              </div>
+
+              {/* Hide action */}
+              {hasHideAction && (
+                <button
+                  type="button"
+                  onClick={() => onHideQuota(quota)}
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-black/5 hover:text-text-primary dark:hover:bg-white/5"
+                  title="Hide this quota row"
+                  aria-label={`Hide quota ${quota.name}`}
+                >
+                  <span className="material-symbols-outlined text-[15px]">
+                    visibility_off
+                  </span>
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {totalPages > 1 && (
+        <div className="rounded-md border border-black/10 bg-black/[0.02] px-2 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="flex items-center justify-between gap-2 text-[10px] text-text-muted">
+            <span>
+              Showing {pageStart}-{pageEnd} of {sortedQuotas.length}
+            </span>
+            <span>
+              Page {page} / {totalPages}
+            </span>
+          </div>
+          <div className="mt-1.5 flex items-center justify-end gap-1">
+            <button
+              type="button"
+              onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+              disabled={page === 1}
+              className="flex h-6 items-center rounded-md border border-black/10 px-2 text-[10px] text-text-primary transition-colors hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:hover:bg-white/5"
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}
+              disabled={page === totalPages}
+              className="flex h-6 items-center rounded-md border border-black/10 px-2 text-[10px] text-text-primary transition-colors hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:hover:bg-white/5"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

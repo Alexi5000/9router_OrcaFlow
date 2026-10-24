@@ -1,0 +1,9 @@
+overrides:
+  "dompurify": "^3.4.17"
+  "ip-address": "^10.7.4"
+  "braces": "file:vendor/braces-3.0.3.tgz"
+  "node-forge": "file:vendor/node-forge-1.4.0.tgz"
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild
+  - unrs-resolver

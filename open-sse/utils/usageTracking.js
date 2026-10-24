@@ -2,8 +2,10 @@
  * Token Usage Tracking - Extract, normalize, estimate and log token usage
  */
 
-import { saveRequestUsage, appendRequestLog } from "@/lib/usageDb.js";
 import { FORMATS } from "../translator/formats.js";
+
+// Legacy per-chunk usage console line; off by default (superseded by "📊 done")
+const DEBUG_USAGE = process.env.LOG_USAGE_VERBOSE === "1";
 
 // ANSI color codes
 export const COLORS = {
@@ -130,8 +132,81 @@ export function normalizeUsage(usage) {
   assignNumber("cached_tokens", usage?.cached_tokens);
   assignNumber("reasoning_tokens", usage?.reasoning_tokens);
 
+  // Preserve nested details objects for OpenAI format forwarding
+  if (usage?.prompt_tokens_details && typeof usage.prompt_tokens_details === "object") {
+    normalized.prompt_tokens_details = usage.prompt_tokens_details;
+  }
+  if (usage?.completion_tokens_details && typeof usage.completion_tokens_details === "object") {
+    normalized.completion_tokens_details = usage.completion_tokens_details;
+  }
+
   if (Object.keys(normalized).length === 0) return null;
   return normalized;
+}
+
+/**
+ * Canonicalize usage into ONE storage/cost convention so token counts and cost
+ * are consistent across providers:
+ *   prompt_tokens               = total input INCLUDING cache read + cache creation
+ *   cached_tokens               = cache-read portion (subset of prompt_tokens)
+ *   cache_creation_input_tokens = cache-write portion (subset of prompt_tokens)
+ *   completion_tokens, reasoning_tokens, total_tokens
+ *
+ * Discriminator: Claude reports cache_read_input_tokens with a prompt that
+ * EXCLUDES cache, so we fold cache into prompt. OpenAI/Gemini report
+ * cached_tokens already counted inside prompt, so we pass through. Idempotent:
+ * once folded the output carries cached_tokens (not cache_read_input_tokens),
+ * so re-running takes the passthrough branch and does not double-add.
+ *
+ * @param {object} usage - a normalizeUsage()-shaped object
+ * @returns {object|null} canonical token object, or null for invalid input
+ */
+export function canonicalizeUsage(usage) {
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
+
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const completion = num(usage.completion_tokens ?? usage.output_tokens);
+  const reasoning = num(usage.reasoning_tokens);
+  // Fall back to the nested prompt_tokens_details.cache_creation_tokens shape
+  // (buildUsage()'s OpenAI-forwarding format) when the top-level field is
+  // absent, so callers that pass a buildUsage() object through don't silently
+  // drop cache_creation.
+  const cacheCreation = num(usage.cache_creation_input_tokens ?? usage.prompt_tokens_details?.cache_creation_tokens);
+
+  let prompt = num(usage.prompt_tokens ?? usage.input_tokens);
+  let cached;
+
+  // Claude path: prompt excludes cache; cache_read_input_tokens and/or
+  // cache_creation_input_tokens are separate. A cache-miss "first write" only
+  // carries cache_creation_input_tokens (no cache_read_input_tokens yet), so
+  // check both fields — otherwise a first-write request falls through to the
+  // OpenAI passthrough branch below and cache_creation never gets folded in.
+  // Guard on the absence of `cached_tokens`: our own canonical output always
+  // sets that key (even to 0), so re-running canonicalizeUsage on an already-
+  // folded result takes the passthrough branch instead of folding again.
+  if (usage.cached_tokens === undefined &&
+      (usage.cache_read_input_tokens !== undefined || usage.cache_creation_input_tokens !== undefined)) {
+    cached = num(usage.cache_read_input_tokens);
+    prompt = prompt + cached + cacheCreation;
+  } else {
+    // OpenAI/Gemini path (or already-canonical input): prompt already includes cached_tokens.
+    // Mirror the cacheCreation fallback above: buildUsage() only ever emits the
+    // nested prompt_tokens_details.cached_tokens shape, so without this the
+    // cache-read count is silently dropped on every buildUsage()-derived usage.
+    cached = num(usage.cached_tokens ?? usage.prompt_tokens_details?.cached_tokens);
+  }
+
+  const result = {
+    prompt_tokens: prompt,
+    completion_tokens: completion,
+    // Recompute rather than pass through: when the fold branch ran above,
+    // an upstream total_tokens (cache-exclusive) would otherwise be stale.
+    total_tokens: prompt + completion,
+    cached_tokens: cached,
+    cache_creation_input_tokens: cacheCreation,
+  };
+  if (reasoning > 0) result.reasoning_tokens = reasoning;
+  return result;
 }
 
 /**
@@ -164,6 +239,19 @@ export function hasValidUsage(usage) {
 export function extractUsage(chunk) {
   if (!chunk || typeof chunk !== "object") return null;
 
+  // Claude format (message_start event): carries input_tokens + cache_read +
+  // cache_creation. message_delta later carries only the final output_tokens,
+  // so callers must MERGE (mergeUsage), not overwrite, to keep cache counts.
+  if (chunk.type === "message_start" && chunk.message?.usage && typeof chunk.message.usage === "object") {
+    const u = chunk.message.usage;
+    return normalizeUsage({
+      prompt_tokens: u.input_tokens || 0,
+      completion_tokens: u.output_tokens || 0,
+      cache_read_input_tokens: u.cache_read_input_tokens,
+      cache_creation_input_tokens: u.cache_creation_input_tokens
+    });
+  }
+
   // Claude format (message_delta event)
   if (chunk.type === "message_delta" && chunk.usage && typeof chunk.usage === "object") {
     return normalizeUsage({
@@ -177,21 +265,25 @@ export function extractUsage(chunk) {
   // OpenAI Responses API format (response.completed or response.done)
   if ((chunk.type === "response.completed" || chunk.type === "response.done") && chunk.response?.usage && typeof chunk.response.usage === "object") {
     const usage = chunk.response.usage;
+    const cachedTokens = usage.input_tokens_details?.cached_tokens;
     return normalizeUsage({
       prompt_tokens: usage.input_tokens || usage.prompt_tokens || 0,
       completion_tokens: usage.output_tokens || usage.completion_tokens || 0,
-      cached_tokens: usage.input_tokens_details?.cached_tokens,
-      reasoning_tokens: usage.output_tokens_details?.reasoning_tokens
+      cached_tokens: cachedTokens,
+      reasoning_tokens: usage.output_tokens_details?.reasoning_tokens,
+      prompt_tokens_details: cachedTokens ? { cached_tokens: cachedTokens } : undefined
     });
   }
 
-  // OpenAI format
+  // OpenAI format (also covers DeepSeek which uses prompt_cache_hit_tokens)
   if (chunk.usage && typeof chunk.usage === "object" && chunk.usage.prompt_tokens !== undefined) {
     return normalizeUsage({
       prompt_tokens: chunk.usage.prompt_tokens,
       completion_tokens: chunk.usage.completion_tokens || 0,
-      cached_tokens: chunk.usage.prompt_tokens_details?.cached_tokens,
-      reasoning_tokens: chunk.usage.completion_tokens_details?.reasoning_tokens
+      cached_tokens: chunk.usage.prompt_tokens_details?.cached_tokens || chunk.usage.prompt_cache_hit_tokens,
+      reasoning_tokens: chunk.usage.completion_tokens_details?.reasoning_tokens,
+      prompt_tokens_details: chunk.usage.prompt_tokens_details,
+      completion_tokens_details: chunk.usage.completion_tokens_details
     });
   }
 
@@ -208,7 +300,40 @@ export function extractUsage(chunk) {
     });
   }
 
+  // Ollama NDJSON format (raw from provider, before translation)
+  // Ollama sends: {"model":"...","done":true,"prompt_eval_count":N,"eval_count":M,"prompt_eval_cached_count":C}
+  // prompt_eval_cached_count is a cache-read subset of prompt_eval_count (cache-INCLUSIVE).
+  if (chunk.done === true && typeof chunk.prompt_eval_count === "number") {
+    return normalizeUsage({
+      prompt_tokens: chunk.prompt_eval_count || 0,
+      completion_tokens: chunk.eval_count || 0,
+      total_tokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
+      cached_tokens: chunk.prompt_eval_cached_count || 0
+    });
+  }
+
   return null;
+}
+
+// Field-wise max-merge of two usage objects. Anthropic splits usage across
+// events: message_start has real input+cache (output is a placeholder 1),
+// message_delta has the real cumulative output (input/cache absent). Max keeps
+// the meaningful value from each without clobbering. Idempotent for other
+// providers that emit a single complete usage object.
+export function mergeUsage(prev, next) {
+  if (!prev) return next || null;
+  if (!next) return prev;
+  const merged = { ...prev };
+  for (const [k, v] of Object.entries(next)) {
+    // typeof NaN === "number" — guard with Number.isFinite so one malformed
+    // chunk can't poison the whole accumulation (Math.max(x, NaN) is NaN).
+    if (typeof v === "number" && Number.isFinite(v)) {
+      merged[k] = Math.max(typeof merged[k] === "number" ? merged[k] : 0, v);
+    } else if (v && typeof v === "object") {
+      merged[k] = v; // nested details objects: take latest
+    }
+  }
+  return merged;
 }
 
 /**
@@ -284,6 +409,10 @@ export function estimateUsage(body, contentLength, targetFormat = FORMATS.OPENAI
 export function logUsage(provider, usage, model = null, connectionId = null, apiKey = null) {
   if (!usage || typeof usage !== "object") return;
 
+  // Console output moved to the unified "📊 done" line (streamingHandler). Kept as
+  // a no-op hook so callers stay unchanged; usage persistence happens via saveUsageStats.
+  if (!DEBUG_USAGE) return;
+
   const p = provider?.toUpperCase() || "UNKNOWN";
 
   // Support both formats:
@@ -301,7 +430,7 @@ export function logUsage(provider, usage, model = null, connectionId = null, api
   }
 
   // Add cache info if present (unified from different formats)
-  const cacheRead = usage.cache_read_input_tokens || usage.cached_tokens;
+  const cacheRead = usage.cache_read_input_tokens || usage.cached_tokens || usage.prompt_tokens_details?.cached_tokens;
   if (cacheRead) msg += ` | cache_read=${cacheRead}`;
 
   const cacheCreation = usage.cache_creation_input_tokens;
@@ -311,15 +440,4 @@ export function logUsage(provider, usage, model = null, connectionId = null, api
   if (reasoning) msg += ` | reasoning=${reasoning}`;
 
   console.log(msg);
-
-  // Save to usage DB
-  const tokens = {
-    prompt_tokens: inTokens,
-    completion_tokens: outTokens,
-    cache_read_input_tokens: cacheRead || 0,
-    cache_creation_input_tokens: cacheCreation || 0,
-    reasoning_tokens: reasoning || 0
-  };
-  saveRequestUsage({ model, provider, connectionId, tokens, apiKey: apiKey || undefined }).catch(() => { });
-  appendRequestLog({ model, provider, connectionId, tokens, status: "200 OK" }).catch(() => { });
 }

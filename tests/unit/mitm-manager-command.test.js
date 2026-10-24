@@ -36,7 +36,7 @@ async function cleanup(f, serverPath, password, isWindows = false) {
     return child;
   };
   const promise = vm.runInNewContext(`${functionSource}\nkillLeftoverMitm(password)`, {
-    password, IS_WIN: isWindows, SERVER_PATH: serverPath, PID_FILE: "/missing-pid",
+    isSudoAvailable: () => false, password, IS_WIN: isWindows, SERVER_PATH: serverPath, PID_FILE: "/missing-pid",
     serverProcess: null, serverPid: null, fs: { existsSync: () => false },
     setTimeout: callback => queueMicrotask(callback),
     exec: run,

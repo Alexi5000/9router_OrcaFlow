@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useNotificationStore } from "@/store/notificationStore";
 import Sidebar from "../Sidebar";
@@ -36,6 +36,24 @@ export default function DashboardLayout({ children }) {
   const pathname = usePathname();
   const notifications = useNotificationStore((state) => state.notifications);
   const removeNotification = useNotificationStore((state) => state.removeNotification);
+
+  // Preload heavy usage charts in background when browser is idle
+  useEffect(() => {
+    const preload = () => {
+      import("@/shared/components/UsageStats").catch(() => {});
+      import("@/app/(dashboard)/dashboard/usage/components/UsageChart").catch(() => {});
+      import("@/app/(dashboard)/dashboard/usage/components/ProviderBarChart").catch(() => {});
+      import("@/app/(dashboard)/dashboard/usage/components/TopModelsChart").catch(() => {});
+    };
+    if (typeof window !== "undefined") {
+      if ("requestIdleCallback" in window) {
+        const id = window.requestIdleCallback(preload, { timeout: 4000 });
+        return () => window.cancelIdleCallback(id);
+      }
+      const timer = setTimeout(preload, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-bg">
@@ -91,10 +109,12 @@ export default function DashboardLayout({ children }) {
       </div>
 
       {/* Main content */}
-      <main className="flex flex-col flex-1 h-full min-w-0 relative transition-colors duration-300">
+      <main className="flex flex-col flex-1 h-full min-w-0 relative transition-colors duration-300 isolate">
+        {/* Faint grid background */}
+        <div className="landing-grid absolute inset-0 pointer-events-none -z-10" aria-hidden="true" />
         <Header key={pathname} onMenuClick={() => setSidebarOpen(true)} />
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-10">
-          <div className="max-w-7xl mx-auto">{children}</div>
+        <div className={`flex-1 overflow-y-auto custom-scrollbar ${pathname === "/dashboard/basic-chat" ? "" : "p-6 lg:p-10"} ${pathname === "/dashboard/basic-chat" ? "flex flex-col overflow-hidden" : ""}`}>
+          <div className={`${pathname === "/dashboard/basic-chat" ? "flex-1 w-full h-full flex flex-col" : "max-w-7xl mx-auto"}`}>{children}</div>
         </div>
       </main>
     </div>

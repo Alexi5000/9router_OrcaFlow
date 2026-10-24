@@ -1,57 +1,92 @@
 // Provider definitions
+import REGISTRY from "open-sse/providers/registry/index.js";
+import { RISK_NOTICE } from "@/shared/constants/providersDisplay.js";
 
-// Free Providers
-export const FREE_PROVIDERS = {
-  iflow: { id: "iflow", alias: "if", name: "iFlow AI", icon: "water_drop", color: "#6366F1" },
-  qwen: { id: "qwen", alias: "qw", name: "Qwen Code", icon: "psychology", color: "#10B981" },
-  "gemini-cli": { id: "gemini-cli", alias: "gc", name: "Gemini CLI", icon: "terminal", color: "#4285F4" },
-  kiro: { id: "kiro", alias: "kr", name: "Kiro AI", icon: "psychology_alt", color: "#FF6B35" },
+const MEDIA_ENTRY_KEYS = [
+  "serviceKinds", "ttsConfig", "sttConfig", "embeddingConfig",
+  "imageConfig", "imageToTextConfig", "videoConfig", "musicConfig",
+  "searchViaChat", "searchConfig", "fetchConfig", "credentialFallback", "systemoneConfig",
+  "modelsFetcher", "mediaPriority", "hiddenKinds",
+];
+
+// Build provider UI object from registry entry
+function buildProviderEntry(r) {
+  const mediaFields = {};
+  if (r.media) Object.assign(mediaFields, r.media);
+  for (const k of MEDIA_ENTRY_KEYS) {
+    if (r[k] !== undefined) mediaFields[k] = r[k];
+  }
+  const display = { ...(r.display || {}) };
+  if (display.deprecationNotice === "RISK_NOTICE") display.deprecationNotice = RISK_NOTICE;
+  return {
+    ...display,
+    id: r.id,
+    alias: r.uiAlias || r.alias,
+    ...(r.hidden ? { hidden: true } : {}),
+    ...mediaFields,
+    ...(r.priority !== undefined ? { priority: r.priority } : {}),
+    ...(r.hasFree ? { hasFree: true } : {}),
+    ...(r.thinkingConfig ? { thinkingConfig: r.thinkingConfig } : {}),
+    ...(r.regions ? { regions: r.regions, defaultRegion: r.defaultRegion } : {}),
+    ...(r.hasProviderSpecificData ? { hasProviderSpecificData: true } : {}),
+    ...(r.noAuth ? { noAuth: true } : {}),
+    ...(r.passthroughModels ? { passthroughModels: true } : {}),
+    ...(r.hasOAuth ? { hasOAuth: true } : {}),
+    ...(r.authModes ? { authModes: r.authModes } : {}),
+    ...(r.authType ? { authType: r.authType } : {}),
+    ...(r.authHint ? { authHint: r.authHint } : {}),
+    ...(r.apiKeyOptionalWith ? { apiKeyOptionalWith: r.apiKeyOptionalWith } : {}),
+    ...(r.credentialForm ? { credentialForm: r.credentialForm } : {}),
+  };
+}
+
+const byCategory = (cat) => Object.fromEntries(
+  REGISTRY.filter(r => r.category === cat).map(r => [r.id, buildProviderEntry(r)])
+);
+
+export const FREE_PROVIDERS = byCategory("free");
+export const FREE_TIER_PROVIDERS = byCategory("freeTier");
+
+// Thinking config definitions
+// options: list of selectable modes ("auto" = no override from server)
+// defaultMode: fallback when user hasn't configured
+// extended: claude-style thinking (thinking.type + budget_tokens) — used by most providers
+// effort: openai-style reasoning_effort — only openai + codex
+export const THINKING_CONFIG = {
+  extended: {
+    options: ["auto", "on", "off"],
+    defaultMode: "auto",
+    defaultBudgetTokens: 10000
+  },
+  effort: {
+    options: ["auto", "none", "low", "medium", "high"],
+    defaultMode: "auto"
+  }
 };
 
-// OAuth Providers
-export const OAUTH_PROVIDERS = {
-  claude: { id: "claude", alias: "cc", name: "Claude Code", icon: "smart_toy", color: "#D97757" },
-  antigravity: { id: "antigravity", alias: "ag", name: "Antigravity", icon: "rocket_launch", color: "#F59E0B" },
-  codex: { id: "codex", alias: "cx", name: "OpenAI Codex", icon: "code", color: "#3B82F6" },
-  github: { id: "github", alias: "gh", name: "GitHub Copilot", icon: "code", color: "#333333" },
-  cursor: { id: "cursor", alias: "cu", name: "Cursor IDE", icon: "edit_note", color: "#00D4AA" },
-  kilocode: { id: "kilocode", alias: "kc", name: "Kilo Code", icon: "code", color: "#FF6B35", textIcon: "KC" },
-  cline: { id: "cline", alias: "cl", name: "Cline", icon: "smart_toy", color: "#5B9BD5", textIcon: "CL" },
-};
+export const OAUTH_PROVIDERS = byCategory("oauth");
+export const APIKEY_PROVIDERS = byCategory("apikey");
 
-export const APIKEY_PROVIDERS = {
-  openrouter: { id: "openrouter", alias: "openrouter", name: "OpenRouter", icon: "router", color: "#F97316", textIcon: "OR", passthroughModels: true, website: "https://openrouter.ai" },
-  glm: { id: "glm", alias: "glm", name: "GLM Coding", icon: "code", color: "#2563EB", textIcon: "GL", website: "https://open.bigmodel.cn" },
-  "glm-cn": { id: "glm-cn", alias: "glm-cn", name: "GLM (China)", icon: "code", color: "#DC2626", textIcon: "GC", website: "https://open.bigmodel.cn" },
-  kimi: { id: "kimi", alias: "kimi", name: "Kimi", icon: "psychology", color: "#1E3A8A", textIcon: "KM", website: "https://kimi.moonshot.cn" },
-  minimax: { id: "minimax", alias: "minimax", name: "Minimax Coding", icon: "memory", color: "#7C3AED", textIcon: "MM", website: "https://www.minimaxi.com" },
-  "minimax-cn": { id: "minimax-cn", alias: "minimax-cn", name: "Minimax (China)", icon: "memory", color: "#DC2626", textIcon: "MC", website: "https://www.minimaxi.com" },
-  alicode: { id: "alicode", alias: "alicode", name: "Alibaba", icon: "cloud", color: "#FF6A00", textIcon: "ALi" },
-  "alicode-intl": { id: "alicode-intl", alias: "alicode-intl", name: "Alibaba Intl", icon: "cloud", color: "#FF6A00", textIcon: "ALi" },
-  openai: { id: "openai", alias: "openai", name: "OpenAI", icon: "auto_awesome", color: "#10A37F", textIcon: "OA", website: "https://platform.openai.com" },
-  anthropic: { id: "anthropic", alias: "anthropic", name: "Anthropic", icon: "smart_toy", color: "#D97757", textIcon: "AN", website: "https://console.anthropic.com" },
-  gemini: { id: "gemini", alias: "gemini", name: "Gemini", icon: "diamond", color: "#4285F4", textIcon: "GE", website: "https://ai.google.dev" },
-  deepseek: { id: "deepseek", alias: "ds", name: "DeepSeek", icon: "bolt", color: "#4D6BFE", textIcon: "DS", website: "https://deepseek.com" },
-  groq: { id: "groq", alias: "groq", name: "Groq", icon: "speed", color: "#F55036", textIcon: "GQ", website: "https://groq.com" },
-  xai: { id: "xai", alias: "xai", name: "xAI (Grok)", icon: "auto_awesome", color: "#1DA1F2", textIcon: "XA", website: "https://x.ai" },
-  mistral: { id: "mistral", alias: "mistral", name: "Mistral", icon: "air", color: "#FF7000", textIcon: "MI", website: "https://mistral.ai" },
-  perplexity: { id: "perplexity", alias: "pplx", name: "Perplexity", icon: "search", color: "#20808D", textIcon: "PP", website: "https://www.perplexity.ai" },
-  together: { id: "together", alias: "together", name: "Together AI", icon: "group_work", color: "#0F6FFF", textIcon: "TG", website: "https://www.together.ai" },
-  fireworks: { id: "fireworks", alias: "fireworks", name: "Fireworks AI", icon: "local_fire_department", color: "#7B2EF2", textIcon: "FW", website: "https://fireworks.ai" },
-  cerebras: { id: "cerebras", alias: "cerebras", name: "Cerebras", icon: "memory", color: "#FF4F00", textIcon: "CB", website: "https://www.cerebras.ai" },
-  cohere: { id: "cohere", alias: "cohere", name: "Cohere", icon: "hub", color: "#39594D", textIcon: "CO", website: "https://cohere.com" },
-  nvidia: { id: "nvidia", alias: "nvidia", name: "NVIDIA NIM", icon: "developer_board", color: "#76B900", textIcon: "NV", website: "https://developer.nvidia.com/nim" },
-  nebius: { id: "nebius", alias: "nebius", name: "Nebius AI", icon: "cloud", color: "#6C5CE7", textIcon: "NB", website: "https://nebius.com" },
-  siliconflow: { id: "siliconflow", alias: "siliconflow", name: "SiliconFlow", icon: "cloud_queue", color: "#5B6EF5", textIcon: "SF", website: "https://cloud.siliconflow.com" },
-  hyperbolic: { id: "hyperbolic", alias: "hyp", name: "Hyperbolic", icon: "bolt", color: "#00D4FF", textIcon: "HY", website: "https://hyperbolic.xyz" },
-  deepgram: { id: "deepgram", alias: "dg", name: "Deepgram", icon: "mic", color: "#13EF93", textIcon: "DG", website: "https://deepgram.com" },
-  assemblyai: { id: "assemblyai", alias: "aai", name: "AssemblyAI", icon: "record_voice_over", color: "#0062FF", textIcon: "AA", website: "https://assemblyai.com" },
-  nanobanana: { id: "nanobanana", alias: "nb", name: "NanoBanana", icon: "image", color: "#FFD700", textIcon: "NB", website: "https://nanobananaapi.ai" },
-  chutes: { id: "chutes", alias: "ch", name: "Chutes AI", icon: "water_drop", color: "#5B6EF5", textIcon: "CH", website: "https://chutes.ai" },
-};
+// Web Cookie Providers (use browser session cookie instead of API key)
+export const WEB_COOKIE_PROVIDERS = byCategory("webCookie");
+
+// Media provider kinds — each kind maps to a route and endpoint config
+export const MEDIA_PROVIDER_KINDS = [
+  { id: "embedding",   label: "Embedding",      icon: "data_array",        endpoint: { method: "POST", path: "/v1/embeddings" } },
+  { id: "image",       label: "Text to Image",  icon: "brush",             endpoint: { method: "POST", path: "/v1/images/generations" } },
+  { id: "imageToText", label: "Image to Text",  icon: "image_search",      endpoint: { method: "POST", path: "/v1/images/understanding" } },
+  { id: "tts",         label: "Text To Speech", icon: "record_voice_over", endpoint: { method: "POST", path: "/v1/audio/speech" } },
+  { id: "stt",         label: "Speech To Text", icon: "mic",               endpoint: { method: "POST", path: "/v1/audio/transcriptions" } },
+  { id: "webSearch",   label: "Web Search",     icon: "travel_explore",    endpoint: { method: "POST", path: "/v1/search" } },
+  { id: "webFetch",    label: "Web Fetch",      icon: "language",          endpoint: { method: "POST", path: "/v1/web/fetch" } },
+  { id: "video",       label: "Video",          icon: "movie",             endpoint: { method: "POST", path: "/v1/videos/generations" } },
+  { id: "music",       label: "Music",          icon: "music_note",        endpoint: { method: "POST", path: "/v1/audio/music" } },
+  { id: "systemone",   label: "System One",     icon: "psychology",        endpoint: { method: "POST", path: "/v1/systemone" }, isNew: true },
+];
 
 export const OPENAI_COMPATIBLE_PREFIX = "openai-compatible-";
 export const ANTHROPIC_COMPATIBLE_PREFIX = "anthropic-compatible-";
+export const CUSTOM_EMBEDDING_PREFIX = "custom-embedding-";
 
 export function isOpenAICompatibleProvider(providerId) {
   return typeof providerId === "string" && providerId.startsWith(OPENAI_COMPATIBLE_PREFIX);
@@ -61,13 +96,18 @@ export function isAnthropicCompatibleProvider(providerId) {
   return typeof providerId === "string" && providerId.startsWith(ANTHROPIC_COMPATIBLE_PREFIX);
 }
 
+export function isCustomEmbeddingProvider(providerId) {
+  return typeof providerId === "string" && providerId.startsWith(CUSTOM_EMBEDDING_PREFIX);
+}
+
 // All providers (combined)
-export const AI_PROVIDERS = { ...FREE_PROVIDERS, ...OAUTH_PROVIDERS, ...APIKEY_PROVIDERS };
+export const AI_PROVIDERS = { ...FREE_PROVIDERS, ...FREE_TIER_PROVIDERS, ...OAUTH_PROVIDERS, ...APIKEY_PROVIDERS, ...WEB_COOKIE_PROVIDERS };
 
 // Auth methods
 export const AUTH_METHODS = {
-  oauth: { id: "oauth", name: "OAuth", icon: "lock" },
-  apikey: { id: "apikey", name: "API Key", icon: "key" },
+  oauth: { id: "oauth" },
+  apikey: { id: "apikey" },
+  cookie: { id: "cookie" },
 };
 
 // Helper: Get provider by alias
@@ -104,5 +144,25 @@ export const ID_TO_ALIAS = Object.values(AI_PROVIDERS).reduce((acc, p) => {
   return acc;
 }, {});
 
-// Providers that support usage/quota API
-export const USAGE_SUPPORTED_PROVIDERS = ["antigravity", "kiro", "github", "codex"];
+// Helper: Get providers by service kind (e.g. "tts", "embedding", "image")
+// Providers without serviceKinds default to ["llm"]
+export function getProvidersByKind(kind) {
+  return Object.values(AI_PROVIDERS)
+    .filter((p) => {
+      const kinds = p.serviceKinds ?? ["llm"];
+      if (!kinds.includes(kind)) return false;
+      if (p.hidden) return false;
+      if (p.hiddenKinds?.includes(kind)) return false;
+      return true;
+    })
+    .sort((a, b) => (a.priority ?? a.mediaPriority ?? 999) - (b.priority ?? b.mediaPriority ?? 999));
+}
+
+// Derive từ registry features flags
+export const USAGE_SUPPORTED_PROVIDERS = REGISTRY
+  .filter(r => r.features?.usage)
+  .map(r => r.id);
+
+export const USAGE_APIKEY_PROVIDERS = REGISTRY
+  .filter(r => r.features?.usageApikey)
+  .map(r => r.id);

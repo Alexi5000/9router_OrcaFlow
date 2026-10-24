@@ -5,6 +5,10 @@ const NPM_PACKAGE_NAME =
   pkg.private === true || !pkg.name || pkg.name === "orcaflow"
     ? null
     : pkg.name;
+const VERSION_CACHE_TTL_MS = 3600000; // cache npm latest lookup for 1h
+
+// Survive hot reload; one cache per process
+const versionCache = (global.__npmVersionCache ??= { value: null, fetchedAt: 0 });
 
 // Fetch latest version from npm registry
 function fetchLatestVersion() {
@@ -43,8 +47,20 @@ function compareVersions(a, b) {
   return 0;
 }
 
+async function getLatestVersionCached() {
+  if (versionCache.value && Date.now() - versionCache.fetchedAt < VERSION_CACHE_TTL_MS) {
+    return versionCache.value;
+  }
+  const latest = await fetchLatestVersion();
+  if (latest) {
+    versionCache.value = latest;
+    versionCache.fetchedAt = Date.now();
+  }
+  return latest;
+}
+
 export async function GET() {
-  const latestVersion = await fetchLatestVersion();
+  const latestVersion = await getLatestVersionCached();
   const currentVersion = pkg.version;
   const hasUpdate = latestVersion ? compareVersions(latestVersion, currentVersion) > 0 : false;
 

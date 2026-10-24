@@ -37,6 +37,8 @@ function sanitizeAttempts(attempts = []) {
 }
 
 export function normalizeRequestRoute(route = {}, fallback = {}) {
+  route = route && typeof route === "object" ? route : {};
+  fallback = fallback && typeof fallback === "object" ? fallback : {};
   const requestedModel = cleanString(route.requestedModel) || cleanString(fallback.requestedModel);
   const comboName = cleanString(route.comboName) || cleanString(fallback.comboName);
   const tierName = cleanString(route.tierName) || cleanString(fallback.tierName);

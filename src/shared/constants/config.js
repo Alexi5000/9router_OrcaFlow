@@ -7,6 +7,31 @@ export const APP_CONFIG = {
   version: pkg.version,
 };
 
+// GitHub configuration
+export const GITHUB_CONFIG = {
+  changelogUrl: "https://raw.githubusercontent.com/decolua/9router/refs/heads/master/CHANGELOG.md",
+  donateUrl: "https://9router.com/api/donate",
+};
+
+// Updater configuration
+export const UPDATER_CONFIG = {
+  npmPackageName: "9router",
+  installCmd: "npm i -g 9router",
+  installCmdLatest: "npm i -g 9router@latest --prefer-online",
+  shutdownCountdownSec: 3,
+  exitDelayMs: 500,
+  statusPort: 20129,
+  statusPollIntervalMs: 1000,
+  statusLogTailLines: 8,
+  installRetries: 3,
+  installRetryDelayMs: 5000,
+  lingerAfterDoneMs: 30000,
+  waitForExitMinMs: 5000,
+  waitForExitMaxMs: 20000,
+  waitForExitCheckMs: 500,
+  appPort: 20128,
+};
+
 // Theme configuration
 export const THEME_CONFIG = {
   storageKey: "theme",
@@ -34,19 +59,37 @@ export const CONSOLE_LOG_CONFIG = {
   pollIntervalMs: 1000,
 };
 
-// Provider API endpoints (for display only)
-export const PROVIDER_ENDPOINTS = {
-  openrouter: "https://openrouter.ai/api/v1/chat/completions",
-  glm: "https://api.z.ai/api/anthropic/v1/messages",
-  "glm-cn": "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions",
-  kimi: "https://api.kimi.com/coding/v1/messages",
-  minimax: "https://api.minimax.io/anthropic/v1/messages",
-  "minimax-cn": "https://api.minimaxi.com/anthropic/v1/messages",
-  alicode: "https://coding.dashscope.aliyuncs.com/v1/chat/completions",
-  "alicode-intl": "https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions",
-  openai: "https://api.openai.com/v1/chat/completions",
-  anthropic: "https://api.anthropic.com/v1/messages",
-  gemini: "https://generativelanguage.googleapis.com/v1beta/models",
+// Client-side store TTL: how long fetched data stays fresh before re-fetching
+export const CLIENT_STORE_TTL_MS = 60000;
+
+// Quota auto-ping: keep 5h windows warm by sending a tiny request right after reset.
+export const QUOTA_AUTOPING_CONFIG = {
+  tickIntervalMs: 60000,                // scheduler tick
+  pingLeadMs: 5000,                     // fire once reset passes (within tolerance)
+  refreshAheadMs: 300000,               // refetch usage when within 5min of reset
+  failureCooldownMs: 900000,            // avoid failed ping spam while upstream/auth is unhealthy
+  providers: {
+    claude: {
+      settingsKey: "claudeAutoPing",    // preserve existing settings contract
+      quotaKey: "session (5h)",         // quota key returned by usage handler
+      pingModel: "claude-haiku-4-5-20251001",
+      pingText: "hi",
+      pingMaxTokens: 1,
+    },
+    codex: {
+      settingsKey: "codexAutoPing",
+      quotaKey: "session",
+      pingWhenResetAtSlides: true,
+      resetAtDriftMs: 30000,
+      minPingIntervalMs: 600000,
+      skipWhenBlockingQuotaExhausted: true,
+      // gpt-5.6-terra is the lightweight model for auto-pinging Codex 5h reset window.
+      pingModel: "gpt-5.6-terra",
+      pingText: "hi",
+      pingInstructions: "Reply with OK.",
+      pingReasoningEffort: "none",
+    },
+  },
 };
 
 // Re-export from providers.js for backward compatibility
@@ -54,6 +97,7 @@ export {
   FREE_PROVIDERS,
   OAUTH_PROVIDERS,
   APIKEY_PROVIDERS,
+  WEB_COOKIE_PROVIDERS,
   AI_PROVIDERS,
   AUTH_METHODS,
 } from "./providers.js";

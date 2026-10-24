@@ -14,33 +14,8 @@ export const HTTP_STATUS = {
   GATEWAY_TIMEOUT: 504
 };
 
-// OpenAI-compatible error types mapping
-export const ERROR_TYPES = {
-  [HTTP_STATUS.BAD_REQUEST]: { type: "invalid_request_error", code: "bad_request" },
-  [HTTP_STATUS.UNAUTHORIZED]: { type: "authentication_error", code: "invalid_api_key" },
-  [HTTP_STATUS.FORBIDDEN]: { type: "permission_error", code: "insufficient_quota" },
-  [HTTP_STATUS.NOT_FOUND]: { type: "invalid_request_error", code: "model_not_found" },
-  [HTTP_STATUS.NOT_ACCEPTABLE]: { type: "invalid_request_error", code: "model_not_supported" },
-  [HTTP_STATUS.RATE_LIMITED]: { type: "rate_limit_error", code: "rate_limit_exceeded" },
-  [HTTP_STATUS.SERVER_ERROR]: { type: "server_error", code: "internal_server_error" },
-  [HTTP_STATUS.BAD_GATEWAY]: { type: "server_error", code: "bad_gateway" },
-  [HTTP_STATUS.SERVICE_UNAVAILABLE]: { type: "server_error", code: "service_unavailable" },
-  [HTTP_STATUS.GATEWAY_TIMEOUT]: { type: "server_error", code: "gateway_timeout" }
-};
-
-// Default error messages per status code
-export const DEFAULT_ERROR_MESSAGES = {
-  [HTTP_STATUS.BAD_REQUEST]: "Bad request",
-  [HTTP_STATUS.UNAUTHORIZED]: "Invalid API key provided",
-  [HTTP_STATUS.FORBIDDEN]: "You exceeded your current quota",
-  [HTTP_STATUS.NOT_FOUND]: "Model not found",
-  [HTTP_STATUS.NOT_ACCEPTABLE]: "Model not supported",
-  [HTTP_STATUS.RATE_LIMITED]: "Rate limit exceeded",
-  [HTTP_STATUS.SERVER_ERROR]: "Internal server error",
-  [HTTP_STATUS.BAD_GATEWAY]: "Bad gateway - upstream provider error",
-  [HTTP_STATUS.SERVICE_UNAVAILABLE]: "Service temporarily unavailable",
-  [HTTP_STATUS.GATEWAY_TIMEOUT]: "Gateway timeout"
-};
+// Re-export error config (backward compat)
+export { ERROR_TYPES, DEFAULT_ERROR_MESSAGES, BACKOFF_CONFIG, COOLDOWN_MS } from "./errorConfig.js";
 
 // Cache TTLs (seconds)
 export const CACHE_TTL = {
@@ -56,35 +31,71 @@ export const MEMORY_CONFIG = {
   proxyDispatchersMaxSize: 20,
 };
 
+// Parse a positive integer env override, falling back to a default.
+function envMs(name, def) {
+  const raw = process.env[name];
+  if (raw == null || raw === "") return def;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : def;
+}
+
+function envUrl(name, def) {
+  const raw = process.env[name]?.trim();
+  return raw || def;
+}
+
+// SearXNG endpoint used by the unauthenticated web-search provider.
+// Configure this for a separate Docker service or remote SearXNG instance.
+export const SEARXNG_URL = envUrl("SEARXNG_URL", "http://localhost:8888/search");
+
+// Inter-chunk stall timeout (once tokens are flowing). Generous headroom so
+// slow reasoning models aren't aborted mid-stream. Env: STREAM_STALL_TIMEOUT_MS.
+export const STREAM_STALL_TIMEOUT_MS = envMs("STREAM_STALL_TIMEOUT_MS", 360 * 1000);
+
+// Time-to-first-token timeout (prompt prefill). Env: STREAM_FIRST_CHUNK_TIMEOUT_MS.
+export const STREAM_FIRST_CHUNK_TIMEOUT_MS = envMs("STREAM_FIRST_CHUNK_TIMEOUT_MS", 200 * 1000);
+
+// Combo empty-content failover: how long a 2xx stream may be held while waiting for its first
+// content-bearing frame before committing to that model (fail-open on expiry).
+// Env: EMPTY_PEEK_DEADLINE_MS.
+export const EMPTY_PEEK_DEADLINE_MS = envMs("EMPTY_PEEK_DEADLINE_MS", 45 * 1000);
+
+// Fetch connect timeout: abort if upstream doesn't return response headers within this duration
+export const FETCH_CONNECT_TIMEOUT_MS = envMs("FETCH_CONNECT_TIMEOUT_MS", 60 * 1000);
+
+// Gemini native TTS fetch timeout: abort if Google does not return response headers in time.
+export const GEMINI_NATIVE_TTS_FETCH_TIMEOUT_MS = envMs("GEMINI_NATIVE_TTS_FETCH_TIMEOUT_MS", 45 * 1000);
+
 // Default token limits
 export const DEFAULT_MAX_TOKENS = 64000;
 export const DEFAULT_MIN_TOKENS = 32000;
 
-// Retry config for 429 responses
+export const TOKEN_SAVER_HEADER = "x-9router-token-saver";
+
+// Retry config for 429 responses (legacy - kept for backward compatibility)
 export const RETRY_CONFIG = {
   maxAttempts: 2,
   delayMs: 2000
 };
 
-// Exponential backoff config for rate limits
-export const BACKOFF_CONFIG = {
-  base: 1000,
-  max: 2 * 60 * 1000,
-  maxLevel: 15
+// Default retry config by status code: { attempts, delayMs }
+// Backward compat: if value is a number, treated as attempts with RETRY_CONFIG.delayMs
+export const DEFAULT_RETRY_CONFIG = {
+  429: { attempts: 0, delayMs: 0 },
+  502: { attempts: 3, delayMs: 3000 },
+  503: { attempts: 3, delayMs: 2000 },
+  504: { attempts: 2, delayMs: 3000 }
 };
 
-// Error-based cooldown times
-export const COOLDOWN_MS = {
-  unauthorized: 2 * 60 * 1000,
-  paymentRequired: 2 * 60 * 1000,
-  notFound: 2 * 60 * 1000,
-  transient: 30 * 1000,
-  requestNotAllowed: 5 * 1000,
-  // Legacy aliases
-  rateLimit: 2 * 60 * 1000,
-  serviceUnavailable: 2 * 1000,
-  authExpired: 2 * 60 * 1000
-};
+// Normalize a retry entry to { attempts, delayMs }
+export function resolveRetryEntry(entry) {
+  if (entry == null) return { attempts: 0, delayMs: RETRY_CONFIG.delayMs };
+  if (typeof entry === "number") return { attempts: entry, delayMs: RETRY_CONFIG.delayMs };
+  return {
+    attempts: entry.attempts || 0,
+    delayMs: entry.delayMs != null ? entry.delayMs : RETRY_CONFIG.delayMs
+  };
+}
 
 // Requests containing these texts will bypass provider
 export const SKIP_PATTERNS = [

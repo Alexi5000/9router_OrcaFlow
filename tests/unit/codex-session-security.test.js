@@ -12,7 +12,7 @@ describe("Codex session headers", () => {
     const executor = new CodexExecutor();
     const ids = Array.from({ length: 100 }, () => executor.buildHeaders({}).session_id);
     expect(new Set(ids).size).toBe(ids.length);
-    for (const id of ids) expect(id).toMatch(/^1234567890000-[a-f0-9]{32}$/);
+    for (const id of ids) expect(id).toMatch(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
   });
 
   it("preserves authorization and stream negotiation", () => {

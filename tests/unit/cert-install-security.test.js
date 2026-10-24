@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 const source = fs.readFileSync(new URL("../../src/mitm/cert/install.js", import.meta.url), "utf8");
 const malicious = "/tmp/ca ' \" $(touch injected) `whoami`; & %.crt";
 
-function load(platform, fail = () => false, installed = false) {
+function load(platform, fail = () => false, installed = false, nss = false) {
   const calls = [];
   const passwords = [];
   const execFile = vi.fn((file, args, options, callback) => {
@@ -29,7 +29,8 @@ function load(platform, fail = () => false, installed = false) {
     require: name => {
       if (name === "child_process") return { execFile, exec: () => { throw new Error("shell execution forbidden"); } };
       if (name === "../dns/dnsConfig.js") return { execWithPassword: () => { throw new Error("privileged shell execution forbidden"); } };
-      if (name === "fs") return { existsSync: value => value === malicious || installed, readFileSync: () => "certificate" };
+      if (name === "fs") return { existsSync: value => value === malicious || installed || (nss && value === "/tmp/user/.pki/nssdb"), readFileSync: () => "certificate" };
+      if (name === "os") return { homedir: () => "/tmp/user" };
       return require(name);
     },
   });
@@ -83,7 +84,7 @@ describe("certificate command boundaries", () => {
   it("removes the Linux certificate with literal arguments and reports refresh failure", async () => {
     const api = load("linux", (file, args) => args.some(arg => arg.startsWith("update-ca-")), true);
     await expect(api.uninstallCert("password", malicious)).rejects.toThrow("Failed to uninstall certificate");
-    expect(api.calls[0].args).toEqual(["-S", "--", "rm", "-f", "--", "/usr/local/share/ca-certificates/9router-root-ca.crt"]);
+    expect(api.calls.find(call => call.file === "sudo").args).toEqual(["-S", "--", "rm", "-f", "--", "/usr/local/share/ca-certificates/9router-root-ca.crt"]);
   });
 
   it("keeps the Windows path out of outer shell parsing and preserves the elevated exit status", async () => {
@@ -112,4 +113,25 @@ describe("certificate command boundaries", () => {
     expect(api.calls).toHaveLength(1);
     expect(api.passwords).toEqual([]);
   });
+});
+
+
+it("passes the NSS browser certificate path as a literal argument", async () => {
+  const api = load("linux", () => false, false, true);
+  await api.installCert("password", malicious);
+  expect(api.calls.find(call => call.file === "certutil").args).toEqual(["-d", "sql:/tmp/user/.pki/nssdb", "-A", "-t", "C,,", "-n", "9Router MITM Root CA", "-i", path.resolve(malicious)]);
+});
+
+it("runs shared Windows elevation without an outer command shell", async () => {
+  const calls = [];
+  const module = { exports: {} };
+  vm.runInNewContext(fs.readFileSync(new URL("../../src/mitm/winElevated.js", import.meta.url), "utf8"), {
+    module, Buffer, process: { platform: "win32" },
+    require: () => ({ execFileSync: () => { throw new Error("not admin"); }, execFile: (file, args, options, callback) => { calls.push({ file, args }); callback(null, "ok", ""); } }),
+  });
+  await module.exports.runElevatedPowerShell("Write-Output 'literal & % PATH'");
+  expect(calls[0].file).toBe("powershell");
+  expect(calls[0].args.at(-2)).toBe("-Command");
+  expect(calls[0].args.at(-1)).toContain("-Wait -PassThru");
+  expect(calls[0].args.at(-1)).not.toContain("literal & % PATH");
 });

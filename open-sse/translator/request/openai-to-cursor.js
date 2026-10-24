@@ -1,105 +1,167 @@
 /**
  * OpenAI to Cursor Request Translator
- * - assistant tool_calls → kept as-is (Cursor generates tool calls)
- * - Claude tool_use blocks → converted to OpenAI tool_calls format
- * - tool results → converted to user message string
+ * Converts OpenAI messages to Cursor ask/agent format.
+ *
+ * Important: Cursor can loop when tool outputs are sent via protobuf tool_results
+ * with partial schema mismatches. For stability, tool outputs are represented as
+ * structured text blocks in user messages.
  */
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
+import { ROLE, OPENAI_BLOCK, CLAUDE_BLOCK } from "../schema/index.js";
+import { DEFAULT_MIN_TOKENS } from "../../config/runtimeConfig.js";
 
 function extractContent(content) {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
-    return content.filter(p => p.type === "text").map(p => p.text).join("");
+    return content
+      .filter(part => {
+        if (!part || typeof part !== "object") return false;
+        return part.type === OPENAI_BLOCK.TEXT && typeof part.text === "string";
+      })
+      .map(part => part.text || "")
+      .join("");
   }
   return "";
 }
 
-// Build a map of tool_use_id → tool_name from the previous assistant message
-function getToolNameMap(prevMsg) {
-  const map = {};
-  if (!prevMsg?.tool_calls) return map;
-  for (const tc of prevMsg.tool_calls) {
-    if (tc.id && tc.function?.name) map[tc.id] = tc.function.name;
-  }
-  return map;
+function sanitizeToolResultText(text) {
+  // Strip non-printable control chars that can produce backend request errors
+  return text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+}
+
+function escapeXml(text) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function buildToolResultBlock(toolName, toolCallId, resultText) {
+  const cleanResult = sanitizeToolResultText(resultText || "");
+  return [
+    "<tool_result>",
+    `<tool_name>${escapeXml(toolName || "tool")}</tool_name>`,
+    `<tool_call_id>${escapeXml(toolCallId || "")}</tool_call_id>`,
+    `<result>${escapeXml(cleanResult)}</result>`,
+    "</tool_result>"
+  ].join("\n");
+}
+
+function normalizeToolCallId(id) {
+  return typeof id === "string" ? id.split("\n")[0] : "";
 }
 
 function convertMessages(messages) {
   const result = [];
+  
+  // Build a map of tool_call_id -> tool name from assistant tool calls
+  const toolCallMetaMap = new Map();
+  const rememberToolMeta = (toolCallId, toolName) => {
+    if (!toolCallId) return;
+    const name = toolName || "tool";
+    toolCallMetaMap.set(toolCallId, { name });
+    const normalized = normalizeToolCallId(toolCallId);
+    if (normalized && normalized !== toolCallId) {
+      toolCallMetaMap.set(normalized, { name });
+    }
+  };
+
+  for (const msg of messages) {
+    if (msg.role === ROLE.ASSISTANT && msg.tool_calls) {
+      for (const tc of msg.tool_calls) {
+        rememberToolMeta(tc.id || "", tc.function?.name || "tool");
+      }
+    }
+    if (msg.role === ROLE.ASSISTANT && Array.isArray(msg.content)) {
+      for (const part of msg.content) {
+        if (part?.type !== CLAUDE_BLOCK.TOOL_USE) continue;
+        rememberToolMeta(part.id || "", part.name || "tool");
+      }
+    }
+  }
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
 
-    if (msg.role === "system") {
-      result.push({ role: "user", content: `[System Instructions]\n${msg.content}` });
-      continue;
-    }
-
-    if (msg.role === "user") {
-      if (Array.isArray(msg.content)) {
-        const parts = [];
-        const prevMsg = result[result.length - 1];
-        const nameMap = getToolNameMap(prevMsg);
-        for (const block of msg.content) {
-          if (block.type === "text") {
-            parts.push(block.text);
-          } else if (block.type === "tool_result") {
-            // Claude format: user message with tool_result blocks
-            const toolResultText = extractContent(block.content) || "";
-            const toolCallId = block.tool_use_id || "";
-            const toolName = nameMap[toolCallId] || "";
-            parts.push(`<tool_result>\n<tool_name>${toolName}</tool_name>\n<tool_call_id>${toolCallId}</tool_call_id>\n<result>${toolResultText}</result>\n</tool_result>`);
-          }
-        }
-        result.push({ role: "user", content: parts.join("\n") || "" });
-      } else {
-        result.push({ role: "user", content: extractContent(msg.content) || "" });
-      }
-      continue;
-    }
-
-    if (msg.role === "tool") {
-      // Strip system-reminder tags injected by Claude Code
-      const raw = extractContent(msg.content) || "";
-      const toolContent = raw.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim();
-      const prevMsg = result[result.length - 1];
-      const nameMap = getToolNameMap(prevMsg);
-      const toolCallId = msg.tool_call_id || "";
-      const toolName = nameMap[toolCallId] || "";
+    if (msg.role === ROLE.SYSTEM) {
       result.push({
-        role: "user",
-        content: `<tool_result>\n<tool_name>${toolName}</tool_name>\n<tool_call_id>${toolCallId}</tool_call_id>\n<result>${toolContent}</result>\n</tool_result>`
+        role: ROLE.USER,
+        content: `[System Instructions]\n${extractContent(msg.content)}`
       });
       continue;
     }
 
-    if (msg.role === "assistant") {
-      let content = extractContent(msg.content) || "";
-      let tool_calls = null;
+    if (msg.role === ROLE.TOOL) {
+      const toolContent = extractContent(msg.content);
+      const toolCallId = msg.tool_call_id || "";
+      const toolMeta = toolCallMetaMap.get(toolCallId) || {};
+      const toolName = msg.name || toolMeta.name || "tool";
+      result.push({
+        role: ROLE.USER,
+        content: buildToolResultBlock(toolName, toolCallId, toolContent)
+      });
+      continue;
+    }
 
-      if (msg.tool_calls && msg.tool_calls.length > 0) {
-        // OpenAI format: strip `index` field
-        tool_calls = msg.tool_calls.map(({ index, ...tc }) => tc);
-      } else if (Array.isArray(msg.content)) {
-        // Claude format: extract tool_use blocks from content array
-        const extracted = msg.content
-          .filter(b => b.type === "tool_use")
-          .map(b => ({
-            id: b.id,
-            type: "function",
-            function: {
-              name: b.name,
-              arguments: JSON.stringify(b.input || {})
+    if (msg.role === ROLE.USER || msg.role === ROLE.ASSISTANT) {
+      if (msg.role === ROLE.USER && Array.isArray(msg.content)) {
+        const parts = [];
+        for (const block of msg.content) {
+          if (!block || typeof block !== "object") continue;
+          if (block.type === CLAUDE_BLOCK.TEXT) {
+            if (typeof block.text === "string") {
+              parts.push(block.text || "");
             }
-          }));
-        if (extracted.length > 0) tool_calls = extracted;
+            continue;
+          }
+          if (block.type === CLAUDE_BLOCK.TOOL_RESULT) {
+            const toolCallId = block.tool_use_id || "";
+            const toolMeta =
+              toolCallMetaMap.get(toolCallId) ||
+              toolCallMetaMap.get(normalizeToolCallId(toolCallId));
+            const toolName = toolMeta?.name || "tool";
+            const toolContent = extractContent(block.content);
+            parts.push(buildToolResultBlock(toolName, toolCallId, toolContent));
+          }
+        }
+        const joined = parts.filter(Boolean).join("\n");
+        if (joined) result.push({ role: ROLE.USER, content: joined });
+        continue;
       }
 
-      if (tool_calls) {
-        result.push({ role: "assistant", content, tool_calls });
-      } else if (content) {
-        result.push({ role: "assistant", content });
+      const content = extractContent(msg.content);
+
+      if (msg.role === ROLE.ASSISTANT && msg.tool_calls && msg.tool_calls.length > 0) {
+        const assistantMsg = { role: ROLE.ASSISTANT, content: content || "" };
+        assistantMsg.tool_calls = msg.tool_calls.map(tc => {
+          const { index, ...rest } = tc || {};
+          return rest;
+        });
+        result.push(assistantMsg);
+      } else if (msg.role === ROLE.ASSISTANT && Array.isArray(msg.content)) {
+        const extractedToolCalls = msg.content
+          .filter(b => b?.type === CLAUDE_BLOCK.TOOL_USE)
+          .map(b => ({
+            id: b.id || "",
+            type: OPENAI_BLOCK.FUNCTION,
+            function: {
+              name: b.name || "tool",
+              arguments: JSON.stringify(b.input || {})
+            }
+          }))
+          .filter(tc => tc.id);
+
+        if (extractedToolCalls.length > 0) {
+          result.push({
+            role: ROLE.ASSISTANT,
+            content: content || "",
+            tool_calls: extractedToolCalls
+          });
+        } else if (content) {
+          result.push({ role: ROLE.ASSISTANT, content });
+        }
+      } else {
+        if (content) {
+          result.push({ role: msg.role, content });
+        }
       }
     }
   }
@@ -107,15 +169,17 @@ function convertMessages(messages) {
   return result;
 }
 
-export function buildCursorRequest(model, body, stream, credentials) {
+export function openaiToCursorRequest(model, body, stream, credentials) {
   const messages = convertMessages(body.messages || []);
+
   // Strip fields irrelevant to Cursor (OpenAI/Anthropic-specific)
   const { user, metadata, tool_choice, stream_options, system, ...rest } = body;
+
   return {
     ...rest,
     messages,
-    max_tokens: 32000
+    max_tokens: DEFAULT_MIN_TOKENS
   };
 }
 
-register(FORMATS.OPENAI, FORMATS.CURSOR, buildCursorRequest, null);
+register(FORMATS.OPENAI, FORMATS.CURSOR, openaiToCursorRequest, null);

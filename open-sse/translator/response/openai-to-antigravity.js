@@ -1,5 +1,7 @@
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
+import { GEMINI_ROLE, OPENAI_FINISH, GEMINI_FINISH } from "../schema/index.js";
+import { extractReasoningText } from "../concerns/reasoning.js";
 
 // Convert OpenAI SSE chunk to Antigravity SSE format
 // Real Antigravity format:
@@ -26,9 +28,13 @@ export function openaiToAntigravityResponse(chunk, state) {
 
   const parts = [];
 
-  // Thinking/reasoning → thought part
-  if (delta.reasoning_content) {
-    parts.push({ thought: true, text: delta.reasoning_content });
+  // Thinking/reasoning → thought part (reasoning_content, plus the vendor
+  // aliases `reasoning` / `reasoning_details[]` some lanes — OpenCode Free's
+  // MiMo route — stream instead; same extraction the Claude/Responses
+  // translators use, so an alias-only chunk is not dropped as empty)
+  const reasoningText = extractReasoningText(delta);
+  if (reasoningText) {
+    parts.push({ thought: true, text: reasoningText });
   }
 
   // Text content
@@ -59,9 +65,11 @@ export function openaiToAntigravityResponse(chunk, state) {
       const accum = state._toolCallAccum[idx];
       let args = {};
       try { args = JSON.parse(accum.arguments); } catch { /* empty */ }
+      // Restore original tool name if it was prefixed during cloaking
+      const originalName = state.toolNameMap?.get(accum.name) || accum.name;
       parts.push({
         functionCall: {
-          name: accum.name,
+          name: originalName,
           args
         }
       });
@@ -77,17 +85,17 @@ export function openaiToAntigravityResponse(chunk, state) {
   }
 
   // Build candidate
-  const candidate = { content: { role: "model", parts } };
+  const candidate = { content: { role: GEMINI_ROLE.MODEL, parts } };
 
   // Finish reason mapping
   if (finishReason) {
     const reasonMap = {
-      "stop": "STOP",
-      "length": "MAX_TOKENS",
-      "tool_calls": "STOP",
-      "content_filter": "SAFETY"
+      [OPENAI_FINISH.STOP]: GEMINI_FINISH.STOP,
+      [OPENAI_FINISH.LENGTH]: GEMINI_FINISH.MAX_TOKENS,
+      [OPENAI_FINISH.TOOL_CALLS]: GEMINI_FINISH.STOP,
+      [OPENAI_FINISH.CONTENT_FILTER]: GEMINI_FINISH.SAFETY
     };
-    candidate.finishReason = reasonMap[finishReason] || "STOP";
+    candidate.finishReason = reasonMap[finishReason] || GEMINI_FINISH.STOP;
   }
 
   // Build response

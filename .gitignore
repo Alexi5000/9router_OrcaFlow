@@ -15,10 +15,13 @@
 
 # next.js
 /.next/
+/.next-cli-build/
 /out/
-
+cli/.build-home/
+product
 # production
 /build
+.idea/
 
 # misc
 .DS_Store
@@ -49,7 +52,6 @@ source/*
 docs/*
 !docs/ARCHITECTURE.md
 test/*
-bin/*
 open-sse/test/*
 RM.vn.md
 RM.md
@@ -64,6 +66,40 @@ package-lock.json
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
 README1.md
-deploy.sh
+deploy*.sh
 ecosystem.config.*
 start.sh
+
+scripts/agSniffer/*
+gitbooks/*
+gitbook/README.md
+
+# Refactor backup reference (do not bundle/lint)
+open-sse.old/
+.graphifyignore
+graphify-out/*
+
+# Local-only working dirs (notes, vendored repos, scripts, skills)
+.claude/
+.docs/
+.repo/
+.script/
+.codegraph/
+.PR/
+.next-analyze/*
+
+# Kiro local workspace state
+.kiro/
+9router-*
+
+# Local sensitive / temp files
+.engine-token.txt
+.tmp-prov.json
+.tmp-providers.json
+.oauth-session.json
+.dev-server.log
+.dev-server-err.log
+.start-dev.ps1
+start-dev-silent.cjs
+debug.log
+.scratch/

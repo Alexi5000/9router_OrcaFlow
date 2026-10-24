@@ -13,12 +13,14 @@ function CallbackContent() {
 
   useEffect(() => {
     const code = searchParams.get("code");
+    const token = searchParams.get("token");
     const state = searchParams.get("state");
     const error = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");
 
     const callbackData = {
       code,
+      token,
       state,
       error,
       errorDescription,
@@ -28,6 +30,10 @@ function CallbackContent() {
     let relayed = false;
 
     // Method 1: postMessage to opener (popup mode)
+    // Send once per expected origin. The browser delivers the message only
+    // when the opener's origin matches the targetOrigin we pass — using "*"
+    // here would leak the code/state to any opener (e.g. an attacker page
+    // that opened this URL in a popup), so iterate over the allowlist.
     if (window.opener) {
       try {
         for (const origin of callbackTargetOrigins(window.location.origin)) {
@@ -57,7 +63,7 @@ function CallbackContent() {
       console.log("localStorage failed:", e);
     }
 
-    if (!(code || error)) {
+    if (!(code || token || error)) {
       setTimeout(() => setStatus("manual"), 0);
       return;
     }

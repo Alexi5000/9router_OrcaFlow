@@ -7,13 +7,13 @@ describe("request-scoped 400 errors", () => {
   it("does not fallback or cooldown for invalid model IDs", () => {
     expect(
       checkFallbackError(400, "hunter-alpha is not a valid model ID")
-    ).toEqual({ shouldFallback: false, cooldownMs: 0 });
+    ).toEqual({ shouldFallback: false, cooldownMs: 0, requestScoped: true });
   });
 
   it("does not fallback or cooldown for generic bad requests", () => {
     expect(
       checkFallbackError(400, "Invalid JSON body")
-    ).toEqual({ shouldFallback: false, cooldownMs: 0 });
+    ).toEqual({ shouldFallback: false, cooldownMs: 0, requestScoped: true });
   });
 
   it("still falls back for transient provider 400s", () => {
