@@ -189,7 +189,7 @@ export default class TraeExecutor extends BaseExecutor {
     try {
       session = await this.createSession(headers, query, model, psd, signal);
     } catch (err) {
-      return { response: errResponse(502, err?.message ? String(err.message) : String(err)), url: this.base(), headers, transformedBody: body };
+      return { response: errResponse(502, "Upstream provider request failed"), url: this.base(), headers, transformedBody: body };
     }
 
     // Shared per-turn state: plan_item thoughts (cumulative, longest wins).
@@ -303,7 +303,7 @@ export default class TraeExecutor extends BaseExecutor {
         return ev === "done";
       }, signal);
     } catch (err) {
-      return { response: errResponse(502, err?.message ? String(err.message) : String(err)), url: this.base(), headers, transformedBody: body };
+      return { response: errResponse(502, "Upstream provider request failed"), url: this.base(), headers, transformedBody: body };
     }
     if (errorEvent) {
       return { response: errResponse(502, `trae ${errorEvent.code || ""}: ${errorEvent.message || ""}`), url: this.base(), headers, transformedBody: body };

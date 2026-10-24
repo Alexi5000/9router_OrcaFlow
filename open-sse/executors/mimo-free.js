@@ -1,7 +1,7 @@
 import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
-import { createHash } from "crypto";
+import { createHash, randomInt } from "crypto";
 import os from "os";
 
 const BOOTSTRAP_URL = "https://api.xiaomimimo.com/api/free-ai/bootstrap";
@@ -44,7 +44,7 @@ function generateFingerprint() {
 function generateSessionId() {
   let id = SESSION_AFFINITY_PREFIX;
   for (let i = 0; i < SESSION_ID_LENGTH; i++) {
-    id += SESSION_CHARS[Math.floor(Math.random() * SESSION_CHARS.length)];
+    id += SESSION_CHARS[randomInt(SESSION_CHARS.length)];
   }
   return id;
 }

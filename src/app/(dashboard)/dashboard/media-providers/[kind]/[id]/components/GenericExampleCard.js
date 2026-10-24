@@ -30,8 +30,12 @@ function getImageEditDefaults(providerId, modelId) {
 function toImagePreviewSrc(value) {
   const trimmed = typeof value === "string" ? value.trim() : "";
   if (!trimmed) return "";
-  if (/^(data:image\/|https?:\/\/)/i.test(trimmed)) return trimmed;
-  return `data:image/png;base64,${trimmed}`;
+  if (/^data:image\/(?:png|jpeg|gif|webp|avif);base64,[A-Za-z0-9+/=]+$/i.test(trimmed)) return trimmed;
+  if (/^[A-Za-z0-9+/=]+$/.test(trimmed)) return `data:image/png;base64,${trimmed}`;
+  try {
+    const parsed = new URL(trimmed);
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed.href : "";
+  } catch { return ""; }
 }
 
 export function GenericExampleCard({ providerId, kind }) {
@@ -142,7 +146,7 @@ export function GenericExampleCard({ providerId, kind }) {
   const apiPathWithQuery = `${apiPath}${wantBinary ? "?response_format=binary" : ""}`;
   const headersPreview = `-H "Content-Type: application/json" \\\n  -H "Authorization: Bearer ${apiKey || "YOUR_KEY"}"${pinnedConnectionId ? ` \\\n  -H "x-connection-id: ${pinnedConnectionId}"` : ""}${useStreaming ? ` \\\n  -H "Accept: text/event-stream"` : ""}`;
   const curlSnippet = `curl -X ${kindConfig.endpoint.method} ${endpoint}${apiPathWithQuery} \\
-  ${headersPreview.replace(/\\\n  /g, "\\\n  ")} \\
+  ${headersPreview} \\
   -d '${JSON.stringify(requestBody)}'${wantBinary ? " \\\n  --output image.png" : ""}`;
 
   const handleRun = async () => {

@@ -176,13 +176,13 @@ export const parseSttBlock = (yaml) => {
   let current = null;
   for (const line of lines) {
     if (/^  \S/.test(line)) {
-      const kv = line.match(/^  ([A-Za-z0-9_]+):[ \t]*(.*)$/);
+      const kv = line.match(/^  ([A-Za-z0-9_]+):(.*)$/);
       current = null;
-      if (kv && kv[2] !== "") direct[kv[1]] = stripYamlQuotes(kv[2]);
+      if (kv && kv[2].trim() !== "") direct[kv[1]] = stripYamlQuotes(kv[2]);
       else if (kv) current = kv[1]; // valueless key = sub-block head
     } else if (current === "openai" && /^ {4,}\S/.test(line)) {
-      const kv = line.match(/^ {4,}([A-Za-z0-9_]+):[ \t]*(.*)$/);
-      if (kv && kv[2] !== "") openai[kv[1]] = stripYamlQuotes(kv[2]);
+      const kv = line.match(/^ {4,}([A-Za-z0-9_]+):(.*)$/);
+      if (kv && kv[2].trim() !== "") openai[kv[1]] = stripYamlQuotes(kv[2]);
     }
   }
   return {
