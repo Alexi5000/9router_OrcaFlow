@@ -39,11 +39,15 @@ function isModuleMissing(error) {
 
 function npmInstall(pkg, version) {
   const cwd = getRuntimeDir();
-  fs.mkdirSync(cwd, { recursive: true });
+  // The data dir can fall back to os.tmpdir(), so keep the runtime dir private.
+  fs.mkdirSync(cwd, { recursive: true, mode: 0o700 });
   // Anchor npm to the runtime dir so it can't adopt a parent package.json as install root.
+  // Exclusive create avoids the check-then-write race on a shared temp dir.
   const manifest = path.join(cwd, "package.json");
-  if (!fs.existsSync(manifest)) {
-    fs.writeFileSync(manifest, JSON.stringify({ name: "9router-runtime", private: true }, null, 2));
+  try {
+    fs.writeFileSync(manifest, JSON.stringify({ name: "9router-runtime", private: true }, null, 2), { flag: "wx", mode: 0o600 });
+  } catch (error) {
+    if (error?.code !== "EEXIST") throw error;
   }
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   const args = ["install", "--no-audit", "--no-fund", "--prefer-online", `${pkg}@${version}`];
