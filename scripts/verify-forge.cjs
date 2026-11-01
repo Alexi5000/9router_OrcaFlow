@@ -1,17 +1,30 @@
 const assert = require('node:assert/strict');
-const { createHash, generateKeyPairSync, privateEncrypt, constants } = require('node:crypto');
+const { generateKeyPairSync, privateEncrypt, constants } = require('node:crypto');
 const { readFileSync, existsSync } = require('node:fs');
 const { createRequire } = require('node:module');
 const path = require('node:path');
 
+// GHSA-86w9-cpqp-85rv is fixed upstream in node-forge 1.4.1+ (1.4.2 is the pinned release).
+const MINIMUM = [1, 4, 2];
+const atLeastMinimum = (version) => {
+  const parts = String(version).split(/[.+-]/).slice(0, 3).map(Number);
+  for (let i = 0; i < 3; i += 1) {
+    if (parts[i] !== MINIMUM[i]) return parts[i] > MINIMUM[i];
+  }
+  return true;
+};
+
 const root = path.resolve(__dirname, '..');
-const manifest = JSON.parse(readFileSync(path.join(root, 'vendor/node-forge/integrity.json')));
 const locations = process.argv.slice(2);
 const consumers = locations.length ? locations : ['package.json'];
 for (const lockPath of ['pnpm-lock.yaml', 'agents/pnpm-lock.yaml']) {
   const file = path.join(root, lockPath);
   if (existsSync(file)) {
-    assert.ok(!/(?<![\w/-])node-forge@[0-9]/.test(readFileSync(file, 'utf8')), `${lockPath}: registry forge copy remains`);
+    const text = readFileSync(file, 'utf8');
+    assert.ok(!/vendor\/node-forge/.test(text), `${lockPath}: stale vendored forge reference remains`);
+    for (const [, version] of text.matchAll(/(?<![\w/-])node-forge@([0-9][^:\s(]*)/g)) {
+      assert.ok(atLeastMinimum(version), `${lockPath}: node-forge@${version} is below ${MINIMUM.join('.')}`);
+    }
   }
 }
 for (const lockPath of ['package-lock.json', 'agents/package-lock.json']) {
@@ -20,7 +33,7 @@ for (const lockPath of ['package-lock.json', 'agents/package-lock.json']) {
     const lock = JSON.parse(readFileSync(file, 'utf8'));
     for (const [location, metadata] of Object.entries(lock.packages || {})) {
       if (/(^|\/)node_modules\/node-forge$/.test(location)) {
-        assert.match(metadata.resolved || '', /^file:.*vendor\/node-forge-1\.4\.0\.tgz$/, `${lockPath}: ${location}`);
+        assert.ok(atLeastMinimum(metadata.version), `${lockPath}: ${location} is ${metadata.version}`);
       }
     }
   }
@@ -33,9 +46,9 @@ for (const consumer of consumers) {
   const load = createRequire(path.join(root, consumer));
   const resolved = load.resolve('node-forge');
   const packageRoot = path.dirname(path.dirname(resolved));
-  for (const [file, expected] of Object.entries(manifest)) {
-    assert.equal(createHash('sha256').update(readFileSync(path.join(packageRoot, file))).digest('hex'), expected, `${consumer}: ${file}`);
-  }
+  const installed = JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
+  assert.equal(installed.name, 'node-forge', `${consumer}: unexpected package at ${packageRoot}`);
+  assert.ok(atLeastMinimum(installed.version), `${consumer}: installed node-forge ${installed.version} is below ${MINIMUM.join('.')}`);
   const forge = load('node-forge');
   const publicKey = forge.pki.publicKeyFromPem(publicPem);
   const privateKey = forge.pki.privateKeyFromPem(privatePem);
@@ -69,4 +82,4 @@ for (const consumer of consumers) {
   const roundtrip = forge.pki.certificateFromPem(forge.pki.certificateToPem(certificate));
   assert.equal(roundtrip.verify(roundtrip), true);
 }
-console.log('Forge source integrity, malformed signature rejection, valid signatures and certificate round-trip passed.');
+console.log('Forge version floor, malformed signature rejection, valid signatures and certificate round-trip passed.');
