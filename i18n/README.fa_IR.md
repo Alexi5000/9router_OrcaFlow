@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./images/9router.png?1" alt="داشبورد 9Router" width="800"/>
+  <img src="../images/9router.png?1" alt="داشبورد 9Router" width="800"/>
   
   # 9Router - مسیریاب رایگان هوش مصنوعی و ذخیره‌ساز توکن
   
@@ -17,7 +17,7 @@
 
 [🚀 شروع سریع](#-شروع-سریع) • [💡 ویژگی‌ها](#-ویژگی‌های-کلیدی) • [📖 راه‌اندازی](#-راهنمای-راه‌اندازی) • [🌐 وب‌سایت](https://9router.com)
 
-[🇻🇳 Tiếng Việt](./i18n/README.vi.md) • [🇨🇳 中文](./i18n/README.zh-CN.md) • [🇯🇵 日本語](./i18n/README.ja-JP.md) • [🇷🇺 Русский](./i18n/README.ru.md) • [🇮🇷 فارسی](./i18n/README.fa_IR.md)
+[🇻🇳 Tiếng Việt](./README.vi.md) • [🇨🇳 中文](./README.zh-CN.md) • [🇯🇵 日本語](./README.ja-JP.md) • [🇷🇺 Русский](./README.ru.md) • [🇮🇷 فارسی](./README.fa_IR.md)
 
 </div>
 
@@ -225,53 +225,53 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
   <table>
     <tr>
       <td align="center" width="120">
-        <img src="./public/providers/claude.png" width="60" alt="Claude Code"/><br/>
+        <img src="../public/providers/claude.png" width="60" alt="Claude Code"/><br/>
         <b>Claude-Code</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/openclaw.png" width="60" alt="OpenClaw"/><br/>
+        <img src="../public/providers/openclaw.png" width="60" alt="OpenClaw"/><br/>
         <b>OpenClaw</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/codex.png" width="60" alt="Codex"/><br/>
+        <img src="../public/providers/codex.png" width="60" alt="Codex"/><br/>
         <b>Codex</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/opencode.png" width="60" alt="OpenCode"/><br/>
+        <img src="../public/providers/opencode.png" width="60" alt="OpenCode"/><br/>
         <b>OpenCode</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/cursor.png" width="60" alt="Cursor"/><br/>
+        <img src="../public/providers/cursor.png" width="60" alt="Cursor"/><br/>
         <b>Cursor</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/antigravity.png" width="60" alt="Antigravity"/><br/>
+        <img src="../public/providers/antigravity.png" width="60" alt="Antigravity"/><br/>
         <b>Antigravity</b>
       </td>
     </tr>
     <tr>
       <td align="center" width="120">
-        <img src="./public/providers/cline.png" width="60" alt="Cline"/><br/>
+        <img src="../public/providers/cline.png" width="60" alt="Cline"/><br/>
         <b>Cline</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/continue.png" width="60" alt="Continue"/><br/>
+        <img src="../public/providers/continue.png" width="60" alt="Continue"/><br/>
         <b>Continue</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/droid.png" width="60" alt="Droid"/><br/>
+        <img src="../public/providers/droid.png" width="60" alt="Droid"/><br/>
         <b>Droid</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/roo.png" width="60" alt="Roo"/><br/>
+        <img src="../public/providers/roo.png" width="60" alt="Roo"/><br/>
         <b>Roo</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/copilot.png" width="60" alt="Copilot"/><br/>
+        <img src="../public/providers/copilot.png" width="60" alt="Copilot"/><br/>
         <b>Copilot</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/kilocode.png" width="60" alt="Kilo Code"/><br/>
+        <img src="../public/providers/kilocode.png" width="60" alt="Kilo Code"/><br/>
         <b>Kilo Code</b>
       </td>
     </tr>
@@ -288,27 +288,27 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
   <table>
     <tr>
       <td align="center" width="120">
-        <img src="./public/providers/claude.png" width="60" alt="Claude Code"/><br/>
+        <img src="../public/providers/claude.png" width="60" alt="Claude Code"/><br/>
         <b>Claude-Code</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/antigravity.png" width="60" alt="Antigravity"/><br/>
+        <img src="../public/providers/antigravity.png" width="60" alt="Antigravity"/><br/>
         <b>Antigravity</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/codex.png" width="60" alt="Codex"/><br/>
+        <img src="../public/providers/codex.png" width="60" alt="Codex"/><br/>
         <b>Codex</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/github.png" width="60" alt="GitHub"/><br/>
+        <img src="../public/providers/github.png" width="60" alt="GitHub"/><br/>
         <b>GitHub</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/cursor.png" width="60" alt="Cursor"/><br/>
+        <img src="../public/providers/cursor.png" width="60" alt="Cursor"/><br/>
         <b>Cursor</b>
       </td>
       <td align="center" width="120">
-        <img src="./public/providers/kimchi.png" width="60" alt="Kimchi"/><br/>
+        <img src="../public/providers/kimchi.png" width="60" alt="Kimchi"/><br/>
         <b>Kimchi</b>
       </td>
     </tr>
@@ -321,17 +321,17 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
   <table>
     <tr>
       <td align="center" width="150">
-        <img src="./public/providers/kiro.png" width="70" alt="Kiro"/><br/>
+        <img src="../public/providers/kiro.png" width="70" alt="Kiro"/><br/>
         <b>Kiro AI</b><br/>
         <sub>Claude 4.5 + GLM-5 + MiniMax<br/>نامحدود رایگان</sub>
       </td>
       <td align="center" width="150">
-        <img src="./public/providers/opencode.png" width="70" alt="OpenCode Free"/><br/>
+        <img src="../public/providers/opencode.png" width="70" alt="OpenCode Free"/><br/>
         <b>OpenCode Free</b><br/>
         <sub>بدون احراز هویت • دریافت خودکار مدل‌ها<br/>نامحدود رایگان</sub>
       </td>
       <td align="center" width="150">
-        <img src="./public/providers/gemini.png" width="70" alt="Vertex AI"/><br/>
+        <img src="../public/providers/gemini.png" width="70" alt="Vertex AI"/><br/>
         <b>Vertex AI</b><br/>
         <sub>Gemini 3 Pro + GLM-5 + DeepSeek<br/>۳۰۰ دلار اعتبار رایگان</sub>
       </td>
@@ -347,79 +347,79 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
   <table>
     <tr>
       <td align="center" width="100">
-        <img src="./public/providers/openrouter.png" width="50" alt="OpenRouter"/><br/>
+        <img src="../public/providers/openrouter.png" width="50" alt="OpenRouter"/><br/>
         <sub>OpenRouter</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/glm.png" width="50" alt="GLM"/><br/>
+        <img src="../public/providers/glm.png" width="50" alt="GLM"/><br/>
         <sub>GLM</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/kimi.png" width="50" alt="Kimi"/><br/>
+        <img src="../public/providers/kimi.png" width="50" alt="Kimi"/><br/>
         <sub>Kimi</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/minimax.png" width="50" alt="MiniMax"/><br/>
+        <img src="../public/providers/minimax.png" width="50" alt="MiniMax"/><br/>
         <sub>MiniMax</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/openai.png" width="50" alt="OpenAI"/><br/>
+        <img src="../public/providers/openai.png" width="50" alt="OpenAI"/><br/>
         <sub>OpenAI</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/anthropic.png" width="50" alt="Anthropic"/><br/>
+        <img src="../public/providers/anthropic.png" width="50" alt="Anthropic"/><br/>
         <sub>Anthropic</sub>
       </td>
     </tr>
     <tr>
       <td align="center" width="100">
-        <img src="./public/providers/gemini.png" width="50" alt="Gemini"/><br/>
+        <img src="../public/providers/gemini.png" width="50" alt="Gemini"/><br/>
         <sub>Gemini</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/deepseek.png" width="50" alt="DeepSeek"/><br/>
+        <img src="../public/providers/deepseek.png" width="50" alt="DeepSeek"/><br/>
         <sub>DeepSeek</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/groq.png" width="50" alt="Groq"/><br/>
+        <img src="../public/providers/groq.png" width="50" alt="Groq"/><br/>
         <sub>Groq</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/xai.png" width="50" alt="xAI"/><br/>
+        <img src="../public/providers/xai.png" width="50" alt="xAI"/><br/>
         <sub>xAI</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/mistral.png" width="50" alt="Mistral"/><br/>
+        <img src="../public/providers/mistral.png" width="50" alt="Mistral"/><br/>
         <sub>Mistral</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/perplexity.png" width="50" alt="Perplexity"/><br/>
+        <img src="../public/providers/perplexity.png" width="50" alt="Perplexity"/><br/>
         <sub>Perplexity</sub>
       </td>
     </tr>
     <tr>
       <td align="center" width="100">
-        <img src="./public/providers/together.png" width="50" alt="Together"/><br/>
+        <img src="../public/providers/together.png" width="50" alt="Together"/><br/>
         <sub>Together AI</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/fireworks.png" width="50" alt="Fireworks"/><br/>
+        <img src="../public/providers/fireworks.png" width="50" alt="Fireworks"/><br/>
         <sub>Fireworks</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/cerebras.png" width="50" alt="Cerebras"/><br/>
+        <img src="../public/providers/cerebras.png" width="50" alt="Cerebras"/><br/>
         <sub>Cerebras</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/cohere.png" width="50" alt="Cohere"/><br/>
+        <img src="../public/providers/cohere.png" width="50" alt="Cohere"/><br/>
         <sub>Cohere</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/nvidia.png" width="50" alt="NVIDIA"/><br/>
+        <img src="../public/providers/nvidia.png" width="50" alt="NVIDIA"/><br/>
         <sub>NVIDIA</sub>
       </td>
       <td align="center" width="100">
-        <img src="./public/providers/siliconflow.png" width="50" alt="SiliconFlow"/><br/>
+        <img src="../public/providers/siliconflow.png" width="50" alt="SiliconFlow"/><br/>
         <sub>SiliconFlow</sub>
       </td>
     </tr>
@@ -1433,7 +1433,7 @@ Authorization: Bearer your-api-key
 
 ## 📄 مجوز
 
-مجوز MIT - برای جزئیات به [LICENSE](LICENSE) مراجعه کنید.
+مجوز MIT - برای جزئیات به [LICENSE](../LICENSE) مراجعه کنید.
 
 ---
 

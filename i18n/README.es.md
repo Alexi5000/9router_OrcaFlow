@@ -1435,7 +1435,7 @@ Un enorme agradecimiento a estos autores — sin su trabajo, las funciones de ah
 
 ## 📄 Licencia
 
-Licencia MIT - consulta [LICENSE](LICENSE) para más detalles.
+Licencia MIT - consulta [LICENSE](../LICENSE) para más detalles.
 
 ---
 
