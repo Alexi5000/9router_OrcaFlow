@@ -1435,7 +1435,7 @@ Un immense merci à ces auteurs — sans leur travail, les fonctionnalités d'é
 
 ## 📄 Licence
 
-Licence MIT - voir [LICENSE](LICENSE) pour plus de détails.
+Licence MIT - voir [LICENSE](../LICENSE) pour plus de détails.
 
 ---
 
