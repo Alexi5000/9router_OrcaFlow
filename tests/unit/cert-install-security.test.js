@@ -29,7 +29,7 @@ function load(platform, fail = () => false, installed = false, nss = false) {
     require: name => {
       if (name === "child_process") return { execFile, exec: () => { throw new Error("shell execution forbidden"); } };
       if (name === "../dns/dnsConfig.js") return { execWithPassword: () => { throw new Error("privileged shell execution forbidden"); } };
-      if (name === "fs") return { existsSync: value => value === malicious || installed || (nss && value === "/tmp/user/.pki/nssdb"), readFileSync: () => "certificate" };
+      if (name === "fs") return { existsSync: value => value === malicious || installed || (nss && path.normalize(value) === path.normalize("/tmp/user/.pki/nssdb")), readFileSync: () => "certificate" };
       if (name === "os") return { homedir: () => "/tmp/user" };
       return require(name);
     },
@@ -119,7 +119,7 @@ describe("certificate command boundaries", () => {
 it("passes the NSS browser certificate path as a literal argument", async () => {
   const api = load("linux", () => false, false, true);
   await api.installCert("password", malicious);
-  expect(api.calls.find(call => call.file === "certutil").args).toEqual(["-d", "sql:/tmp/user/.pki/nssdb", "-A", "-t", "C,,", "-n", "9Router MITM Root CA", "-i", path.resolve(malicious)]);
+  expect(api.calls.find(call => call.file === "certutil").args).toEqual(["-d", `sql:${path.join("/tmp/user/.pki/nssdb")}`, "-A", "-t", "C,,", "-n", "9Router MITM Root CA", "-i", path.resolve(malicious)]);
 });
 
 it("runs shared Windows elevation without an outer command shell", async () => {

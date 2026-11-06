@@ -73,7 +73,7 @@ Your CLI Tool (Claude Code, Codex, Cursor, Cline...)
 | **Cloud sync not wired in** | `src/shared/services/initializeCloudSync.js` and `cloudSyncScheduler.js` are not imported by app initialization |
 | **Tunnel off by default** | `tunnelEnabled: false` in `src/lib/localDb.js` defaults |
 | **Security hardening (Oct 2026)** | 24 merged PRs: management API session auth, MITM command and TLS boundaries, SSRF guards on provider validation, cryptographic API key entropy, OAuth callback state binding, settings validation |
-| **Patched vendored dependencies** | `vendor/braces-3.0.3.tgz` and `vendor/node-forge-1.4.0.tgz` pinned through `pnpm.overrides`, verified by `scripts/verify-braces.cjs` and `scripts/verify-forge.cjs` at build time |
+| **Patched / pinned dependencies** | `vendor/braces-3.0.3.tgz` and upstream `node-forge` 1.4.2 pinned through `pnpm.overrides`, verified by `scripts/verify-braces.cjs` and `scripts/verify-forge.cjs` at build time |
 | **CI** | `.github/workflows/dependency-validation.yml` runs unit and security tests plus a container build on every push to `orcaflow` |
 | **Tests** | `tests/unit/*` (vitest), `tests/security/*.cjs` (node:test), `tests/deployment/*` (live config gate) |
 
@@ -117,7 +117,7 @@ pnpm run build
 PORT=20128 pnpm run start
 ```
 
-`pnpm run build` runs `scripts/verify-braces.cjs` and `scripts/verify-forge.cjs` before `next build` to confirm the patched vendored dependencies are the ones installed.
+`pnpm run build` runs `scripts/verify-braces.cjs` and `scripts/verify-forge.cjs` before `next build` to confirm the patched `braces` copy and a fixed `node-forge` (>= 1.4.2) are the ones installed.
 
 ---
 
@@ -260,7 +260,7 @@ OrcaFlow includes security hardening over the base 9Router:
 - **Local-only data**: All usage data, credentials, and logs stay on your machine
 - **Proper `.gitignore`**: `.env`, `data/`, `ecosystem.config.*`, `logs/` are all excluded
 
-**Dependency advisories (as of 2026-10-20).** GitHub reports 0 open Dependabot, code-scanning and secret-scanning alerts for this repository. Two transitive packages with upstream advisories are replaced by locally patched copies rather than registry versions: `braces` (`vendor/braces-3.0.3.tgz`) and `node-forge` (`vendor/node-forge-1.4.0.tgz`, patch notes in `vendor/node-forge/upstream.patch` referencing CVE-2026-33894, CVE-2026-85393 and GHSA-ppp5-5v6c-4jwp). `pnpm.overrides` in `package.json` pins both, and `scripts/verify-braces.cjs` and `scripts/verify-forge.cjs` fail the build if an unpatched registry copy is installed or the vendored files do not match `integrity.json`.
+**Dependency advisories (as of 2026-10-20).** GitHub reports 0 open Dependabot, code-scanning and secret-scanning alerts for this repository. `braces` is replaced by a locally patched copy (`vendor/braces-3.0.3.tgz`) rather than a registry version. `node-forge` previously used a vendored 1.4.0 backport; it now uses the upstream 1.4.2 release, which contains the GHSA-86w9-cpqp-85rv fix (digitalbazaar/forge 1.4.1+). `pnpm.overrides` in `package.json` pins both. `scripts/verify-braces.cjs` fails the build if an unpatched braces copy is installed, and `scripts/verify-forge.cjs` fails it if any locked or installed `node-forge` is below 1.4.2 or the malformed-signature regression checks fail.
 
 See [SECURITY.md](SECURITY.md) for our security policy and vulnerability reporting.
 
